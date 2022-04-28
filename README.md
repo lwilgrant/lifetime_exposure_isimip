@@ -1,0 +1,10 @@
+# Lifetime exposure isimip
+Python code for lifetime exposure analysis with ISIMIP simulations, translated from the MATLAB code of [Thiery et al. (2021)](https://github.com/VUB-HYDR/2021_Thiery_etal_Science).
+
+## License
+This project is licensed under the MIT License. See also the 
+[LICENSE](LICENSE) 
+file.
+
+## References
+Thiery, W., Lange, S., Rogelj, J., Schleussner, C. F., Gudmundsson, L., Seneviratne, S. I., Andrijevic, M., Frieler, K., Emanuel, K., Geiger, T., Bresch, D. N., Zhao, F., Willner, S. N., Büchner, M., Volkholz, J., Bauer, N., Chang, J., Ciais, P., Dury, M., … Wada, Y. (2021). Intergenerational inequities in exposure to climate extremes. Science, 374(6564), 158–160. https://doi.org/10.1126/science.abi7339
