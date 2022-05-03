@@ -28,13 +28,11 @@ def load_worldbank_unwpp_data():
     df_worldbank           = pd.read_excel('./data/world_bank/world_bank_life_expectancy_by_country.xls', header=None)
     worldbank_years        = np.arange(1960,2018) 
     
-    worldbank_country_raw  = df_worldbank.values
     worldbank_country_data = df_worldbank.iloc[:,4:].values
     worldbank_country_meta = df_worldbank.iloc[:,:4].values
     df_worldbank_country   = pd.DataFrame(data=worldbank_country_data.transpose(), index=worldbank_years, columns=worldbank_country_meta[:,0])
 
     df_worldbank_regions   = pd.read_excel('./data/world_bank/world_bank_life_expectancy_by_country.xls', 'world regions', header=None)
-    worldbank_region_raw   = df_worldbank_regions.values
     worldbank_region_data  = df_worldbank_regions.iloc[:,2:].values
     worldbank_region_meta  = df_worldbank_regions.iloc[:,:2].values
     df_worldbank_region    = pd.DataFrame(data=worldbank_region_data.transpose(), index=worldbank_years, columns=worldbank_region_meta[:,0])
@@ -52,9 +50,9 @@ def load_worldbank_unwpp_data():
     unwpp_country_data = df_unwpp.values[:,4:]
     df_unwpp_country   = pd.DataFrame(data=unwpp_country_data.transpose(), index=unwpp_years, columns=worldbank_country_meta[:,0])
 
-    df_unwpp_region    =  pd.read_excel('./data/UN_WPP/WPP2019_MORT_F16_1_LIFE_EXPECTANCY_BY_AGE_BOTH_SEXES.xlsx', 'world regions', header=None)
-    unwpp_region_data  = df_unwpp_region.values[:,2:]
-    df_unwpp_region    = pd.DataFrame(data=unwpp_region_data.transpose(), index=unwpp_years, columns=worldbank_region_meta[:,0])
+    df_unwpp_region_raw =  pd.read_excel('./data/UN_WPP/WPP2019_MORT_F16_1_LIFE_EXPECTANCY_BY_AGE_BOTH_SEXES.xlsx', 'world regions', header=None)
+    unwpp_region_data   = df_unwpp_region_raw.values[:,2:]
+    df_unwpp_region     = pd.DataFrame(data=unwpp_region_data.transpose(), index=unwpp_years, columns=worldbank_region_meta[:,0])
 
 
     # manually adjust country names with accent problems
@@ -227,7 +225,7 @@ def load_population(year_start,year_end):
     # if needed, repeat last year until entire period of interest is covered
     if np.nanmax(da_population.time) < year_end:
         population_10y_mean = da_population.loc[-10:,:,:].mean(dim='time').expand_dims(dim='time',axis=0) # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
-        for year in range(np.nanmax(da_population.time),year_end+1): 
+        for year in range(np.nanmax(da_population.time)+1,year_end+1): 
             da_population = xr.concat([da_population,population_10y_mean.assign_coords(time = [year])], dim='time')
 
     # retain only period of interest
@@ -239,8 +237,11 @@ def load_population(year_start,year_end):
 # --------------------------------------------------------------------
 # Load ISIMIP model data
 
-def load_isimip(flags_runs, extremes, model_names): 
-    if flags_runs: 
+def load_isimip(flags_run, extremes, model_names): 
+    
+    if flags_run: 
+
+        print('Processing isimip')
 
         # initialise counter and metadata dictionary
         counter = 1
@@ -260,9 +261,9 @@ def load_isimip(flags_runs, extremes, model_names):
                 # store all files starting with model name
                 file_names = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*rcp*landarea*2099*')
 
-                for file_name in file_names[0:1]: 
+                for file_name in file_names: 
 
-                    print('loading '+file_name.split('\\')[-1]+' ('+str(counter)+')')
+                    print('Loading '+file_name.split('\\')[-1]+' ('+str(counter)+')')
 
                     # load rcp data (AFA: Area Fraction Affected) - and manually add correct years
                     da_AFA_rcp = open_dataarray_isimip(file_name)
@@ -274,14 +275,14 @@ def load_isimip(flags_runs, extremes, model_names):
                                         'extreme': file_name.split('_')[3]}
 
                     #load associated historical variable
-                    file_name_his               = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+isimip[counter]['gcm']+'*_historical_*landarea*')[0]
+                    file_name_his               = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[counter]['gcm']+'*_historical_*landarea*')[0]
 
                     da_AFA_his = open_dataarray_isimip(file_name_his)
 
 
                     # load GMT for rcp and historical period - note that these data are in different files
-                    file_names_gmt = glob.glob('./data/isimip/DerivedInputData/globalmeans/tas/'+isimip[counter]['gcm'].upper()+'/*.fldmean.yearmean.txt') # ignore running mean files
-                    file_name_gmt_fut = [s for s in file_names_gmt if isimip[counter]['rcp'] in s] 
+                    file_names_gmt = glob.glob('./data/isimip/DerivedInputData/globalmeans/tas/'+d_isimip_meta[counter]['gcm'].upper()+'/*.fldmean.yearmean.txt') # ignore running mean files
+                    file_name_gmt_fut = [s for s in file_names_gmt if d_isimip_meta[counter]['rcp'] in s] 
                     file_name_gmt_his = [s for s in file_names_gmt if '_historical_' in s] 
                     file_name_gmt_pic = [s for s in file_names_gmt if '_piControl_' in s] 
 
@@ -302,7 +303,7 @@ def load_isimip(flags_runs, extremes, model_names):
                         da_AFA_lastyear = da_AFA.sel(time=da_AFA.time.max()).expand_dims(dim='time',axis=0) # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
                         GMT_lastyear = df_GMT.iloc[-1:,:]
 
-                        for year in range(da_AFA.time.max().values,year_end+1): 
+                        for year in range(da_AFA.time.max().values+1,year_end+1): 
                             da_AFA = xr.concat([da_AFA,da_AFA_lastyear.assign_coords(time = [year])], dim='time')
                             df_GMT = pd.concat([df_GMT,pd.DataFrame(GMT_lastyear).rename(index={0:year})])
 
@@ -314,7 +315,7 @@ def load_isimip(flags_runs, extremes, model_names):
                     d_isimip_meta[counter]['GMT'] = df_GMT 
 
                     # load associated picontrol variables (can be from up to 4 files)
-                    file_names_pic  = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+isimip[counter]['gcm']+'*_picontrol_*landarea*')
+                    file_names_pic  = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[counter]['gcm']+'*_picontrol_*landarea*')
 
                     if  isinstance(file_names_pic, str): # single pic file 
                         da_AFA_pic  = open_dataarray_isimip(file_names_pic)
@@ -374,7 +375,6 @@ def open_dataarray_isimip(file_name):
 # interpolate life expectancies
 
 def get_life_expectancies(df_worldbank_country, df_unwpp_country):
-
 
     # original data runs from 1960 to 2017 but we want estimates from 1960 to 2020
     # add three rows of NaNs
@@ -436,6 +436,7 @@ def get_cohortsize_countries(wcde, df_countries, df_GMT_15):
     
     return d_cohort_size
 
+    
 
 # --------------------------------------------------------------------
 # mask population per country based on gridded population and countrymask
@@ -452,13 +453,61 @@ def get_mask_population(da_population, gdf_country_borders, df_countries):
     countries_regions = regionmask.from_geopandas(gdf_country_borders, names='name', abbrevs="abbreviation", name="country")
     countries_mask = countries_regions.mask(da_population.lon, da_population.lat)
 
-    # loop over countries as read in by worldbank data - Palestine and South Sudan are  not in shapefile
+    # loop over countries as read in by worldbank data - Palestine and South Sudan are not in shapefile
     for name in df_countries.index.values: 
 
         if name in gdf_country_borders['name'].values:
-            # get mask index and sum up masked population
-            df_countries.loc[name,'population'] = da_population.where(countries_mask==countries_regions.map_keys(name)).sum().values
-    
-    
+            # only keep countries that are resolved with mask (get rid of small countries)
+            if da_population.where(countries_mask==countries_regions.map_keys(name), drop=True).size != 0:
+                # get mask index and sum up masked population
+                df_countries.loc[name,'population'] = da_population.where(countries_mask==countries_regions.map_keys(name), drop=True).sum().values
+        
+    # remove countries which are not found in country borders file
+    df_countries = df_countries[~df_countries.loc[:, 'population'].isnull()]
+
     return  df_countries, countries_regions, countries_mask
+
+
+# --------------------------------------------------------------------
+# get countries per region, returns dictionary with regions as keys and countries as values
+
+def get_countries_per_region(df_countries, df_regions):
+    d_region_countries = {}
+    for region in df_regions.index:
+        if df_countries.loc[df_countries['region']==region].index.values.size > 0: # if not empty
+            d_region_countries[region] = df_countries.loc[df_countries['region']==region].index.values
+        elif df_countries.loc[df_countries['incomegroup']==region].index.values.size > 0: # if not empty
+            d_region_countries[region] = df_countries.loc[df_countries['incomegroup']==region].index.values
+        elif region == 'World': # take all countries
+            d_region_countries[region] = df_countries.index.values
+    return d_region_countries
+
+
+# --------------------------------------------------------------------
+# Get life expectancy, birth years and cohort weights per region, as well as countries per region
+
+def get_regions_data(df_countries, df_regions, df_worldbank_region, df_unwpp_region, d_cohort_size):
+    
+    # get countries per region
+    d_region_countries = get_countries_per_region(df_countries, df_regions)
+
+    # filter for regions used
+    df_regions          = df_regions[df_regions.index.isin(d_region_countries.keys())]
+    df_worldbank_region = df_worldbank_region.filter(items=d_region_countries.keys())
+    df_unwpp_region     = df_unwpp_region.filter(items=d_region_countries.keys())
+
+    # get birthyears and life expectancy for regions
+    df_birthyears_regions, df_life_expectancy_5_regions = get_life_expectancies(df_worldbank_region, df_unwpp_region)
+
+    # get total population in the region per cohort in 2020
+    
+    cohort_size_year_ref = np.asarray([d_cohort_size[country].loc[year_ref] for country in d_cohort_size.keys()])
+    df_cohort_size_year_ref = pd.DataFrame(cohort_size_year_ref,index=df_countries.index, columns=ages)
+
+    d_cohort_weights_regions = {}
+    for region in d_region_countries.keys():
+
+        d_cohort_weights_regions[region] = df_cohort_size_year_ref[df_cohort_size_year_ref.index.isin(d_region_countries[region])]
+    
+    return d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions
 

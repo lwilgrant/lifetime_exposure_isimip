@@ -50,7 +50,7 @@ def init():
     model_names = { 'burntarea'            : ['CARAIB', 'LPJ-GUESS', 'LPJmL', 'ORCHIDEE', 'VISIT'], 
                     'cropfailedarea'       : ['GEPIC' , 'LPJmL'    , 'PEPIC'                                                             ],
                     'driedarea'            : ['CLM45' , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
-                    'floodedarea'          : ['CLM45' , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
+                    'floodedarea'          : ['CLM45'],#testing , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
                     'heatwavedarea'        : ['HWMId-humidex', 'HWMId99-humidex40', 'HWMId97p5-humidex40', 'HWMId99-tasmax35', 'HWMId97p5-tasmax35', 'HWMId99', 'HWMId97p5', 'humidex40d3', 'humidex40d5', 'humidex45d3', 'humidex45d5', 'CWMId99'],
                     'tropicalcyclonedarea' : ['KE-TG-meanfield']}
 
@@ -68,3 +68,14 @@ def init():
     # set kernel x-values
     global kernel_x
     kernel_x = np.arange(1,50.5,0.5)
+
+
+# set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
+def set_extremes(flags):
+
+    global extremes
+    
+    if not flags['extr'] == 'all': # processing for single extreme
+        extremes = [flags['extr']]
+    else: 
+        extremes = ['burntarea', 'cropfailedarea', 'driedarea', 'floodedarea', 'heatwavedarea' , 'tropicalcyclonedarea']
