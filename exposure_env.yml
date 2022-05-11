@@ -1,0 +1,5 @@
+name: exposure_env
+channels:
+  - defaults
+  - conda-forge
+prefix: C:\Users\ivand\anaconda3\envs\exposure_env\envs\exposure_env
