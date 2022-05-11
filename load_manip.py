@@ -13,6 +13,7 @@ import regionmask
 import glob
 
 from settings import *
+init()
 
 # ---------------------------------------------------------------
 # 1. Functions to load (see ms_load.m)
@@ -272,7 +273,8 @@ def load_isimip(flags_run, extremes, model_names):
                     d_isimip_meta[counter] = {'model': file_name.split('_')[0].split('\\')[-1], 
                                         'gcm': file_name.split('_')[1], 
                                         'rcp': file_name.split('_')[2],                         
-                                        'extreme': file_name.split('_')[3]}
+                                        'extreme': file_name.split('_')[3], 
+                                        'counter': counter}
 
                     #load associated historical variable
                     file_name_his               = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[counter]['gcm']+'*_historical_*landarea*')[0]
@@ -507,7 +509,7 @@ def get_regions_data(df_countries, df_regions, df_worldbank_region, df_unwpp_reg
     d_cohort_weights_regions = {}
     for region in d_region_countries.keys():
 
-        d_cohort_weights_regions[region] = df_cohort_size_year_ref[df_cohort_size_year_ref.index.isin(d_region_countries[region])]
+        d_cohort_weights_regions[region] = df_cohort_size_year_ref[df_cohort_size_year_ref.index.isin(d_region_countries[region])].transpose()
     
     return d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions
 

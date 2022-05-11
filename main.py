@@ -8,6 +8,9 @@
 #%% ----------------------------------------------------------------
 # Summary and notes
 
+# to save the enironment used (with your path to the env directory): 
+# conda env export -p C:\Users\ivand\anaconda3\envs\exposure_env > exposure_env.yml
+
 
 # Data types are defined in the variable names starting with:  
 #     df_     : DataFrame    (pandas)
@@ -19,7 +22,7 @@
 # TODO
 # - not yet masked for small countries
 # - how to handle South-Sudan and Palestina? Now manually filtered out in load
-
+# - calc_weighted_fldmean: adding different masks is very time-inefficient. Find more efficient way of doing this
 
 
 #               
@@ -41,7 +44,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr']  = 'floodedarea'      # 0: all
+flags['extr']  = 'cropfailedarea'      # 0: all
                                     # 1: burntarea
                                     # 2: cropfailedarea
                                     # 3: driedarea
@@ -52,7 +55,7 @@ flags['extr']  = 'floodedarea'      # 0: all
 
 flags['runs']  = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask']  = 0          # 0: do not process country data (i.e. load masks pickle)
+flags['mask']  = 0         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
@@ -200,116 +203,92 @@ d_isimip_meta = load_isimip(flags['runs'], extremes, model_names)
 
 from exposure import *
 
-if flags['exposure']: 
+
+# --------------------------------------------------------------------
+#  convert Area Fraction Affected (AFA) to 
+# per-country number of extremes affecting one individual across life span
+
+
+if flags['exposure'] == 1: 
     
-    # initialise dicts
-    d_RCP2GMT_maxdiff_15      = {}
-    d_RCP2GMT_maxdiff_20      = {}
-    d_RCP2GMT_maxdiff_NDC     = {}
-    d_RCP2GMT_maxdiff_R26eval = {}
+    #  calculate exposure  per country and per region and save data
 
-    d_exposure_perrun_RCP = {}
-    d_exposure_perrun_15 = {}
-    d_exposure_perrun_20 = {}
-    d_exposure_perrun_NDC = {}
-    d_exposure_perrun_R26eval = {} 
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_regions, countries_mask, da_population, df_GMT_15, df_GMT_20, df_GMT_NDC)
+        
 
+else: # load processed country data
 
-    # loop over simulations
-    for i in d_isimip_meta: 
+    print('Loading processed exposures')
 
+    # load country pickle
+    d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
 
-        print('simulation '+str(i)+ ' of '+str(len(d_isimip_meta)))
+    # unpack country information
+    d_exposure_perrun_RCP           = d_exposure['exposure_perrun_RCP']
 
-        # load AFA data of that run
-        (da_AFA, da_AFA_pic) = pk.load(open('./data/pickles/isimip_AFA_'+str(i)+'_.pkl', 'rb'))
+    # unpack region information
+    d_exposure_perregion_perrun_RCP = d_exposure['exposure_perregion_perrun_RCP']
+    d_landfrac_peryear_perregion    = d_exposure['landfrac_peryear_perregion']
 
 
-        # Get ISIMIP GMT indices closest to GMT trajectories        
-        RCP2GMT_diff_15      = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-        RCP2GMT_diff_20      = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-        RCP2GMT_diff_NDC     = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-        RCP2GMT_diff_R26eval = np.min(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
+# --------------------------------------------------------------------
+# Process picontrol data
 
-        ind_RCP2GMT_15      = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-        ind_RCP2GMT_20      = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-        ind_RCP2GMT_NDC     = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-        ind_RCP2GMT_R26eval = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
 
-        # Get maximum T difference between RCP and GMT trajectories (to remove rows later)
-        d_RCP2GMT_maxdiff_15[i]       = np.nanmax(RCP2GMT_diff_15     )
-        d_RCP2GMT_maxdiff_20[i]       = np.nanmax(RCP2GMT_diff_20     )
-        d_RCP2GMT_maxdiff_NDC[i]      = np.nanmax(RCP2GMT_diff_NDC    )
-        d_RCP2GMT_maxdiff_R26eval[i]  = np.nanmax(RCP2GMT_diff_R26eval)
+# to be added from MATLAB
 
 
 
-        # --------------------------------------------------------------------
-        # per country 
-
-        # initialise dicts
-        d_exposure_peryear_percountry_pic = {}
-        d_exposure_peryear_percountry = {}
-
-        # get spatial average
-        for country in df_countries['name']:
-
-            # calculate mean per country weighted by population
-            ind_country = countries_regions.map_keys(country)
-            # corresponding picontrol - assume constant 1960 population density (this line takes about 16h by itself)
-            d_exposure_peryear_percountry_pic[country] = calc_weighted_fldmean_country(da_AFA_pic, da_population[0,:,:], countries_mask, ind_country)
-
-            # historical + RCP simulations
-            d_exposure_peryear_percountry[country]     = calc_weighted_fldmean_country(da_AFA,     da_population,        countries_mask, ind_country)
+# --------------------------------------------------------------------
+# compute averages across runs and sums across extremes 
 
 
-        # call function to compute extreme event exposure per country and per lifetime
-        d_exposure_perrun_RCP[i] = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears, d_exposure_peryear_percountry)
+# call function computing the multi-model mean (MMM) exposure 
 
-        # calculate exposure for GMTs, replacing d_exposure_perrun_RCP by indexed dictionary according to corresponding GMTs with ISIMIP. 
-        d_exposure_perrun_15[i]      = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_15] for country, da in d_exposure_peryear_percountry.items()});
-        d_exposure_perrun_20[i]      = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_20] for country, da in d_exposure_peryear_percountry.items()} );
-        d_exposure_perrun_NDC[i]     = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_NDC] for country, da in d_exposure_peryear_percountry.items()});
-        d_exposure_perrun_R26eval[i] = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_R26eval] for country, da in d_exposure_peryear_percountry.items()} );
+d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75 = calc_exposure_mmm(d_exposure_perrun_RCP, extremes, d_isimip_meta)
 
-            
-        # --------------------------------------------------------------------
-        # per region - to add
-        #  
+# call function computing the Exposure Multiplication Factor (EMF)
+# here I use multi-model mean as a reference
+d_EMF_mmm, d_EMF_q25, d_EMF_q75 = calc_exposure_EMF(d_exposure_mmm, d_exposure_q25, d_exposure_q75, d_exposure_mmm)
 
-        # save pickles
-        print('Saving processed exposures')
 
-        # pack region information
-        d_exposure = {'RCP2GMT_maxdiff_15'      : d_RCP2GMT_maxdiff_15,
-                    'RCP2GMT_maxdiff_20'      : d_RCP2GMT_maxdiff_20, 
-                    'RCP2GMT_maxdiff_NDC'     : d_RCP2GMT_maxdiff_NDC, 
-                    'RCP2GMT_maxdiff_R26eval' : d_RCP2GMT_maxdiff_R26eval, 
-                    'exposure_perrun_RCP'     : d_exposure_perrun_RCP, 
-                    'exposure_perrun_15'      : d_exposure_perrun_15, 
-                    'exposure_perrun_20'      : d_exposure_perrun_20, 
-                    'exposure_perrun_NDC'     : d_exposure_perrun_NDC, 
-                    'exposure_perrun_R26eval' : d_exposure_perrun_R26eval}
+# maybe more values needed to return
 
-        pk.dump(d_exposure,open('./data/pickles/exposure.pkl', 'wb')  )
 
-    else: # load processed country data
+# matlab parts not translated
+# [exposure_15            , exposure_mms_15            , EMF_15                                                                                                                            ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perrun_15               , [], RCP2GMT_maxdiff_15    , RCP2GMT_maxdiff_threshold);
+# [exposure_20            , exposure_mms_20            , EMF_20                                                                                                                            ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perrun_20               , [], RCP2GMT_maxdiff_20    , RCP2GMT_maxdiff_threshold);
+# [exposure_NDC           , exposure_mms_NDC           , EMF_NDC                                                                                                                           ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perrun_NDC              , [], RCP2GMT_maxdiff_NDC   , RCP2GMT_maxdiff_threshold);
+# [exposure_perregion_15  , exposure_perregion_mms_15  , EMF_perregion_15     , EMF_perregion_q25_15     , EMF_perregion_q75_15                                                            ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_15     , [], RCP2GMT_maxdiff_15    , RCP2GMT_maxdiff_threshold);
+# [exposure_perregion_20  , exposure_perregion_mms_20  , EMF_perregion_20     , EMF_perregion_q25_20     , EMF_perregion_q75_20                                                            ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_20     , [], RCP2GMT_maxdiff_20    , RCP2GMT_maxdiff_threshold);
+# [exposure_perregion_NDC , exposure_perregion_mms_NDC , EMF_perregion_NDC    , EMF_perregion_q25_NDC    , EMF_perregion_q75_NDC                                                           ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_NDC    , [], RCP2GMT_maxdiff_NDC   , RCP2GMT_maxdiff_threshold);
+# [exposure_perregion_OS  , exposure_perregion_mms_OS  , EMF_perregion_OS     , EMF_perregion_q25_OS     , EMF_perregion_q75_OS  , exposure_perregion_q25_OS  , exposure_perregion_q75_OS  ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_OS     , [], RCP2GMT_maxdiff_OS    , RCP2GMT_maxdiff_threshold);
+# [exposure_perregion_noOS, exposure_perregion_mms_noOS, EMF_perregion_noOS   , EMF_perregion_q25_noOS   , EMF_perregion_q75_noOS, exposure_perregion_q25_noOS, exposure_perregion_q75_noOS] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_noOS   , [], RCP2GMT_maxdiff_noOS  , RCP2GMT_maxdiff_threshold);
 
-        print('Loading processed exposures')
 
-        # load country pickle
-        d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
+# [exposure_perregion_R26    , ~                          , EMF_perregion_R26    , EMF_perregion_q25_R26    , EMF_perregion_q75_R26                                                           ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_rcp26 & ind_gfdl, ages, age_ref, exposure_perregion_perrun_RCP    , [], []                     , RCP2GMT_maxdiff_threshold);
+# [exposure_perregion_R26eval, ~                          , EMF_perregion_R26eval, EMF_perregion_q25_R26eval, EMF_perregion_q75_R26eval                                                       ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt   & ind_gfdl, ages, age_ref, exposure_perregion_perrun_R26eval, [], RCP2GMT_maxdiff_R26eval, RCP2GMT_maxdiff_threshold);
 
-        # unpack country information
-        d_RCP2GMT_maxdiff_15        = d_exposure['RCP2GMT_maxdiff_15']
-        d_RCP2GMT_maxdiff_20        = d_exposure['RCP2GMT_maxdiff_20']
-        d_RCP2GMT_maxdiff_NDC       = d_exposure['RCP2GMT_maxdiff_NDC']
-        d_RCP2GMT_maxdiff_R26eval   = d_exposure['RCP2GMT_maxdiff_R26eval']
-        d_exposure_perrun_RCP       = d_exposure['exposure_perrun_RCP']
-        d_exposure_perrun_15        = d_exposure['exposure_perrun_15']
-        d_exposure_perrun_20        = d_exposure['exposure_perrun_20']
-        d_exposure_perrun_NDC       = d_exposure['exposure_perrun_NDC']
-        d_exposure_perrun_R26eval   = d_exposure['exposure_perrun_R26eval']
+
+# [~                      , ~                          , EMF_perregion_15_young2pic , ~                              , ~                                                                   ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_15  , exposure_perregion_pic_mean, RCP2GMT_maxdiff_NDC , RCP2GMT_maxdiff_threshold);
+# [~                      , ~                          , EMF_perregion_20_young2pic , ~                              , ~                                                                   ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_20  , exposure_perregion_pic_mean, RCP2GMT_maxdiff_NDC , RCP2GMT_maxdiff_threshold);
+# [~                      , ~                          , EMF_perregion_NDC_young2pic, EMF_perregion_q25_NDC_young2pic, EMF_perregion_q75_NDC_young2pic                                     ] = mf_exposure_mmm(extremes, {isimip.extreme}, ind_gmt  , ages, age_ref, exposure_perregion_perrun_NDC , exposure_perregion_pic_mean, RCP2GMT_maxdiff_NDC , RCP2GMT_maxdiff_threshold);
+
+
+# for ISIpedia article: country-level EMF youn2pic
+# not translated
+
+# loop over heatwave definitions - for heatwave sensitivity analysis requested by the reviewer
+# not translated
+
+
+#  calculations for Burning Embers diagram
+# not translated
+
+
+#%% ----------------------------------------------------------------
+# PLOTTING - to be added
+# ----------------------------------------------------------------
 
 
 # %%

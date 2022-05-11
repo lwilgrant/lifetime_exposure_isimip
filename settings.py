@@ -6,7 +6,6 @@
 import numpy as np
 
 
-# TODO: make these variables global variables in python environment? 
 def init(): 
 
     # initialise age and associated time period of interest
