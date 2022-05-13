@@ -53,13 +53,13 @@ flags['extr']  = 'cropfailedarea'      # 0: all
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
 
-flags['runs']  = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs']  = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask']  = 0         # 0: do not process country data (i.e. load masks pickle)
+flags['mask']  = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 
 
@@ -213,7 +213,7 @@ if flags['exposure'] == 1:
     
     #  calculate exposure  per country and per region and save data
 
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_regions, countries_mask, da_population, df_GMT_15, df_GMT_20, df_GMT_NDC)
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_regions, countries_mask, da_population, df_life_expectancy_5, df_GMT_15, df_GMT_20, df_GMT_NDC)
         
 
 else: # load processed country data

@@ -1,4 +1,4 @@
-name: null
+name: exposure
 channels:
   - defaults
   - conda-forge
