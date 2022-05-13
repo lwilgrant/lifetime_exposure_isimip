@@ -44,7 +44,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr']  = 'cropfailedarea'      # 0: all
+flags['extr']  = 'cropfailedarea'   # 0: all
                                     # 1: burntarea
                                     # 2: cropfailedarea
                                     # 3: driedarea
@@ -52,7 +52,6 @@ flags['extr']  = 'cropfailedarea'      # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-
 flags['runs']  = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask']  = 1         # 0: do not process country data (i.e. load masks pickle)
@@ -109,6 +108,7 @@ if flags['mask']: # load data and do calculations
     df_worldbank_country, df_worldbank_region = worldbank
     df_unwpp_country    , df_unwpp_region     = unwpp
 
+
     # manipulate worldbank and unwpp data to get birth year and life expectancy values
     df_birthyears, df_life_expectancy_5 = get_life_expectancies(df_worldbank_country, df_unwpp_country)
 
@@ -124,9 +124,6 @@ if flags['mask']: # load data and do calculations
     # get life expectancy, birth years and cohort weights per region, as well as countries per region
 
     d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions = get_regions_data(df_countries, df_regions, df_worldbank_region, df_unwpp_region, d_cohort_size)
-    
-
-    # TODO get regions mask
 
 
     # --------------------------------------------------------------------
@@ -164,6 +161,8 @@ if flags['mask']: # load data and do calculations
 
     pk.dump(d_countries,open('./data/pickles/country_info.pkl', 'wb')  )
     pk.dump(d_regions,open('./data/pickles/region_info.pkl', 'wb')  )
+
+    # TODO: close pickles files
 
 
 else: # load processed country data
@@ -212,8 +211,7 @@ from exposure import *
 if flags['exposure'] == 1: 
     
     #  calculate exposure  per country and per region and save data
-
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_regions, countries_mask, da_population, df_life_expectancy_5, df_GMT_15, df_GMT_20, df_GMT_NDC)
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_regions, countries_mask, da_population, df_life_expectancy_5, df_birthyears, df_GMT_15, df_GMT_20, df_GMT_NDC)
         
 
 else: # load processed country data
