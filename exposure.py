@@ -14,11 +14,14 @@ import glob
 
 from settings import *
 
-
-
-
+#%% ----------------------------------------------------------------
 # function to compute extreme event exposure across a person's lifetime (mf_exposure.m)
-def calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears, d_exposure_peryear):
+def calc_life_exposure(
+    df_life_expectancy_5, 
+    df_countries, 
+    df_birthyears, 
+    d_exposure_peryear
+):
 
     # to store exposure per life for every run
     exposure_birthyears = []
@@ -52,10 +55,15 @@ def calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears, d_expo
     df_exposure_perlife = pd.DataFrame(exposure_birthyears.transpose(),index=df_birthyears.index, columns=df_countries.index)
     return df_exposure_perlife
 
-
-
+#%% ----------------------------------------------------------------
 # calculated weighted fieldmean per country mask
-def calc_weighted_fldmean(da, weights, countries_mask, ind_country, flag_region):
+def calc_weighted_fldmean(
+    da, 
+    weights, 
+    countries_mask, 
+    ind_country, 
+    flag_region
+):
 
     # one country provided, easy masking
     if not flag_region : 
@@ -79,19 +87,27 @@ def calc_weighted_fldmean(da, weights, countries_mask, ind_country, flag_region)
     
     return da_weighted_fldmean
 
-
-
+#%% ----------------------------------------------------------------
 # calculated weighted fieldmean combining country masks per region
-def calc_weighted_fldmean_region(da, weights, member_countries, countries_mask, ind_country):
+def calc_weighted_fldmean_region(
+    da, 
+    weights, 
+    member_countries, 
+    countries_mask, 
+    ind_country
+):
 
     da_masked = da.where(countries_mask == ind_country)
     da_weighted_fldmean = da_masked.weighted(weights).mean(dim=("lat", "lon"))
     
     return da_weighted_fldmean
 
-
+#%% ----------------------------------------------------------------
 # get member countries per region
-def get_countries_of_region(region, df_countries ): 
+def get_countries_of_region(
+    region, 
+    df_countries
+): 
 
     # Get list of member countries from region
     member_countries = df_countries.loc[df_countries['region']==region]['name'].values
@@ -106,11 +122,13 @@ def get_countries_of_region(region, df_countries ):
 
     return member_countries    
 
-
-
-
+#%% ----------------------------------------------------------------
 # function to compute multi-model mean across ISIMIP simulations based on mf_exposure_mmm.m
-def calc_exposure_mmm(exposure, extremes, d_isimip_meta):
+def calc_exposure_mmm(
+    exposure, 
+    extremes, 
+    d_isimip_meta
+):
 
 
     # define dictionaries
@@ -162,9 +180,14 @@ def calc_exposure_mmm(exposure, extremes, d_isimip_meta):
 
     return d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75    
 
-
-    #function computing the Exposure Multiplication Factor (EMF)
-def calc_exposure_EMF(d_exposure_mmm, d_exposure_q25, d_exposure_q75, exposure_ref):
+#%% ----------------------------------------------------------------
+# function computing the Exposure Multiplication Factor (EMF)
+def calc_exposure_EMF(
+    d_exposure_mmm, 
+    d_exposure_q25, 
+    d_exposure_q75, 
+    exposure_ref
+):
 
     # intialise dictionaries of EMF per extreme
     d_EMF_mmm = {}
@@ -224,13 +247,22 @@ def calc_exposure_EMF(d_exposure_mmm, d_exposure_q25, d_exposure_q75, exposure_r
         
     return d_EMF_mmm, d_EMF_q25, d_EMF_q75
 
-
-
-# --------------------------------------------------------------------
-#  convert Area Fraction Affected (AFA) to 
+#%% ----------------------------------------------------------------
+# convert Area Fraction Affected (AFA) to 
 # per-country number of extremes affecting one individual across life span
-
-def calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_regions, countries_mask, da_population, df_life_expectancy_5, df_birthyears, df_GMT_15, df_GMT_20, df_GMT_NDC):
+def calc_exposure(
+    d_isimip_meta, 
+    df_birthyears_regions, 
+    df_countries, 
+    countries_regions, 
+    countries_mask, 
+    da_population, 
+    df_life_expectancy_5, 
+    df_birthyears, 
+    df_GMT_15, 
+    df_GMT_20, 
+    df_GMT_NDC
+):
 
         # initialise dicts
         d_RCP2GMT_maxdiff_15      = {}
@@ -288,14 +320,31 @@ def calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_
                 ind_country = countries_regions.map_keys(country)
 
                 # corresponding picontrol - assume constant 1960 population density (this line takes about 16h by itself)
-                d_exposure_peryear_percountry_pic[country] = calc_weighted_fldmean(da_AFA_pic, da_population[0,:,:], countries_mask, ind_country, flag_region= False)
+                d_exposure_peryear_percountry_pic[country] = calc_weighted_fldmean(
+                    da_AFA_pic, 
+                    da_population[0,:,:], 
+                    countries_mask, 
+                    ind_country, 
+                    flag_region= False
+                )
 
                 # historical + RCP simulations
-                d_exposure_peryear_percountry[country]     = calc_weighted_fldmean(da_AFA,     da_population,        countries_mask, ind_country, flag_region= False)
+                d_exposure_peryear_percountry[country]     = calc_weighted_fldmean(
+                    da_AFA,     
+                    da_population,        
+                    countries_mask, 
+                    ind_country, 
+                    flag_region= False
+                )
 
 
             # call function to compute extreme event exposure per country and per lifetime
-            d_exposure_perrun_RCP[i] = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears, d_exposure_peryear_percountry)
+            d_exposure_perrun_RCP[i] = calc_life_exposure(
+                df_life_expectancy_5, 
+                df_countries, 
+                df_birthyears, 
+                d_exposure_peryear_percountry
+            )
 
 
             # calculate exposure for GMTs, replacing d_exposure_perrun_RCP by indexed dictionary according to corresponding GMTs with ISIMIP. -- not working!

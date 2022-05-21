@@ -16,7 +16,12 @@
 #     df_     : DataFrame    (pandas)
 #     gdf_    : GeoDataFrame (geopandas)
 #     da_     : DataArray    (xarray)
-#     d_   : dictionary  
+#     d_      : dictionary  
+#     sf_     : shapefile
+#     ...dir  : directory
+
+# Luke's review:
+# writing "# DONE" to mark as read
 
 
 # TODO
@@ -31,6 +36,9 @@
 # ----------------------------------------------------------------
 
 import os
+import requests
+from zipfile import ZipFile
+import io
 import xarray as xr
 
 scriptsdir = os.getcwd()
@@ -89,7 +97,10 @@ from load_manip import *
 # Load global mean temperature projections
 global df_GMT_15, df_GMT_20, df_GMT_NDC
 
-df_GMT_15, df_GMT_20, df_GMT_NDC = load_GMT(year_start,year_end)
+df_GMT_15, df_GMT_20, df_GMT_NDC = load_GMT(
+    year_start,
+    year_end
+) 
 
 
 
@@ -101,7 +112,7 @@ if flags['mask']: # load data and do calculations
     print('Processing country info')
 
     # load worldbank and unwpp data
-    meta, worldbank, unwpp = load_worldbank_unwpp_data() 
+    meta, worldbank, unwpp = load_worldbank_unwpp_data()
 
     # unpack values
     df_countries        , df_regions          = meta
@@ -110,36 +121,68 @@ if flags['mask']: # load data and do calculations
 
 
     # manipulate worldbank and unwpp data to get birth year and life expectancy values
-    df_birthyears, df_life_expectancy_5 = get_life_expectancies(df_worldbank_country, df_unwpp_country)
-
+    df_birthyears, df_life_expectancy_5 = get_life_expectancies(
+        df_worldbank_country, 
+        df_unwpp_country
+    )
 
     # load population size per age cohort data
-    wcde = load_wcde_data()
+    wcde = load_wcde_data() 
 
     # interpolate population size per age cohort data to our ages
-    d_cohort_size         = get_cohortsize_countries(wcde, df_countries, df_GMT_15)
+    d_cohort_size = get_cohortsize_countries(
+        wcde, 
+        df_countries, 
+        df_GMT_15
+    )
 
-
-    # do the same for the regions
-    # get life expectancy, birth years and cohort weights per region, as well as countries per region
-
-    d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions = get_regions_data(df_countries, df_regions, df_worldbank_region, df_unwpp_region, d_cohort_size)
-
+    # do the same for the regions; get life expectancy, birth years and cohort weights per region, as well as countries per region
+    d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions = get_regions_data(
+        df_countries, 
+        df_regions, 
+        df_worldbank_region, 
+        df_unwpp_region, 
+        d_cohort_size
+    )
 
     # --------------------------------------------------------------------
     # Load population and country masks, and mask population per country
     
 
     # Load SSP population totals 
-    da_population = load_population(year_start,year_end)
+    da_population = load_population(
+        year_start,
+        year_end
+    )
 
-
-    # load country borders
+    # # load country borders
+    # os.chdir(scriptsdir)
+    # countriesdir = './data/test/natural_earth/Cultural_10m/Countries'
+    # if not os.path.isdir(countriesdir):
+    #     os.makedirs(countriesdir)
+    # if not os.path.isfile(countriesdir+'/ne_10m_admin_0_countries.shp'):
+    #     url = 'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
+    #     r = requests.get(url)
+    #     filename = url.split('/')[-1]
+    #     os.chdir(countriesdir)
+    #     with open(filename,'wb') as f:
+    #         for chunk in r.iter_content(chunk_size=1024): 
+    #             if chunk: # filter out keep-alive new chunks
+    #                 f.write(chunk)
+            # f.write(r.content)
+            # z = ZipFile(io.BytesIO(r.content))
+            # z.extractall()
+    # with open('./data/test/natural_earth/Cultural_10m/Countries/{}'.format(url.split('/')[-1]),'wb') as f:
+    #     f.write(r.content)
+    
     gdf_country_borders = gpd.read_file('./data/natural_earth/Cultural_10m/Countries/ne_10m_admin_0_countries.shp'); 
 
-
     # mask population totals per country  and save country regions object and countries mask
-    df_countries, countries_regions, countries_mask = get_mask_population(da_population, gdf_country_borders, df_countries)
+    df_countries, countries_regions, countries_mask = get_mask_population(
+        da_population, 
+        gdf_country_borders, 
+        df_countries
+    ) 
 
     # pack country information
     d_countries = {'info_pop'         : df_countries, 
@@ -149,7 +192,6 @@ if flags['mask']: # load data and do calculations
                    'cohort_size'      : d_cohort_size, 
                    'mask'             : (countries_regions,countries_mask)}
 
-
     # pack region information
     d_regions = {'birth_years'      : df_birthyears_regions,
                  'life_expectancy_5': df_life_expectancy_5_regions, 
@@ -158,11 +200,15 @@ if flags['mask']: # load data and do calculations
 
     # save metadata dictionary as a pickle
     print('Saving country and region data')
+    
+    if not os.path.isdir('./data/pickles'):
+        os.mkdir('./data/pickles')
+    with open('./data/pickles/country_info.pkl', 'wb') as f: # note; 'with' handles file stream closing
+        pk.dump(d_countries,f)
+    with open('./data/pickles/region_info.pkl', 'wb') as f:
+        pk.dump(d_countries,f)
 
-    pk.dump(d_countries,open('./data/pickles/country_info.pkl', 'wb')  )
-    pk.dump(d_regions,open('./data/pickles/region_info.pkl', 'wb')  )
-
-    # TODO: close pickles files
+    # TODO:
 
 
 else: # load processed country data
@@ -191,16 +237,20 @@ else: # load processed country data
 # --------------------------------------------------------------------
 # Load ISIMIP model data
 
-grid_area                = xr.open_dataarray('./data/isimip/clm45_area.nc4')
+grid_area = xr.open_dataarray('./data/isimip/clm45_area.nc4')
 
-d_isimip_meta = load_isimip(flags['runs'], extremes, model_names)
+d_isimip_meta = load_isimip(
+    flags['runs'], 
+    extremes, 
+    model_names
+)
 
 
 #%% ----------------------------------------------------------------
 # COMPUTE EXPOSURE PER LIFETIME
 # ------------------------------------------------------------------
 
-from exposure import *
+from exposure import * # May 17 here now as of 1:15
 
 
 # --------------------------------------------------------------------
@@ -211,7 +261,19 @@ from exposure import *
 if flags['exposure'] == 1: 
     
     #  calculate exposure  per country and per region and save data
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(d_isimip_meta, df_birthyears_regions, df_countries, countries_regions, countries_mask, da_population, df_life_expectancy_5, df_birthyears, df_GMT_15, df_GMT_20, df_GMT_NDC)
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(
+        d_isimip_meta, 
+        df_birthyears_regions, 
+        df_countries, 
+        countries_regions, 
+        countries_mask, 
+        da_population, 
+        df_life_expectancy_5, 
+        df_birthyears, 
+        df_GMT_15, 
+        df_GMT_20, 
+        df_GMT_NDC
+    )
         
 
 else: # load processed country data

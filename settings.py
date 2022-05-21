@@ -5,7 +5,7 @@
 
 import numpy as np
 
-
+#%% ----------------------------------------------------------------
 def init(): 
 
     # initialise age and associated time period of interest
@@ -68,7 +68,7 @@ def init():
     global kernel_x
     kernel_x = np.arange(1,50.5,0.5)
 
-
+#%% ----------------------------------------------------------------
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 def set_extremes(flags):
 

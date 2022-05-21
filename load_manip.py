@@ -2,7 +2,6 @@
 # Functions to load and manipulate data
 # ----------------------------------------------------------------
 
-
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -20,15 +19,14 @@ init()
 # ----------------------------------------------------------------
 
 
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # Load observational data
-
 def load_worldbank_unwpp_data():
 
     # load World Bank life expectancy at birth data (source: https://data.worldbank.org/indicator/SP.DYN.LE00.IN) - not used in final analysis
-    df_worldbank           = pd.read_excel('./data/world_bank/world_bank_life_expectancy_by_country.xls', header=None)
     worldbank_years        = np.arange(1960,2018) 
     
+    df_worldbank           = pd.read_excel('./data/world_bank/world_bank_life_expectancy_by_country.xls', header=None)
     worldbank_country_data = df_worldbank.iloc[:,4:].values
     worldbank_country_meta = df_worldbank.iloc[:,:4].values
     df_worldbank_country   = pd.DataFrame(data=worldbank_country_data.transpose(), index=worldbank_years, columns=worldbank_country_meta[:,0])
@@ -49,7 +47,11 @@ def load_worldbank_unwpp_data():
 
     df_unwpp           = pd.read_excel('./data/UN_WPP/WPP2019_MORT_F16_1_LIFE_EXPECTANCY_BY_AGE_BOTH_SEXES.xlsx',header=None)
     unwpp_country_data = df_unwpp.values[:,4:]
-    df_unwpp_country   = pd.DataFrame(data=unwpp_country_data.transpose(), index=unwpp_years, columns=worldbank_country_meta[:,0])
+    df_unwpp_country   = pd.DataFrame(
+        data=unwpp_country_data.transpose(), 
+        index=unwpp_years, 
+        columns=worldbank_country_meta[:,0]
+    )
 
     df_unwpp_region_raw =  pd.read_excel('./data/UN_WPP/WPP2019_MORT_F16_1_LIFE_EXPECTANCY_BY_AGE_BOTH_SEXES.xlsx', 'world regions', header=None)
     unwpp_region_data   = df_unwpp_region_raw.values[:,2:]
@@ -71,14 +73,12 @@ def load_worldbank_unwpp_data():
     
     return meta, worldbank, unwpp
 
-
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # load Wittgenstein Center population size per age cohort (source: http://dataexplorer.wittgensteincentre.org/wcde-v2/)
-
 def load_wcde_data():
 
-    wcde_years          = np.arange(1950,2105,5)       # hard coded from 'wcde_data_orig.xls'
-    wcde_ages           = np.arange(2,102+5,5)         # hard coded from 'wcde_data_orig.xls' not that we assume +100 to be equal to 100-104
+    wcde_years          = np.arange(1950,2105,5)       # hard coded from 'wcde_data_orig.xls' len is 31
+    wcde_ages           = np.arange(2,102+5,5)         # hard coded from 'wcde_data_orig.xls' not that we assume +100 to be equal to 100-104, len is 21
 
     df_wcde             =  pd.read_excel('./data/Wittgenstein_Centre/wcde_data.xlsx',header=None)
     wcde_country_data   = df_wcde.values[:,4:]
@@ -161,10 +161,12 @@ def load_wcde_data():
 
  """
 
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # Load global mean temperature projections
-
-def load_GMT(year_start,year_end):
+def load_GMT(
+    year_start,
+    year_end
+):
 
     # Load global mean temperature projections from SR15
     df_GMT_SR15 = pd.read_excel('./data/temperature_trajectories_SR15/GMT_50pc_manualoutput_4pathways.xlsx', header=1);
@@ -201,16 +203,14 @@ def load_GMT(year_start,year_end):
     #GMT_noOS   = GMT_UVIC(ind_f:ind_l, 3);
     #years_UVIC = years_UVIC(ind_f:ind_l);
 
-
-
     return df_GMT_15, df_GMT_20, df_GMT_NDC
 
-
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # Load SSP population totals
-
-def load_population(year_start,year_end):
-
+def load_population(
+    year_start,
+    year_end
+):
 
     # load 2D model constants
     da_population_histsoc = xr.open_dataset('./data/isimip/population/population_histsoc_0p5deg_annual_1861-2005.nc4', decode_times=False)['number_of_people'] 
@@ -234,11 +234,13 @@ def load_population(year_start,year_end):
 
     return da_population
 
-
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # Load ISIMIP model data
-
-def load_isimip(flags_run, extremes, model_names): 
+def load_isimip(
+    flags_run, 
+    extremes, 
+    model_names
+): 
     
     if flags_run: 
 
@@ -248,13 +250,11 @@ def load_isimip(flags_run, extremes, model_names):
         counter = 1
         d_isimip_meta = {}
 
-
         # loop over extremes
         for extreme in extremes:
 
             # define all models
             models = model_names[extreme]
-
 
             # loop over models
             for model in models: 
@@ -277,10 +277,8 @@ def load_isimip(flags_run, extremes, model_names):
                                         'counter': counter}
 
                     #load associated historical variable
-                    file_name_his               = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[counter]['gcm']+'*_historical_*landarea*')[0]
-
+                    file_name_his = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[counter]['gcm']+'*_historical_*landarea*')[0]
                     da_AFA_his = open_dataarray_isimip(file_name_his)
-
 
                     # load GMT for rcp and historical period - note that these data are in different files
                     file_names_gmt = glob.glob('./data/isimip/DerivedInputData/globalmeans/tas/'+d_isimip_meta[counter]['gcm'].upper()+'/*.fldmean.yearmean.txt') # ignore running mean files
@@ -291,7 +289,6 @@ def load_isimip(flags_run, extremes, model_names):
                     GMT_fut = pd.read_csv(file_name_gmt_fut[0],delim_whitespace=True, skiprows=1, header=None).rename(columns={0:'year',1:'tas'}).set_index('year')
                     GMT_his = pd.read_csv(file_name_gmt_his[0],delim_whitespace=True, skiprows=1, header=None).rename(columns={0:'year',1:'tas'}).set_index('year')
                     GMT_pic = pd.read_csv(file_name_gmt_pic[0],delim_whitespace=True, skiprows=1, header=None).rename(columns={0:'year',1:'tas'}).set_index('year')
-
 
                     # concatenate historical and future data
                     da_AFA = xr.concat([da_AFA_his,da_AFA_rcp], dim='time')
@@ -348,14 +345,9 @@ def load_isimip(flags_run, extremes, model_names):
 
         d_isimip_meta = pk.load(open('./data/pickles/isimip_metadata.pkl', 'rb'))
 
-
     return d_isimip_meta
 
-
-
-# ---------------------------------------------------------------
-# Helper functions
-   
+#%% ----------------------------------------------------------------   
 # Function to open isimip data array and read years from filename
 # (the isimip calendar "days since 1661-1-1 00:00:00" cannot be read by xarray datetime )
 # this implies that years in file need to correspond to years in filename
@@ -365,29 +357,29 @@ def open_dataarray_isimip(file_name):
     end_year = int(file_name.split('_')[-1].split('.')[0])
     da = xr.open_dataarray(file_name, decode_times=False)
     da['time'] = np.arange(begin_year,end_year+1)
+    
     return da
-
 
 # ---------------------------------------------------------------
 # 2. Functions to manipulate (see ms_manip.m)
 # ----------------------------------------------------------------
 
 
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # interpolate life expectancies
-
-def get_life_expectancies(df_worldbank_country, df_unwpp_country):
+def get_life_expectancies(
+    df_worldbank_country, 
+    df_unwpp_country
+):
 
     # original data runs from 1960 to 2017 but we want estimates from 1960 to 2020
-    # add three rows of NaNs
+    # add three rows of 0s
     df_extrayears        = pd.DataFrame(np.empty([year_ref- df_worldbank_country.index.max(),len(df_worldbank_country.columns)]), columns=df_worldbank_country.columns, index=np.arange(df_worldbank_country.index.max()+1,year_ref+1,1))
     df_worldbank_country = pd.concat([df_worldbank_country, df_extrayears])
-
 
     # store birth_year data
     # dataframe filled with birthyears for every country
     df_birthyears = pd.DataFrame(np.transpose(np.tile(birth_years, (len(df_unwpp_country.keys()),1))) , columns=df_unwpp_country.keys(), index=birth_years)
-
 
     # NOT TRANSLATED FROM MATLAB
     # # extract life expectancy at birth data from World Bank file and fill in missing data - not used in final analysis
@@ -411,16 +403,19 @@ def get_life_expectancies(df_worldbank_country, df_unwpp_country):
 
     return df_birthyears, df_life_expectancy_5
 
-
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # interpolate cohortsize per country
-
-def get_cohortsize_countries(wcde, df_countries, df_GMT_15): 
+def get_cohortsize_countries(
+    wcde, 
+    df_countries, 
+    df_GMT_15
+): 
 
     # unpack loaded wcde values
     wcde_years, wcde_ages, wcde_country_data, unused = wcde 
+    # 31 year ranges, 21 age categories
 
-    # initialise dictionary to store chorot sizes dataframes per country with years as rows and ages as columns
+    # initialise dictionary to store cohort sizes dataframes per country with years as rows and ages as columns
     d_cohort_size = {}
 
     for i,name in enumerate(df_countries.index):
@@ -428,8 +423,8 @@ def get_cohortsize_countries(wcde, df_countries, df_GMT_15):
         # linearly interpolate from 5-year WCDE blocks to pre-defined birth year
         # ! this gives slightly different values than MATLAB at some interpolation points inherent to the interpolation
         wcde_country_data_reshape   = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
-        wcde_per_country            = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape))
-        wcde_per_country            = np.array( np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
+        wcde_per_country            = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
+        wcde_per_country            = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
         [Xorig, Yorig]              = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
         [Xnew, Ynew]                = np.meshgrid( ages, np.array(df_GMT_15.index))                                             # prepare for 2D interpolation
         wcde_country_data_raw = interpolate.griddata((Xorig.ravel(),Yorig.ravel()),wcde_per_country.ravel(),(Xnew.ravel(),Ynew.ravel()))
@@ -438,16 +433,16 @@ def get_cohortsize_countries(wcde, df_countries, df_GMT_15):
     
     return d_cohort_size
 
-    
-
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # mask population per country based on gridded population and countrymask
 # also communicate country masks as regionmask object 
+def get_mask_population(
+    da_population, 
+    gdf_country_borders, 
+    df_countries
+):
 
-def get_mask_population(da_population, gdf_country_borders, df_countries):
-    # load country borders
-
-    # join layer with country names (to have corresponding names for later purposes) and add country index as additional column
+    # load country borders; join layer with country names (to have corresponding names for later purposes) and add country index as additional column
     df_countries['name'] = df_countries.index.values
     gdf_country_borders = gdf_country_borders.merge(df_countries, left_on='ADM0_A3', right_on='abbreviation')
 
@@ -469,11 +464,12 @@ def get_mask_population(da_population, gdf_country_borders, df_countries):
 
     return  df_countries, countries_regions, countries_mask
 
-
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # get countries per region, returns dictionary with regions as keys and countries as values
-
-def get_countries_per_region(df_countries, df_regions):
+def get_countries_per_region(
+    df_countries, 
+    df_regions
+):
     d_region_countries = {}
     for region in df_regions.index:
         if df_countries.loc[df_countries['region']==region].index.values.size > 0: # if not empty
@@ -482,13 +478,18 @@ def get_countries_per_region(df_countries, df_regions):
             d_region_countries[region] = df_countries.loc[df_countries['incomegroup']==region].index.values
         elif region == 'World': # take all countries
             d_region_countries[region] = df_countries.index.values
+            
     return d_region_countries
 
-
-# --------------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # Get life expectancy, birth years and cohort weights per region, as well as countries per region
-
-def get_regions_data(df_countries, df_regions, df_worldbank_region, df_unwpp_region, d_cohort_size):
+def get_regions_data(
+    df_countries, 
+    df_regions, 
+    df_worldbank_region, 
+    df_unwpp_region, 
+    d_cohort_size
+):
     
     # get countries per region
     d_region_countries = get_countries_per_region(df_countries, df_regions)
@@ -502,13 +503,11 @@ def get_regions_data(df_countries, df_regions, df_worldbank_region, df_unwpp_reg
     df_birthyears_regions, df_life_expectancy_5_regions = get_life_expectancies(df_worldbank_region, df_unwpp_region)
 
     # get total population in the region per cohort in 2020
-    
     cohort_size_year_ref = np.asarray([d_cohort_size[country].loc[year_ref] for country in d_cohort_size.keys()])
     df_cohort_size_year_ref = pd.DataFrame(cohort_size_year_ref,index=df_countries.index, columns=ages)
 
     d_cohort_weights_regions = {}
     for region in d_region_countries.keys():
-
         d_cohort_weights_regions[region] = df_cohort_size_year_ref[df_cohort_size_year_ref.index.isin(d_region_countries[region])].transpose()
     
     return d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions
