@@ -20,7 +20,7 @@ def calc_life_exposure(
     df_life_expectancy_5, 
     df_countries, 
     df_birthyears, 
-    d_exposure_peryear
+    d_exposure_peryear,
 ):
 
     # to store exposure per life for every run
@@ -43,6 +43,7 @@ def calc_life_exposure(
 
             # integrate exposure over full years lived
             exposure_birthyears_percountry[i] = d_exposure_peryear[country].sel(time=slice(birth_year,death_year)).sum().values
+            
             # add exposure during last (partial) year
             exposure_birthyears_percountry[i] = exposure_birthyears_percountry[i] + d_exposure_peryear[country].sel(time=death_year+1).sum().values * (life_expectancy_5 - np.floor(life_expectancy_5))
         
@@ -52,7 +53,17 @@ def calc_life_exposure(
         else: 
             exposure_birthyears = np.vstack([exposure_birthyears, exposure_birthyears_percountry])
 
-    df_exposure_perlife = pd.DataFrame(exposure_birthyears.transpose(),index=df_birthyears.index, columns=df_countries.index)
+    df_exposure_perlife = pd.DataFrame(
+        exposure_birthyears.transpose(),
+        index=df_birthyears.index, 
+        columns=df_countries.index,
+    )
+    
+                # df_life_expectancy_5, 
+                # df_countries, 
+                # df_birthyears, 
+                # d_exposure_peryear_percountry,
+    
     return df_exposure_perlife
 
 #%% ----------------------------------------------------------------
@@ -62,7 +73,7 @@ def calc_weighted_fldmean(
     weights, 
     countries_mask, 
     ind_country, 
-    flag_region
+    flag_region,
 ):
 
     # one country provided, easy masking
@@ -72,20 +83,36 @@ def calc_weighted_fldmean(
     # if more countries are provided, combine the different masks - THIS IS VERY TIME-INEFFICIENT!
     else: 
         # initialise the data array with the first country mask
-        mask_sum = da.where(countries_mask == ind_country[0]).values
+        # comment from Luke: this doesn't need the numpy conversion and the np.nan_to_num conversion (read online that its costly because of infinity conversions)
+        # mask_sum = da.where(countries_mask == ind_country[0]).values
 
-        # then add the masks for the other countries
-        for ind in ind_country[1:]: 
+        # # then add the masks for the other countries
+        # for ind in ind_country[1:]: 
 
-            mask_sum = np.nan_to_num(mask_sum) + np.nan_to_num(da.where(countries_mask == ind).values)
+        #     mask_sum = np.nan_to_num(mask_sum) + np.nan_to_num(da.where(countries_mask == ind).values)
         
-        # turn mask_sum into data array
-        da_masked = xr.DataArray(mask_sum,coords=da.coords,dims=da.dims)
-        da_masked = da_masked.where(da_masked>0, np.nan)
+        # # turn mask_sum into data array
+        # da_masked = xr.DataArray(mask_sum,coords=da.coords,dims=da.dims)
+        # da_masked = da_masked.where(da_masked>0, np.nan)
+        
+        # proposed substitute to the np.nan_to_num approach
+        if isinstance(ind_country,np.ndarray) and len(ind_country) > 1:
+        
+            da_masked = xr.DataArray(
+                np.in1d(da,ind_country).reshape(da.shape),
+                dims=da.dims,
+                coords=da.coords,
+            )
     
     da_weighted_fldmean = da_masked.weighted(weights).mean(dim=("lat", "lon"))
     
     return da_weighted_fldmean
+
+                    # da_AFA_pic, 
+                    # da_population[0,:,:], 
+                    # countries_mask, 
+                    # ind_country, 
+                    # flag_region= False
 
 #%% ----------------------------------------------------------------
 # calculated weighted fieldmean combining country masks per region
@@ -94,7 +121,7 @@ def calc_weighted_fldmean_region(
     weights, 
     member_countries, 
     countries_mask, 
-    ind_country
+    ind_country,
 ):
 
     da_masked = da.where(countries_mask == ind_country)
@@ -106,7 +133,7 @@ def calc_weighted_fldmean_region(
 # get member countries per region
 def get_countries_of_region(
     region, 
-    df_countries
+    df_countries,
 ): 
 
     # Get list of member countries from region
@@ -127,7 +154,7 @@ def get_countries_of_region(
 def calc_exposure_mmm(
     exposure, 
     extremes, 
-    d_isimip_meta
+    d_isimip_meta,
 ):
 
 
@@ -161,19 +188,39 @@ def calc_exposure_mmm(
 
 
         # compute multi-model mean (mmm) along different runs and save as dataframe in dictionary
-        d_exposure_mmm[extreme] = pd.DataFrame(np.nanmean(stacked_perextreme, axis=0), columns=exposure[1].columns, index=exposure[1].index)
+        d_exposure_mmm[extreme] = pd.DataFrame(
+            np.nanmean(stacked_perextreme, axis=0), 
+            columns=exposure[1].columns, 
+            index=exposure[1].index
+        )
 
 
         # compute multi-model standard deviation (mms) per extreme impact category
         if len(indices_extremes)> 1:  
-            d_exposure_mms[extreme]  = pd.DataFrame(np.nanmean(stacked_perextreme, axis=0), columns=exposure[1].columns, index=exposure[1].index)
+            d_exposure_mms[extreme]  = pd.DataFrame(
+                np.nanmean(stacked_perextreme, axis=0), 
+                columns=exposure[1].columns, 
+                index=exposure[1].index
+            )
         else:
-            d_exposure_mms[extreme] = pd.DataFrame(np.zeros_like(exposure[1].values), columns=exposure[1].columns, index=exposure[1].index)
+            d_exposure_mms[extreme] = pd.DataFrame(
+                np.zeros_like(exposure[1].values), 
+                columns=exposure[1].columns, 
+                index=exposure[1].index
+            )
 
 
         # compute multi-model IQR (q25 and q75) per extreme impact category
-        d_exposure_q25[extreme] = pd.DataFrame(np.quantile(stacked_perextreme, 0.25, axis=0), columns=exposure[1].columns, index=exposure[1].index)
-        d_exposure_q75[extreme] = pd.DataFrame(np.quantile(stacked_perextreme, 0.75,  axis=0), columns=exposure[1].columns, index=exposure[1].index)
+        d_exposure_q25[extreme] = pd.DataFrame(
+            np.quantile(stacked_perextreme, 0.25, axis=0), 
+            columns=exposure[1].columns, 
+            index=exposure[1].index
+        )
+        d_exposure_q75[extreme] = pd.DataFrame(
+            np.quantile(stacked_perextreme, 0.75,  axis=0), 
+            columns=exposure[1].columns, 
+            index=exposure[1].index
+        )
 
 
         # geometric means - not calculated here
@@ -186,7 +233,7 @@ def calc_exposure_EMF(
     d_exposure_mmm, 
     d_exposure_q25, 
     d_exposure_q75, 
-    exposure_ref
+    exposure_ref,
 ):
 
     # intialise dictionaries of EMF per extreme
@@ -204,7 +251,11 @@ def calc_exposure_EMF(
             ref_age_year = birth_years[np.where(ages==age_ref)][0]
 
             # repeat ref for ref age to divide 
-            df_exposure_ref_repeated = pd.DataFrame(np.tile(exposure_ref[extreme].loc[ref_age_year].values, (len(birth_years), 1)), columns=exposure_ref[extreme].columns, index=exposure_ref[extreme].index)
+            df_exposure_ref_repeated = pd.DataFrame(
+                np.tile(exposure_ref[extreme].loc[ref_age_year].values, (len(birth_years), 1)), 
+                columns=exposure_ref[extreme].columns, 
+                index=exposure_ref[extreme].index
+            )
                 
             # compute Exposure Multiplication Factor (EMF) maps
             d_EMF_mmm[extreme] = d_exposure_mmm[extreme] / df_exposure_ref_repeated
@@ -261,7 +312,7 @@ def calc_exposure(
     df_birthyears, 
     df_GMT_15, 
     df_GMT_20, 
-    df_GMT_NDC
+    df_GMT_NDC,
 ):
 
         # initialise dicts
@@ -276,7 +327,6 @@ def calc_exposure(
         d_exposure_perrun_NDC     = {}
         d_exposure_perrun_R26eval = {} 
 
-
         # loop over simulations
         for i in list(d_isimip_meta.keys()): 
 
@@ -286,24 +336,22 @@ def calc_exposure(
             # load AFA data of that run
             (da_AFA, da_AFA_pic) = pk.load(open('./data/pickles/isimip_AFA_'+str(i)+'_.pkl', 'rb'))
 
-
             # Get ISIMIP GMT indices closest to GMT trajectories        
-            RCP2GMT_diff_15      = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-            RCP2GMT_diff_20      = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-            RCP2GMT_diff_NDC     = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
+            RCP2GMT_diff_15 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
+            RCP2GMT_diff_20 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
+            RCP2GMT_diff_NDC = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
             RCP2GMT_diff_R26eval = np.min(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
 
-            ind_RCP2GMT_15       = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-            ind_RCP2GMT_20       = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-            ind_RCP2GMT_NDC      = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-            ind_RCP2GMT_R26eval  = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
+            ind_RCP2GMT_15 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
+            ind_RCP2GMT_20 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
+            ind_RCP2GMT_NDC = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
+            ind_RCP2GMT_R26eval = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
 
             # Get maximum T difference between RCP and GMT trajectories (to remove rows later)
-            d_RCP2GMT_maxdiff_15[i]       = np.nanmax(RCP2GMT_diff_15     )
-            d_RCP2GMT_maxdiff_20[i]       = np.nanmax(RCP2GMT_diff_20     )
-            d_RCP2GMT_maxdiff_NDC[i]      = np.nanmax(RCP2GMT_diff_NDC    )
-            d_RCP2GMT_maxdiff_R26eval[i]  = np.nanmax(RCP2GMT_diff_R26eval)
-
+            d_RCP2GMT_maxdiff_15[i] = np.nanmax(RCP2GMT_diff_15)
+            d_RCP2GMT_maxdiff_20[i] = np.nanmax(RCP2GMT_diff_20)
+            d_RCP2GMT_maxdiff_NDC[i] = np.nanmax(RCP2GMT_diff_NDC)
+            d_RCP2GMT_maxdiff_R26eval[i] = np.nanmax(RCP2GMT_diff_R26eval)
 
             # --------------------------------------------------------------------
             # per country 
@@ -322,30 +370,28 @@ def calc_exposure(
                 # corresponding picontrol - assume constant 1960 population density (this line takes about 16h by itself)
                 d_exposure_peryear_percountry_pic[country] = calc_weighted_fldmean(
                     da_AFA_pic, 
-                    da_population[0,:,:], 
+                    da_population[0,:,:], # earliest year used for weights
                     countries_mask, 
                     ind_country, 
-                    flag_region= False
+                    flag_region= False,
                 )
 
                 # historical + RCP simulations
-                d_exposure_peryear_percountry[country]     = calc_weighted_fldmean(
-                    da_AFA,     
-                    da_population,        
+                d_exposure_peryear_percountry[country] = calc_weighted_fldmean(
+                    da_AFA,
+                    da_population, 
                     countries_mask, 
                     ind_country, 
-                    flag_region= False
+                    flag_region= False,
                 )
-
 
             # call function to compute extreme event exposure per country and per lifetime
             d_exposure_perrun_RCP[i] = calc_life_exposure(
                 df_life_expectancy_5, 
                 df_countries, 
                 df_birthyears, 
-                d_exposure_peryear_percountry
+                d_exposure_peryear_percountry,
             )
-
 
             # calculate exposure for GMTs, replacing d_exposure_perrun_RCP by indexed dictionary according to corresponding GMTs with ISIMIP. -- not working!
             # d_exposure_perrun_15[i]      = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_15] for country, da in d_exposure_peryear_percountry.items()});
@@ -363,7 +409,6 @@ def calc_exposure(
             # initialise dictionaries
             d_landfrac_peryear_perregion        = {}
             d_exposure_perregion_perrun_RCP     = {}
-
 
             # loop over regions
             for k, region in enumerate(df_birthyears_regions.columns): 
@@ -383,7 +428,13 @@ def calc_exposure(
                 ind_countries = countries_regions.map_keys(member_countries)
 
                 print('calculating landfrac')
-                d_landfrac_peryear_perregion[region] = calc_weighted_fldmean(da_AFA, grid_area, countries_mask, ind_countries, flag_region= True);
+                d_landfrac_peryear_perregion[region] = calc_weighted_fldmean(
+                    da_AFA, 
+                    grid_area, 
+                    countries_mask, 
+                    ind_countries, 
+                    flag_region=True,
+                )
 
                 print('calculating cohort weights')
                 # filter cohort weights to only keep countries within mask 
@@ -405,9 +456,11 @@ def calc_exposure(
         print('Saving processed exposures')
 
         # pack region information
-        d_exposure = {  'exposure_perrun_RCP'           : d_exposure_perrun_RCP, 
-                        'exposure_perregion_perrun_RCP' : d_exposure_perregion_perrun_RCP, 
-                        'landfrac_peryear_perregion'    : d_landfrac_peryear_perregion }
+        d_exposure = {
+            'exposure_perrun_RCP' : d_exposure_perrun_RCP, 
+            'exposure_perregion_perrun_RCP' : d_exposure_perregion_perrun_RCP, 
+            'landfrac_peryear_perregion' : d_landfrac_peryear_perregion 
+        }
 
         pk.dump(d_exposure,open('./data/pickles/exposure.pkl', 'wb')  )
 

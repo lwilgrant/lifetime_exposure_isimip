@@ -23,35 +23,68 @@ def init():
     # (https://www.carbonbrief.org/analysis-why-children-must-emit-eight-times-less-co2-than-their-grandparents)
     # (https://www.pewresearch.org/fact-tank/2019/01/17/where-millennials-end-and-generation-z-begins/)
     global agegroups
-    agegroups = {'Boomers'   : (1950, 1965),
-                'Gen X'     : (1965, 1981),
-                'Millenials': (1981, 1997),
-                'Gen Z'     : (1997, 2020)}
+    agegroups = {
+        'Boomers' : (1950, 1965),
+        'Gen X' : (1965, 1981),
+        'Millenials' : (1981, 1997),
+        'Gen Z' : (1997, 2020)
+    }
 
 
     # initialise reference period for computing GMT anomalies
     global year_start_GMT_ref, year_end_GMT_ref
-    year_start_GMT_ref  = 1850
-    year_end_GMT_ref    = 1900
-
+    year_start_GMT_ref = 1850
+    year_end_GMT_ref = 1900
 
     global extremes_legend_dict
-    extremes_legend_dict = {'burntarea'            : 'Wildfires'         ,
-                            'cropfailedarea'       : 'Crop failures'     , 
-                            'driedarea'            : 'Droughts'          , 
-                            'floodedarea'          : 'River floods'      ,
-                            'heatwavedarea'        : 'Heatwaves'         ,
-                            'tropicalcyclonedarea' : 'Tropical cyclones' ,
-                            'all'                  : 'All'               }
+    extremes_legend_dict = {
+        'burntarea' : 'Wildfires',
+        'cropfailedarea' : 'Crop failures', 
+        'driedarea' : 'Droughts', 
+        'floodedarea' : 'River floods',
+        'heatwavedarea' : 'Heatwaves',
+        'tropicalcyclonedarea' : 'Tropical cyclones',
+        'all' : 'All'               
+    }
+    
     
     # initialise model names
     global model_names
-    model_names = { 'burntarea'            : ['CARAIB', 'LPJ-GUESS', 'LPJmL', 'ORCHIDEE', 'VISIT'], 
-                    'cropfailedarea'       : ['GEPIC' , 'LPJmL'    , 'PEPIC'                                                             ],
-                    'driedarea'            : ['CLM45' , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
-                    'floodedarea'          : ['CLM45'],#testing , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
-                    'heatwavedarea'        : ['HWMId-humidex', 'HWMId99-humidex40', 'HWMId97p5-humidex40', 'HWMId99-tasmax35', 'HWMId97p5-tasmax35', 'HWMId99', 'HWMId97p5', 'humidex40d3', 'humidex40d5', 'humidex45d3', 'humidex45d5', 'CWMId99'],
-                    'tropicalcyclonedarea' : ['KE-TG-meanfield']}
+    model_names = {
+        'burntarea' : [
+            'CARAIB', 
+            'LPJ-GUESS',
+            'LPJmL',
+            'ORCHIDEE',
+            'VISIT'], 
+        'cropfailedarea' : [
+            'GEPIC', 
+            'LPJmL',
+            'PEPIC'],
+        'driedarea' : [
+            'CLM45', 
+            'H08', 
+            'LPJmL', 
+            'JULES-W1', 
+            'MPI-HM', 
+            'ORCHIDEE', 
+            'PCR-GLOBWB', 
+            'WaterGAP2'],
+        'floodedarea' : ['CLM45'],#testing , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
+        'heatwavedarea' : [
+            'HWMId-humidex', 
+            'HWMId99-humidex40', 
+            'HWMId97p5-humidex40', 
+            'HWMId99-tasmax35', 
+            'HWMId97p5-tasmax35', 
+            'HWMId99', 'HWMId97p5', 
+            'humidex40d3', 
+            'humidex40d5', 
+            'humidex45d3', 
+            'humidex45d5', 
+            'CWMId99'],
+        'tropicalcyclonedarea' : ['KE-TG-meanfield']
+    }
 
 
     # Set threshold maximum T difference between RCP and GMT trajectories
@@ -77,4 +110,11 @@ def set_extremes(flags):
     if not flags['extr'] == 'all': # processing for single extreme
         extremes = [flags['extr']]
     else: 
-        extremes = ['burntarea', 'cropfailedarea', 'driedarea', 'floodedarea', 'heatwavedarea' , 'tropicalcyclonedarea']
+        extremes = [
+            'burntarea', 
+            'cropfailedarea', 
+            'driedarea', 
+            'floodedarea', 
+            'heatwavedarea', 
+            'tropicalcyclonedarea'
+        ]

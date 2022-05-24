@@ -99,7 +99,7 @@ global df_GMT_15, df_GMT_20, df_GMT_NDC
 
 df_GMT_15, df_GMT_20, df_GMT_NDC = load_GMT(
     year_start,
-    year_end
+    year_end,
 ) 
 
 
@@ -123,7 +123,7 @@ if flags['mask']: # load data and do calculations
     # manipulate worldbank and unwpp data to get birth year and life expectancy values
     df_birthyears, df_life_expectancy_5 = get_life_expectancies(
         df_worldbank_country, 
-        df_unwpp_country
+        df_unwpp_country,
     )
 
     # load population size per age cohort data
@@ -133,7 +133,7 @@ if flags['mask']: # load data and do calculations
     d_cohort_size = get_cohortsize_countries(
         wcde, 
         df_countries, 
-        df_GMT_15
+        df_GMT_15,
     )
 
     # do the same for the regions; get life expectancy, birth years and cohort weights per region, as well as countries per region
@@ -142,7 +142,7 @@ if flags['mask']: # load data and do calculations
         df_regions, 
         df_worldbank_region, 
         df_unwpp_region, 
-        d_cohort_size
+        d_cohort_size,
     )
 
     # --------------------------------------------------------------------
@@ -152,7 +152,7 @@ if flags['mask']: # load data and do calculations
     # Load SSP population totals 
     da_population = load_population(
         year_start,
-        year_end
+        year_end,
     )
 
     # # load country borders
@@ -181,21 +181,25 @@ if flags['mask']: # load data and do calculations
     df_countries, countries_regions, countries_mask = get_mask_population(
         da_population, 
         gdf_country_borders, 
-        df_countries
+        df_countries,
     ) 
 
     # pack country information
-    d_countries = {'info_pop'         : df_countries, 
-                   'population_map'   : da_population,
-                   'birth_years'      : df_birthyears,
-                   'life_expectancy_5': df_life_expectancy_5, 
-                   'cohort_size'      : d_cohort_size, 
-                   'mask'             : (countries_regions,countries_mask)}
+    d_countries = {
+        'info_pop' : df_countries, 
+        'population_map' : da_population,
+        'birth_years' : df_birthyears,
+        'life_expectancy_5': df_life_expectancy_5, 
+        'cohort_size' : d_cohort_size, 
+        'mask' : (countries_regions,countries_mask),
+    }
 
     # pack region information
-    d_regions = {'birth_years'      : df_birthyears_regions,
-                 'life_expectancy_5': df_life_expectancy_5_regions, 
-                 'cohort_size'      : d_cohort_weights_regions }
+    d_regions = {
+        'birth_years' : df_birthyears_regions,
+        'life_expectancy_5': df_life_expectancy_5_regions, 
+        'cohort_size' : d_cohort_weights_regions,
+    }
 
 
     # save metadata dictionary as a pickle
@@ -219,20 +223,20 @@ else: # load processed country data
     d_countries = pk.load(open('./data/pickles/country_info.pkl', 'rb'))
 
     # unpack country information
-    df_countries                      = d_countries['info_pop']
-    da_population                     = d_countries['population_map']
-    df_birthyears                     = d_countries['birth_years']
-    df_life_expectancy_5              = d_countries['life_expectancy_5']
-    d_cohort_size                     = d_countries['cohort_size']
+    df_countries = d_countries['info_pop']
+    da_population = d_countries['population_map']
+    df_birthyears = d_countries['birth_years']
+    df_life_expectancy_5 = d_countries['life_expectancy_5']
+    d_cohort_size = d_countries['cohort_size']
     countries_regions, countries_mask = d_countries['mask']
 
     # load regions pickle
     d_regions = pk.load(open('./data/pickles/region_info.pkl', 'rb'))
 
     # unpack region information
-    df_birthyears_regions             = d_regions['birth_years']
-    df_life_expectancy_5_regions      = d_regions['life_expectancy_5']
-    d_cohort_weights_regions          = d_regions['cohort_size']
+    df_birthyears_regions = d_regions['birth_years']
+    df_life_expectancy_5_regions = d_regions['life_expectancy_5']
+    d_cohort_weights_regions = d_regions['cohort_size']
  
 # --------------------------------------------------------------------
 # Load ISIMIP model data
@@ -242,7 +246,7 @@ grid_area = xr.open_dataarray('./data/isimip/clm45_area.nc4')
 d_isimip_meta = load_isimip(
     flags['runs'], 
     extremes, 
-    model_names
+    model_names,
 )
 
 
@@ -272,7 +276,7 @@ if flags['exposure'] == 1:
         df_birthyears, 
         df_GMT_15, 
         df_GMT_20, 
-        df_GMT_NDC
+        df_GMT_NDC,
     )
         
 
@@ -284,11 +288,11 @@ else: # load processed country data
     d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
 
     # unpack country information
-    d_exposure_perrun_RCP           = d_exposure['exposure_perrun_RCP']
+    d_exposure_perrun_RCP = d_exposure['exposure_perrun_RCP']
 
     # unpack region information
     d_exposure_perregion_perrun_RCP = d_exposure['exposure_perregion_perrun_RCP']
-    d_landfrac_peryear_perregion    = d_exposure['landfrac_peryear_perregion']
+    d_landfrac_peryear_perregion = d_exposure['landfrac_peryear_perregion']
 
 
 # --------------------------------------------------------------------
@@ -305,11 +309,20 @@ else: # load processed country data
 
 # call function computing the multi-model mean (MMM) exposure 
 
-d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75 = calc_exposure_mmm(d_exposure_perrun_RCP, extremes, d_isimip_meta)
+d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75 = calc_exposure_mmm(
+    d_exposure_perrun_RCP, 
+    extremes, 
+    d_isimip_meta,
+)
 
 # call function computing the Exposure Multiplication Factor (EMF)
 # here I use multi-model mean as a reference
-d_EMF_mmm, d_EMF_q25, d_EMF_q75 = calc_exposure_EMF(d_exposure_mmm, d_exposure_q25, d_exposure_q75, d_exposure_mmm)
+d_EMF_mmm, d_EMF_q25, d_EMF_q75 = calc_exposure_EMF(
+    d_exposure_mmm, 
+    d_exposure_q25, 
+    d_exposure_q75, 
+    d_exposure_mmm,
+)
 
 
 # maybe more values needed to return
