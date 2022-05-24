@@ -35,8 +35,8 @@ def calc_life_exposure(
 
             # ugly solution to deal with similar years of life expectancy - to be solved more elegantly. 
             life_expectancy_5 = df_life_expectancy_5.loc[birth_year, country] 
-            if np.size(life_expectancy_5) > 1: 
-                life_expectancy_5 = life_expectancy_5.iloc[0]
+            # if np.size(life_expectancy_5) > 1:  # note fr Luke; not necessary now because duplicate indices were removed from df_life_ex... before interpolating (kept native unwpp years)
+            #     life_expectancy_5 = life_expectancy_5.iloc[0]
 
             # define death year based on life expectancy
             death_year = birth_year + np.floor(life_expectancy_5)
@@ -45,7 +45,9 @@ def calc_life_exposure(
             exposure_birthyears_percountry[i] = d_exposure_peryear[country].sel(time=slice(birth_year,death_year)).sum().values
             
             # add exposure during last (partial) year
-            exposure_birthyears_percountry[i] = exposure_birthyears_percountry[i] + d_exposure_peryear[country].sel(time=death_year+1).sum().values * (life_expectancy_5 - np.floor(life_expectancy_5))
+            exposure_birthyears_percountry[i] = exposure_birthyears_percountry[i] + \
+                d_exposure_peryear[country].sel(time=death_year+1).sum().values * \
+                    (life_expectancy_5 - np.floor(life_expectancy_5))
         
 
         if j == 0: # ugly - solve better!

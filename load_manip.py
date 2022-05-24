@@ -426,8 +426,8 @@ def get_life_expectancies(
 
     # original data runs from 1960 to 2017 but we want estimates from 1960 to 2020
     # add three rows of 0s
-    df_extrayears        = pd.DataFrame(np.empty([year_ref- df_worldbank_country.index.max(),len(df_worldbank_country.columns)]), columns=df_worldbank_country.columns, index=np.arange(df_worldbank_country.index.max()+1,year_ref+1,1))
-    df_worldbank_country = pd.concat([df_worldbank_country, df_extrayears])
+    df_extrayears = pd.DataFrame(np.empty([year_ref- df_worldbank_country.index.max(),len(df_worldbank_country.columns)]), columns=df_worldbank_country.columns, index=np.arange(df_worldbank_country.index.max()+1,year_ref+1,1))
+    df_worldbank_country = pd.concat([df_worldbank_country, df_extrayears]) # Luke: why does worldbank data go unused?
 
     # store birth_year data
     # dataframe filled with birthyears for every country
@@ -444,9 +444,10 @@ def get_life_expectancies(
     # extract life expectancy at age 5 data from UN WPP file and
     # linearly interpolate from 5-year WPP blocks to pre-defined birth
     # year (extrapolate from 2013 to 2020, note that UN WPP has no NaNs)
-    df_birthyears_empty     = pd.DataFrame(columns=df_unwpp_country.keys(), index=birth_years)
-    df_concat               = pd.concat([df_unwpp_country,df_birthyears_empty]).sort_index()
-    df_unwpp_country_interp = df_concat.astype('float').interpolate(method='linear')
+    df_birthyears_empty = pd.DataFrame(columns=df_unwpp_country.keys(), index=birth_years)
+    df_concat = pd.concat([df_unwpp_country,df_birthyears_empty]).sort_index() #remove duplicates here before interpolation?
+    df_concat = df_concat[~df_concat.index.duplicated(keep='last')] # remove rows with duplicated indices (remove first of duplicates that are nans; therefore keep native unwpp 5-yearly data)
+    df_unwpp_country_interp = df_concat.astype('float').interpolate(method='linear') #
     # keep only birthyear rows
     df_unwpp_country_interp = df_unwpp_country_interp[df_unwpp_country_interp.index.isin(df_birthyears_empty.index)]
 
