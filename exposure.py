@@ -11,7 +11,8 @@ import pickle as pk
 from scipy import interpolate
 import regionmask
 import glob
-
+import time
+import matplotlib.pyplot as plt
 from settings import *
 
 #%% ----------------------------------------------------------------
@@ -61,10 +62,10 @@ def calc_life_exposure(
         columns=df_countries.index,
     )
     
-                # df_life_expectancy_5, 
-                # df_countries, 
-                # df_birthyears, 
-                # d_exposure_peryear_percountry,
+                # df_life_expectancy_5,
+                # df_countries,
+                # df_birthyears,
+                # {country: da[ind_RCP2GMT_15] for country, da in d_exposure_peryear_percountry.items()},
     
     return df_exposure_perlife
 
@@ -359,6 +360,7 @@ def calc_exposure(
             # per country 
 
             # initialise dicts
+            start_time = time.time()
             d_exposure_peryear_percountry_pic = {}
             d_exposure_peryear_percountry = {}
 
@@ -379,7 +381,7 @@ def calc_exposure(
                 )
 
                 # historical + RCP simulations
-                d_exposure_peryear_percountry[country] = calc_weighted_fldmean(
+                d_exposure_peryear_percountry[country] = calc_weighted_fldmean( 
                     da_AFA,
                     da_population, 
                     countries_mask, 
@@ -394,13 +396,38 @@ def calc_exposure(
                 df_birthyears, 
                 d_exposure_peryear_percountry,
             )
+            print("--- {} minutes for one simulation, {} minutes for {} simulations ---".format(
+                np.floor((time.time() - start_time)/60),
+                np.floor((time.time() - start_time)/60)*len(d_isimip_meta.keys()),
+                len(d_isimip_meta.keys())
+                )
+                  )
 
-            # calculate exposure for GMTs, replacing d_exposure_perrun_RCP by indexed dictionary according to corresponding GMTs with ISIMIP. -- not working!
-            # d_exposure_perrun_15[i]      = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_15] for country, da in d_exposure_peryear_percountry.items()});
-            # d_exposure_perrun_20[i]      = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_20] for country, da in d_exposure_peryear_percountry.items()} );
-            # d_exposure_perrun_NDC[i]     = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_NDC] for country, da in d_exposure_peryear_percountry.items()});
-            # d_exposure_perrun_R26eval[i] = calc_life_exposure(df_life_expectancy_5, df_countries, df_birthyears,  {country: da[ind_RCP2GMT_R26eval] for country, da in d_exposure_peryear_percountry.items()} );
-
+            # calculate exposure for GMTs, replacing d_exposure_perrun_RCP by indexed dictionary according to corresponding GMTs with ISIMIP.
+            d_exposure_perrun_15[i] = calc_life_exposure(
+                df_life_expectancy_5,
+                df_countries,
+                df_birthyears,
+                {country: da[ind_RCP2GMT_15].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
+            )
+            d_exposure_perrun_20[i] = calc_life_exposure(
+                df_life_expectancy_5,
+                df_countries,
+                df_birthyears,
+                {country: da[ind_RCP2GMT_20].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
+            )
+            d_exposure_perrun_NDC[i] = calc_life_exposure(
+                df_life_expectancy_5,
+                df_countries,
+                df_birthyears,
+                {country: da[ind_RCP2GMT_NDC].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
+            )
+            d_exposure_perrun_R26eval[i] = calc_life_exposure(
+                df_life_expectancy_5,
+                df_countries,
+                df_birthyears,
+                {country: da[ind_RCP2GMT_R26eval].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
+            )
 
             # --------------------------------------------------------------------
             # per region
