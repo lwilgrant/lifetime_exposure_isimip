@@ -240,7 +240,7 @@ else: # load processed country data
  
 # --------------------------------------------------------------------
 # Load ISIMIP model data
-
+global grid_area
 grid_area = xr.open_dataarray('./data/isimip/clm45_area.nc4')
 
 d_isimip_meta = load_isimip(
@@ -254,7 +254,7 @@ d_isimip_meta = load_isimip(
 # COMPUTE EXPOSURE PER LIFETIME
 # ------------------------------------------------------------------
 
-from exposure import * # May 17 here now as of 1:15
+from exposure import * 
 
 
 # --------------------------------------------------------------------
@@ -285,7 +285,10 @@ else: # load processed country data
     print('Loading processed exposures')
 
     # load country pickle
-    d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
+    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'rb') as f:
+        d_exposure = pk.load(f)
+
+    # d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
 
     # unpack country information
     d_exposure_perrun_RCP = d_exposure['exposure_perrun_RCP']

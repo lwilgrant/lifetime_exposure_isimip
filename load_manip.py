@@ -375,7 +375,9 @@ def load_isimip(
                         da_AFA_pic  = xr.concat(das_AFA_pic, dim='time')
                             
                     # save AFA field as pickle
-                    pk.dump([da_AFA,da_AFA_pic],open('./data/pickles/isimip_AFA_'+str(counter)+'_.pkl', 'wb'))
+                    with open('./data/pickles/isimip_AFA_{}_{}_.pkl'.format(extreme,str(counter)), 'wb') as f: # added extreme to string of pickle
+                        pk.dump([da_AFA,da_AFA_pic],f)
+                    # pk.dump([da_AFA,da_AFA_pic],open('./data/pickles/isimip_AFA_{}_{}_.pkl'.format(extreme,str(counter)), 'wb')) # commented out for moment to test
 
                     # update counter
                     counter = counter + 1
@@ -383,8 +385,9 @@ def load_isimip(
         
         # save metadata dictionary as a pickle
         print('Saving metadata')
-
-        pk.dump(d_isimip_meta,open('./data/pickles/isimip_metadata.pkl', 'wb')  )
+        with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb') as f:
+            pk.dump(d_isimip_meta,f)
+        # pk.dump(d_isimip_meta,open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb')  )
 
 
     else: 
@@ -392,10 +395,11 @@ def load_isimip(
         print('Loading processed isimip data')
         # loac pickled isimip simulations
 
-        # with open('./data/pickles/isimip_AFA_'+str(counter)+'_.pkl', 'wb') as f:
+        # with open('./data/pickles/isimip_AFA_{}_{}_.pkl'.format(extreme,str(counter)), 'rb') as f:
         #    [da_AFA,da_AFA_pic] = pk.load(f)
-
-        d_isimip_meta = pk.load(open('./data/pickles/isimip_metadata.pkl', 'rb'))
+        with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'rb') as f:
+            d_isimip_meta = pk.load(f)
+        # d_isimip_meta = pk.load(open('./data/pickles/isimip_metadata.pkl', 'rb'))
 
     return d_isimip_meta
 
@@ -426,7 +430,11 @@ def get_life_expectancies(
 
     # original data runs from 1960 to 2017 but we want estimates from 1960 to 2020
     # add three rows of 0s
-    df_extrayears = pd.DataFrame(np.empty([year_ref- df_worldbank_country.index.max(),len(df_worldbank_country.columns)]), columns=df_worldbank_country.columns, index=np.arange(df_worldbank_country.index.max()+1,year_ref+1,1))
+    df_extrayears = pd.DataFrame(
+        np.empty([year_ref- df_worldbank_country.index.max(),len(df_worldbank_country.columns)]),
+        columns=df_worldbank_country.columns,
+        index=np.arange(df_worldbank_country.index.max()+1,year_ref+1,1),
+    )
     df_worldbank_country = pd.concat([df_worldbank_country, df_extrayears]) # Luke: why does worldbank data go unused?
 
     # store birth_year data
