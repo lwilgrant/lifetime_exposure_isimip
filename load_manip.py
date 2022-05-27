@@ -284,9 +284,11 @@ def load_isimip(
 
         print('Processing isimip')
 
-        # initialise counter and metadata dictionary
+        # initialise counter, metadata dictionary, pic list and pic meta
         counter = 1
         d_isimip_meta = {}
+        pic_list = []
+        d_pic_meta = {}
 
         # loop over extremes
         for extreme in extremes:
@@ -364,23 +366,41 @@ def load_isimip(
 
                     # save GMT in metadatadict
                     d_isimip_meta[counter]['GMT'] = df_GMT 
+                    
+                    # adding this to avoid duplicates of da_AFA_pic in pickles
+                    if '{}_{}'.format(d_isimip_meta[counter]['model'],d_isimip_meta[counter]['gcm']) not in pic_list:
 
-                    # load associated picontrol variables (can be from up to 4 files)
-                    file_names_pic  = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[counter]['gcm']+'*_picontrol_*landarea*')
+                        # load associated picontrol variables (can be from up to 4 files)
+                        file_names_pic  = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[counter]['gcm']+'*_picontrol_*landarea*')
 
-                    if  isinstance(file_names_pic, str): # single pic file 
-                        da_AFA_pic  = open_dataarray_isimip(file_names_pic)
-                    else:                               # concat pic files
-                        das_AFA_pic = [open_dataarray_isimip(file_name_pic) for file_name_pic in file_names_pic]
-                        da_AFA_pic  = xr.concat(das_AFA_pic, dim='time')
+                        if  isinstance(file_names_pic, str): # single pic file 
+                            da_AFA_pic  = open_dataarray_isimip(file_names_pic)
+                        else:                               # concat pic files
+                            das_AFA_pic = [open_dataarray_isimip(file_name_pic) for file_name_pic in file_names_pic]
+                            da_AFA_pic  = xr.concat(das_AFA_pic, dim='time')
+                            
+                        # save AFA field as pickle
+                        with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(extreme,str(counter)), 'wb') as f: # added extreme to string of pickle
+                            pk.dump(da_AFA_pic,f)
+                            
+                        pic_list.append('{}_{}'.format(d_isimip_meta[counter]['model'],d_isimip_meta[counter]['gcm']))
+                        
+                        # save metadata
+                        d_pic_meta[counter] = {
+                            'model': d_isimip_meta[counter]['model'], 
+                            'gcm': d_isimip_meta[counter]['gcm'],              
+                            'extreme': file_name.split('_')[3], 
+                            'years': str(len(da_AFA_pic.time)),
+                            'counter': counter,
+                        }
                             
                     # save AFA field as pickle
-                    with open('./data/pickles/isimip_AFA_{}_{}_.pkl'.format(extreme,str(counter)), 'wb') as f: # added extreme to string of pickle
-                        pk.dump([da_AFA,da_AFA_pic],f)
+                    with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(extreme,str(counter)), 'wb') as f: # added extreme to string of pickle
+                        pk.dump(da_AFA,f)
                     # pk.dump([da_AFA,da_AFA_pic],open('./data/pickles/isimip_AFA_{}_{}_.pkl'.format(extreme,str(counter)), 'wb')) # commented out for moment to test
 
                     # update counter
-                    counter = counter + 1
+                    counter += 1
 
         
         # save metadata dictionary as a pickle
@@ -401,7 +421,7 @@ def load_isimip(
             d_isimip_meta = pk.load(f)
         # d_isimip_meta = pk.load(open('./data/pickles/isimip_metadata.pkl', 'rb'))
 
-    return d_isimip_meta
+    return d_isimip_meta,d_pic_meta
 
 #%% ----------------------------------------------------------------   
 # Function to open isimip data array and read years from filename
