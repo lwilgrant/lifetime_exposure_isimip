@@ -40,6 +40,8 @@ import requests
 from zipfile import ZipFile
 import io
 import xarray as xr
+import pickle as pk
+import time
 
 scriptsdir = os.getcwd()
 
@@ -210,7 +212,7 @@ if flags['mask']: # load data and do calculations
     with open('./data/pickles/country_info.pkl', 'wb') as f: # note; 'with' handles file stream closing
         pk.dump(d_countries,f)
     with open('./data/pickles/region_info.pkl', 'wb') as f:
-        pk.dump(d_countries,f)
+        pk.dump(d_regions,f)
 
     # TODO:
 
@@ -264,8 +266,11 @@ from exposure import *
 
 if flags['exposure'] == 1: 
     
+    start_time = time.time()
+    
     #  calculate exposure  per country and per region and save data
     d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(
+        grid_area,
         d_isimip_meta, 
         df_birthyears_regions, 
         df_countries, 
@@ -279,13 +284,19 @@ if flags['exposure'] == 1:
         df_GMT_NDC,
     )
         
+    print("--- {} minutes for one simulation, {} minutes for {} simulations ---".format(
+        np.floor((time.time() - start_time)/60),
+        np.floor((time.time() - start_time)/60)*len(d_isimip_meta.keys()),
+        len(d_isimip_meta.keys())
+        )
+            )
 
 else: # load processed country data
 
     print('Loading processed exposures')
 
     # load country pickle
-    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'rb') as f:
+    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[1][flags['extr']]), 'rb') as f:
         d_exposure = pk.load(f)
 
     # d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
