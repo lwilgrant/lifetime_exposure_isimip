@@ -62,7 +62,7 @@ flags['extr']  = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs']  = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs']  = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask']  = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
@@ -117,9 +117,9 @@ if flags['mask']: # load data and do calculations
     meta, worldbank, unwpp = load_worldbank_unwpp_data()
 
     # unpack values
-    df_countries        , df_regions          = meta
+    df_countries, df_regions = meta
     df_worldbank_country, df_worldbank_region = worldbank
-    df_unwpp_country    , df_unwpp_region     = unwpp
+    df_unwpp_country, df_unwpp_region = unwpp
 
 
     # manipulate worldbank and unwpp data to get birth year and life expectancy values
@@ -269,8 +269,9 @@ if flags['exposure'] == 1:
     start_time = time.time()
     
     #  calculate exposure  per country and per region and save data
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perregion_perrun_RCP = calc_exposure(
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure(
         grid_area,
+        d_regions,
         d_isimip_meta, 
         df_birthyears_regions, 
         df_countries, 
@@ -284,9 +285,8 @@ if flags['exposure'] == 1:
         df_GMT_NDC,
     )
         
-    print("--- {} minutes for one simulation, {} minutes for {} simulations ---".format(
+    print("--- {} minutes for {} simulations ---".format(
         np.floor((time.time() - start_time)/60),
-        np.floor((time.time() - start_time)/60)*len(d_isimip_meta.keys()),
         len(d_isimip_meta.keys())
         )
             )
@@ -303,6 +303,9 @@ else: # load processed country data
 
     # unpack country information
     d_exposure_perrun_RCP = d_exposure['exposure_perrun_RCP']
+    d_exposure_perrun_15 = d_exposure['exposure_perrun_15']
+    d_exposure_perrun_20 = d_exposure['exposure_perrun_20']
+    d_exposure_perrun_NDC = d_exposure['exposure_perrun_NDC']
 
     # unpack region information
     d_exposure_perregion_perrun_RCP = d_exposure['exposure_perregion_perrun_RCP']

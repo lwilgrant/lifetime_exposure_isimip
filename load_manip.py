@@ -405,21 +405,23 @@ def load_isimip(
         
         # save metadata dictionary as a pickle
         print('Saving metadata')
-        with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb') as f:
+        with open('./data/pickles/isimip_metadata.pkl', 'wb') as f:
             pk.dump(d_isimip_meta,f)
+        with open('./data/pickles/isimip_pic_metadata.pkl', 'wb') as f:
+            pk.dump(d_pic_meta,f)            
         # pk.dump(d_isimip_meta,open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb')  )
 
 
     else: 
-
+        
+        # loop over extremes
         print('Loading processed isimip data')
-        # loac pickled isimip simulations
+        # loac pickled metadata for isimip and isimip-pic simulations
 
-        # with open('./data/pickles/isimip_AFA_{}_{}_.pkl'.format(extreme,str(counter)), 'rb') as f:
-        #    [da_AFA,da_AFA_pic] = pk.load(f)
-        with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'rb') as f:
+        with open('./data/pickles/isimip_metadata.pkl', 'rb') as f:
             d_isimip_meta = pk.load(f)
-        # d_isimip_meta = pk.load(open('./data/pickles/isimip_metadata.pkl', 'rb'))
+        with open('./data/pickles/isimip_pic_metadata.pkl', 'rb') as f:
+            d_pic_meta = pk.load(f)                
 
     return d_isimip_meta,d_pic_meta
 
