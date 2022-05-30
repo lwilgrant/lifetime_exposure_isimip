@@ -3,6 +3,7 @@
 # ----------------------------------------------------------------
 
 
+from operator import index
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -83,29 +84,17 @@ def calc_weighted_fldmean(
     if not flag_region : 
         da_masked = da.where(countries_mask == ind_country)
     
-    # if more countries are provided, combine the different masks - THIS IS VERY TIME-INEFFICIENT!
+    # if more countries are provided, combine the different masks 
     else: 
-        # initialise the data array with the first country mask
-        # comment from Luke: this doesn't need the numpy conversion and the np.nan_to_num conversion (read online that its costly because of infinity conversions)
-        # mask_sum = da.where(countries_mask == ind_country[0]).values
-
-        # # then add the masks for the other countries
-        # for ind in ind_country[1:]: 
-
-        #     mask_sum = np.nan_to_num(mask_sum) + np.nan_to_num(da.where(countries_mask == ind).values)
         
-        # # turn mask_sum into data array
-        # da_masked = xr.DataArray(mask_sum,coords=da.coords,dims=da.dims)
-        # da_masked = da_masked.where(da_masked>0, np.nan)
-        
-        # proposed substitute to the np.nan_to_num approach
         if len(ind_country) > 1:
-        
-            da_masked = xr.DataArray(
-                np.in1d(da,ind_country).reshape(da.shape),
-                dims=da.dims,
-                coords=da.coords,
+            
+            mask = xr.DataArray(
+                np.in1d(countries_mask,ind_country).reshape(countries_mask.shape),
+                dims=countries_mask.dims,
+                coords=countries_mask.coords,
             )
+            da_masked = da.where(mask)
     
     da_weighted_fldmean = da_masked.weighted(weights).mean(dim=("lat", "lon"))
     
@@ -368,6 +357,7 @@ def calc_exposure(
             # per country 
 
             # initialise dicts
+            start_time = time.time()
             d_exposure_peryear_percountry = {}
 
             # get spatial average
@@ -386,6 +376,40 @@ def calc_exposure(
                     ind_country, 
                     flag_region= False,
                 )
+            print("--- {} minutes for {} simulations ---".format(
+            np.floor((time.time() - start_time)/60),
+            len(d_isimip_meta.keys())
+            )
+                )
+                
+    # # one country provided, easy masking
+    # if not flag_region : 
+    #     da_masked = da.where(countries_mask == ind_country)
+    
+    # # if more countries are provided, combine the different masks - THIS IS VERY TIME-INEFFICIENT!
+    # else: 
+    #     # proposed substitute to the np.nan_to_num approach
+    #     if len(ind_country) > 1:
+        
+    #         da_masked = xr.DataArray(
+    #             np.in1d(da,ind_country).reshape(da.shape),
+    #             dims=da.dims,
+    #             coords=da.coords,
+    #         )
+    
+    # da_weighted_fldmean = da_masked.weighted(weights).mean(dim=("lat", "lon"))                
+            test_ind_country = countries_regions.map_keys(df_countries['name'])
+            test_weight_fldmean = calc_weighted_fldmean
+            exposure_space = np.empty((len(birth_years),len(df_countries.index)))
+            test_per_country = xr.Dataset(
+                # data_vars = {
+                #     'exposure': (['time','country'],exposure_space),
+                # }
+                coords = {
+                    'time': ('time',birth_years),
+                    'countries': ('countries',list(df_countries.index)),
+                }
+            )
 
             # call function to compute extreme event exposure per country and per lifetime
             d_exposure_perrun_RCP[i] = calc_life_exposure(
