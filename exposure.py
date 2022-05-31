@@ -100,12 +100,6 @@ def calc_weighted_fldmean(
     
     return da_weighted_fldmean
 
-                    # da_AFA_pic, 
-                    # da_population[0,:,:], 
-                    # countries_mask, 
-                    # ind_country, 
-                    # flag_region= False
-
 #%% ----------------------------------------------------------------
 # calculated weighted fieldmean combining country masks per region
 def calc_weighted_fldmean_region(
@@ -377,39 +371,10 @@ def calc_exposure(
                     flag_region= False,
                 )
             print("--- {} minutes for {} simulations ---".format(
-            np.floor((time.time() - start_time)/60),
-            len(d_isimip_meta.keys())
+                np.floor((time.time() - start_time)/60),
+                len(d_isimip_meta.keys())
             )
                 )
-                
-    # # one country provided, easy masking
-    # if not flag_region : 
-    #     da_masked = da.where(countries_mask == ind_country)
-    
-    # # if more countries are provided, combine the different masks - THIS IS VERY TIME-INEFFICIENT!
-    # else: 
-    #     # proposed substitute to the np.nan_to_num approach
-    #     if len(ind_country) > 1:
-        
-    #         da_masked = xr.DataArray(
-    #             np.in1d(da,ind_country).reshape(da.shape),
-    #             dims=da.dims,
-    #             coords=da.coords,
-    #         )
-    
-    # da_weighted_fldmean = da_masked.weighted(weights).mean(dim=("lat", "lon"))                
-            test_ind_country = countries_regions.map_keys(df_countries['name'])
-            test_weight_fldmean = calc_weighted_fldmean
-            exposure_space = np.empty((len(birth_years),len(df_countries.index)))
-            test_per_country = xr.Dataset(
-                # data_vars = {
-                #     'exposure': (['time','country'],exposure_space),
-                # }
-                coords = {
-                    'time': ('time',birth_years),
-                    'countries': ('countries',list(df_countries.index)),
-                }
-            )
 
             # call function to compute extreme event exposure per country and per lifetime
             d_exposure_perrun_RCP[i] = calc_life_exposure(
