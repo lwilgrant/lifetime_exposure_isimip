@@ -66,7 +66,7 @@ flags['runs']  = 0          # 0: do not process ISIMIP runs (i.e. load runs pick
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask']  = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
 flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
@@ -266,10 +266,8 @@ from exposure import *
 
 if flags['exposure'] == 1: 
     
-    start_time = time.time()
-    
     #  calculate exposure  per country and per region and save data
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure(
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure_fast(
         grid_area,
         d_regions,
         d_isimip_meta, 
@@ -279,24 +277,17 @@ if flags['exposure'] == 1:
         countries_mask, 
         da_population, 
         df_life_expectancy_5, 
-        df_birthyears, 
         df_GMT_15, 
         df_GMT_20, 
         df_GMT_NDC,
     )
-        
-    print("--- {} minutes for {} simulations ---".format(
-        np.floor((time.time() - start_time)/60),
-        len(d_isimip_meta.keys())
-        )
-            )
 
 else: # load processed country data
 
     print('Loading processed exposures')
 
     # load country pickle
-    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[1][flags['extr']]), 'rb') as f:
+    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[1]['extreme']), 'rb') as f:
         d_exposure = pk.load(f)
 
     # d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
