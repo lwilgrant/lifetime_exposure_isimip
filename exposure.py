@@ -17,6 +17,31 @@ import matplotlib.pyplot as plt
 from settings import *
 
 #%% ----------------------------------------------------------------
+# bootstrapping function 
+
+def resample(
+    da, 
+    resample_dim,
+    life_extent,
+):
+    """Resample with replacement in dimension ``resample_dim``. https://climpred.readthedocs.io/en/stable/_modules/climpred/bootstrap.html
+
+    Args:
+        initialized (xr.Dataset): input xr.Dataset to be resampled.
+        resample_dim (str): dimension to resample along.
+        life_extent (int): number of years per lifetime
+        
+    Returns:
+        xr.Dataset: resampled along ``resample_dim``.
+
+    """
+    to_be_resampled = da[resample_dim].values
+    smp = np.random.choice(to_be_resampled, life_extent)
+    smp_da = da.sel({resample_dim: smp})
+    smp_da[resample_dim] = np.arange(1960,1960+life_extent)
+    return smp_da
+
+#%% ----------------------------------------------------------------
 # *improved function to compute extreme event exposure across a person's lifetime
 def calc_life_exposure(
     df_exposure,
@@ -630,7 +655,7 @@ def calc_exposure_fast(
                     col.name,
                 ),
                 axis=0,
-            )    
+            )
             d_exposure_perrun_15[i] = df_exposure.apply(
                 lambda col: calc_life_exposure(
                     df_exposure.reindex(df_exposure.index[ind_RCP2GMT_15]).set_index(df_exposure.index),
@@ -638,7 +663,7 @@ def calc_exposure_fast(
                     col.name,
                 ),
                 axis=0,
-            )    
+            )
             d_exposure_perrun_20[i] = df_exposure.apply(
                 lambda col: calc_life_exposure(
                     df_exposure.reindex(df_exposure.index[ind_RCP2GMT_20]).set_index(df_exposure.index),
@@ -646,7 +671,7 @@ def calc_exposure_fast(
                     col.name,
                 ),
                 axis=0,
-            )    
+            )
             d_exposure_perrun_NDC[i] = df_exposure.apply(
                 lambda col: calc_life_exposure(
                     df_exposure.reindex(df_exposure.index[ind_RCP2GMT_NDC]).set_index(df_exposure.index),
@@ -655,7 +680,6 @@ def calc_exposure_fast(
                 ),
                 axis=0,
             )
-            
             d_exposure_perrun_R26eval[i] = df_exposure.apply(
                 lambda col: calc_life_exposure(
                     df_exposure.reindex(df_exposure.index[ind_RCP2GMT_R26eval]).set_index(df_exposure.index),
@@ -663,7 +687,7 @@ def calc_exposure_fast(
                     col.name,
                 ),
                 axis=0,
-            )  
+            )
             
             # --------------------------------------------------------------------
             # per region
@@ -756,20 +780,34 @@ def calc_exposure_pic(
         d_cohort_weights_regions = d_regions['cohort_size']                
         
         # loop over simulations
-        for i in list(d_pic_meta.keys()): 
+        for i in list(d_pic_meta.keys()):
 
             print('simulation '+str(i)+ ' of '+str(len(d_pic_meta)))
 
             # load AFA data of that run
             with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
                 da_AFA_pic = pk.load(f)
-
+            
+            # get time var for this pic run
+            pic_time = da_AFA_pic.time.values
+            
+            # --------------------------------------------------------------------
+            # Approach 1: bootstrap and then do weighted means; took 91 minutes
+            
+            # bootstrap native pic exposed area data
+            life_extent=82 # max 1960 life expectancy is 81, therefore bootstrap lifetimes of 82 years
+            nboots=100 # number of lifetimes to be bootstrapped should go to settings
+            resample_dim='time'
+            bootstrapped_array = xr.concat([resample(da_AFA_pic,resample_dim,life_extent) for i in range(nboots)],dim='lifetimes')
+            
             # --------------------------------------------------------------------
             # per country 
-            
+            start_time = time.time()    
             d_exposure_peryear_percountry_pic = {}
+            
             # get spatial average
-            for j, country in enumerate(df_countries['name']):
+            for j, country in enumerate(df_countries['name']): # with other stuff running, this loop took 91 minutes
+                # therefore consider first doing the weighted mean and then boot strapping? does that make sense?
 
                 print('processing country '+str(j+1)+' of '+str(len(df_countries)), end='\r')
                 # calculate mean per country weighted by population
@@ -777,20 +815,60 @@ def calc_exposure_pic(
 
                 # corresponding picontrol - assume constant 1960 population density (this line takes about 16h by itself)
                 d_exposure_peryear_percountry_pic[country] = calc_weighted_fldmean(
-                    da_AFA_pic, 
+                    bootstrapped_array, 
                     da_population[0,:,:], # earliest year used for weights
                     countries_mask, 
                     ind_country, 
                     flag_region= False,
                 )
 
-            # call function to compute extreme event exposure per country and per lifetime
-            d_exposure_perrun_pic[i] = calc_life_exposure(
-                df_life_expectancy_5, 
-                df_countries, 
-                df_birthyears, 
-                d_exposure_peryear_percountry_pic,
+            # frame = {k:v.values for k,v in d_exposure_peryear_percountry_pic.items()}
+            # df_exposure = pd.DataFrame(frame,index=pic_time)
+            
+            print("--- {} seconds for 1 simulations ---".format(
+                (time.time() - start_time),
             )
+                )            
+            
+            # create new data array dimension for countries via d_exposure_peryear_percountry_pic
+            dim_labels = list(d_exposure_peryear_percountry_pic.keys())
+            arrays = list(d_exposure_peryear_percountry_pic.values())
+            da_exposure_pic1 = xr.concat(
+                arrays,
+                dim=dim_labels,
+            ).rename({'concat_dim':'country'})
+            
+            with open('./data/pickles/da_exposure_pic1.pkl', 'wb') as f: # note; 'with' handles file stream closing
+                pk.dump(da_exposure_pic1,f)
+            life_expectancy_1960 = xr.DataArray(
+                df_life_expectancy_5.loc[1960].values,
+                coords={
+                    'country': ('country', df_life_expectancy_5.columns)
+                }
+            )
+            
+            # --------------------------------------------------------------------
+            # Approach 2: do weighted means, then boot strap years
+            
+            
+            
+            # --------------------------------------------------------------------
+            # substitute calc_life_exposure because we are only doing the 1960 cohort
+            d_exposure_perrun_pic[i] = da_exposure_pic1.where(da_exposure_pic1.time < 1960 + np.floor(life_expectancy_1960)).sum(dim='time') + \
+                da_exposure_pic1.where(da_exposure_pic1.time == 1960 + np.floor(life_expectancy_1960)).sum(dim='time') * \
+                    (life_expectancy_1960 - np.floor(life_expectancy_1960))
+                
+
+
+            # call function to compute extreme event exposure per country and per lifetime
+            # d_exposure_perrun_pic[i] = df_exposure.apply(
+            #     lambda col: calc_life_exposure(
+            #         df_exposure,
+            #         df_life_expectancy_5,
+            #         col.name,
+            #     ),
+            #     axis=0,
+            # )
 
         
             # --------------------------------------------------------------------
