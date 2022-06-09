@@ -66,7 +66,7 @@ flags['runs']  = 0          # 0: do not process ISIMIP runs (i.e. load runs pick
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask']  = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
 flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
@@ -94,7 +94,6 @@ set_extremes(flags)
 # TODO: when regions added, make this one function returning dict! 
 from load_manip import *
 
-
 # --------------------------------------------------------------------
 # Load global mean temperature projections
 global df_GMT_15, df_GMT_20, df_GMT_NDC
@@ -103,8 +102,6 @@ df_GMT_15, df_GMT_20, df_GMT_NDC = load_GMT(
     year_start,
     year_end,
 ) 
-
-
 
 # --------------------------------------------------------------------
 # Load and manipulate life expectancy, cohort and mortality data
@@ -120,7 +117,6 @@ if flags['mask']: # load data and do calculations
     df_countries, df_regions = meta
     df_worldbank_country, df_worldbank_region = worldbank
     df_unwpp_country, df_unwpp_region = unwpp
-
 
     # manipulate worldbank and unwpp data to get birth year and life expectancy values
     df_birthyears, df_life_expectancy_5 = get_life_expectancies(
@@ -150,32 +146,11 @@ if flags['mask']: # load data and do calculations
     # --------------------------------------------------------------------
     # Load population and country masks, and mask population per country
     
-
     # Load SSP population totals 
     da_population = load_population(
         year_start,
         year_end,
     )
-
-    # # load country borders
-    # os.chdir(scriptsdir)
-    # countriesdir = './data/test/natural_earth/Cultural_10m/Countries'
-    # if not os.path.isdir(countriesdir):
-    #     os.makedirs(countriesdir)
-    # if not os.path.isfile(countriesdir+'/ne_10m_admin_0_countries.shp'):
-    #     url = 'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
-    #     r = requests.get(url)
-    #     filename = url.split('/')[-1]
-    #     os.chdir(countriesdir)
-    #     with open(filename,'wb') as f:
-    #         for chunk in r.iter_content(chunk_size=1024): 
-    #             if chunk: # filter out keep-alive new chunks
-    #                 f.write(chunk)
-            # f.write(r.content)
-            # z = ZipFile(io.BytesIO(r.content))
-            # z.extractall()
-    # with open('./data/test/natural_earth/Cultural_10m/Countries/{}'.format(url.split('/')[-1]),'wb') as f:
-    #     f.write(r.content)
     
     gdf_country_borders = gpd.read_file('./data/natural_earth/Cultural_10m/Countries/ne_10m_admin_0_countries.shp'); 
 
@@ -203,7 +178,6 @@ if flags['mask']: # load data and do calculations
         'cohort_size' : d_cohort_weights_regions,
     }
 
-
     # save metadata dictionary as a pickle
     print('Saving country and region data')
     
@@ -213,9 +187,6 @@ if flags['mask']: # load data and do calculations
         pk.dump(d_countries,f)
     with open('./data/pickles/region_info.pkl', 'wb') as f:
         pk.dump(d_regions,f)
-
-    # TODO:
-
 
 else: # load processed country data
 
@@ -258,13 +229,14 @@ d_isimip_meta,d_pic_meta = load_isimip(
 
 from exposure import * 
 
-
 # --------------------------------------------------------------------
-#  convert Area Fraction Affected (AFA) to 
+# convert Area Fraction Affected (AFA) to 
 # per-country number of extremes affecting one individual across life span
 
 
 if flags['exposure'] == 1: 
+    
+    start_time = time.time()
     
     #  calculate exposure  per country and per region and save data
     d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure_fast(
@@ -281,6 +253,11 @@ if flags['exposure'] == 1:
         df_GMT_20, 
         df_GMT_NDC,
     )
+    
+    print("--- {} minutes ---".format(
+        np.floor((time.time() - start_time) / 60),
+        )
+          )
 
 else: # load processed country data
 
@@ -289,8 +266,6 @@ else: # load processed country data
     # load country pickle
     with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[1]['extreme']), 'rb') as f:
         d_exposure = pk.load(f)
-
-    # d_exposure = pk.load(open('./data/pickles/exposure.pkl', 'rb'))
 
     # unpack country information
     d_exposure_perrun_RCP = d_exposure['exposure_perrun_RCP']
@@ -302,14 +277,43 @@ else: # load processed country data
     d_exposure_perregion_perrun_RCP = d_exposure['exposure_perregion_perrun_RCP']
     d_landfrac_peryear_perregion = d_exposure['landfrac_peryear_perregion']
 
-
 # --------------------------------------------------------------------
-# Process picontrol data
+# process picontrol data
 
+if flags['exposure_pic'] == 1:
+    
+    start_time = time.time()
+     # takes 38 mins crop failure
+    d_exposure_perrun_pic, d_exposure_perregion_perrun_pic, = calc_exposure_pic(
+        grid_area,
+        d_regions,
+        d_pic_meta, 
+        df_birthyears_regions, 
+        df_countries, 
+        countries_regions, 
+        countries_mask, 
+        da_population, 
+        df_life_expectancy_5,
+    )
+    
+    print("--- {} minutes ---".format(
+        np.floor((time.time() - start_time) / 60),
+        )
+          )    
+    
+else: # load processed country data
+    
+    print('Loading processed exposures')
 
-# to be added from MATLAB
-
-
+    with open('./data/pickles/exposure_pic_{}.pkl'.format(d_pic_meta[1]['extreme']), 'rb') as f:
+        d_exposure_pic = pk.load(f)
+    
+    # unpack pic country information
+    d_exposure_perrun_pic = d_exposure_pic['exposure_perrun']
+    
+    # unpack pic regional information
+    d_exposure_perregion_perrun_pic = d_exposure_pic['exposure_perregion_perrun']
+    d_landfrac_peryear_perregion_pic = d_exposure_pic['landfrac_peryear_perregion']
 
 # --------------------------------------------------------------------
 # compute averages across runs and sums across extremes 

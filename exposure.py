@@ -589,6 +589,7 @@ def calc_exposure_fast(
         d_exposure_perrun_R26eval = {} 
         
         d_landfrac_peryear_perregion = {}
+        d_exposure_perregion_perrun_RCP = {}
         
         # unpack region information
         df_birthyears_regions = d_regions['birth_years']
@@ -697,15 +698,12 @@ def calc_exposure_fast(
 
             # initialise dictionaries
             d_landfrac_peryear_perregion[i] = {}
-            d_exposure_perregion_perrun_RCP = {}
+            d_exposure_perregion_RCP = {}
 
             # loop over regions
             for k, region in enumerate(df_birthyears_regions.columns): 
                 
                 print('processing region '+str(k+1)+' of '+str(len(df_birthyears_regions.columns)), end='\r')
-
-                # initialise dict
-                d_exposure_perregion_RCP = {}
 
                 # Get list of member countries from region - with seperate treatment for world (luke: now inside get_countries_of_regions func)
                 member_countries = get_countries_of_region(region, df_countries)
@@ -727,7 +725,7 @@ def calc_exposure_fast(
                 d_cohort_weights_regions[region] = d_cohort_weights_regions[region].loc[:,d_cohort_weights_regions[region].columns.isin(df_countries.index)]
                 
                 # get weighted spatial average for all member countries per region
-                d_exposure_perregion_RCP[region]   = (d_exposure_perrun_RCP[i].loc[:,member_countries] * d_cohort_weights_regions[region].values).sum(axis=1) /\
+                d_exposure_perregion_RCP[region] = (d_exposure_perrun_RCP[i].loc[:,member_countries] * d_cohort_weights_regions[region].values).sum(axis=1) /\
                     np.nansum(d_cohort_weights_regions[region].values, axis=1)
 
             # save exposures for every run
@@ -748,7 +746,7 @@ def calc_exposure_fast(
             'exposure_perrun_20' : d_exposure_perrun_20,
             'exposure_perrun_NDC' : d_exposure_perrun_NDC,
             'exposure_perregion_perrun_RCP' : d_exposure_perregion_perrun_RCP, 
-            'landfrac_peryear_perregion' : d_landfrac_peryear_perregion 
+            'landfrac_peryear_perregion' : d_landfrac_peryear_perregion,
         }
 
         with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
@@ -769,20 +767,20 @@ def calc_exposure_pic(
     countries_mask, 
     da_population, 
     df_life_expectancy_5, 
-    df_birthyears, 
 ):
 
-        d_exposure_perrun_pic     = {}       
+        d_exposure_perrun_pic = {}       
         d_landfrac_peryear_perregion_pic = {}
+        d_exposure_perregion_perrun_pic = {}
         
         # unpack region information
         df_birthyears_regions = d_regions['birth_years']
         d_cohort_weights_regions = d_regions['cohort_size']                
         
         # loop over simulations
-        for i in list(d_pic_meta.keys()):
+        for n,i in enumerate(list(d_pic_meta.keys())):
 
-            print('simulation '+str(i)+ ' of '+str(len(d_pic_meta)))
+            print('simulation '+str(n+1)+ ' of '+str(len(d_pic_meta)))
 
             # load AFA data of that run
             with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
@@ -791,18 +789,17 @@ def calc_exposure_pic(
             # get time var for this pic run
             pic_time = da_AFA_pic.time.values
             
-            # --------------------------------------------------------------------
-            # Approach 1: bootstrap and then do weighted means; took 91 minutes
-            
-            # bootstrap native pic exposed area data
-            life_extent=82 # max 1960 life expectancy is 81, therefore bootstrap lifetimes of 82 years
-            nboots=100 # number of lifetimes to be bootstrapped should go to settings
-            resample_dim='time'
-            bootstrapped_array = xr.concat([resample(da_AFA_pic,resample_dim,life_extent) for i in range(nboots)],dim='lifetimes')
+            # get 1960 life expectancy
+            life_expectancy_1960 = xr.DataArray(
+                df_life_expectancy_5.loc[1960].values,
+                coords={
+                    'country': ('country', df_life_expectancy_5.columns)
+                }
+            )            
             
             # --------------------------------------------------------------------
             # per country 
-            start_time = time.time()    
+            # start_time = time.time()
             d_exposure_peryear_percountry_pic = {}
             
             # get spatial average
@@ -815,62 +812,46 @@ def calc_exposure_pic(
 
                 # corresponding picontrol - assume constant 1960 population density (this line takes about 16h by itself)
                 d_exposure_peryear_percountry_pic[country] = calc_weighted_fldmean(
-                    bootstrapped_array, 
+                    da_AFA_pic, 
                     da_population[0,:,:], # earliest year used for weights
                     countries_mask, 
                     ind_country, 
                     flag_region= False,
                 )
-
-            # frame = {k:v.values for k,v in d_exposure_peryear_percountry_pic.items()}
-            # df_exposure = pd.DataFrame(frame,index=pic_time)
-            
-            print("--- {} seconds for 1 simulations ---".format(
-                (time.time() - start_time),
-            )
-                )            
-            
-            # create new data array dimension for countries via d_exposure_peryear_percountry_pic
-            dim_labels = list(d_exposure_peryear_percountry_pic.keys())
-            arrays = list(d_exposure_peryear_percountry_pic.values())
-            da_exposure_pic1 = xr.concat(
-                arrays,
-                dim=dim_labels,
-            ).rename({'concat_dim':'country'})
-            
-            with open('./data/pickles/da_exposure_pic1.pkl', 'wb') as f: # note; 'with' handles file stream closing
-                pk.dump(da_exposure_pic1,f)
-            life_expectancy_1960 = xr.DataArray(
-                df_life_expectancy_5.loc[1960].values,
+                
+            da_exposure_pic = xr.DataArray(
+                list(d_exposure_peryear_percountry_pic.values()),
                 coords={
-                    'country': ('country', df_life_expectancy_5.columns)
-                }
+                    'country': ('country', list(d_exposure_peryear_percountry_pic.keys())),
+                    'time': ('time', pic_time),
+                },
+                dims=[
+                    'country',
+                    'time',
+                ],
             )
+
+            # bootstrap native pic exposed area data
+            life_extent=82 # max 1960 life expectancy is 81, therefore bootstrap lifetimes of 82 years
+            nboots=100 # number of lifetimes to be bootstrapped should go to settings
+            resample_dim='time'
+            da_exposure_pic = xr.concat([resample(da_exposure_pic,resample_dim,life_extent) for i in range(nboots)],dim='lifetimes')
             
-            # --------------------------------------------------------------------
-            # Approach 2: do weighted means, then boot strap years
+            # print("--- {} seconds for 1 simulations ---".format(
+            #     (time.time() - start_time),
+            # )
+            #     )
             
-            
+            # save pic2 data for checking
+            with open('./data/pickles/da_exposure_pic.pkl', 'wb') as f: # note; 'with' handles file stream closing
+                pk.dump(da_exposure_pic,f)            
             
             # --------------------------------------------------------------------
             # substitute calc_life_exposure because we are only doing the 1960 cohort
-            d_exposure_perrun_pic[i] = da_exposure_pic1.where(da_exposure_pic1.time < 1960 + np.floor(life_expectancy_1960)).sum(dim='time') + \
-                da_exposure_pic1.where(da_exposure_pic1.time == 1960 + np.floor(life_expectancy_1960)).sum(dim='time') * \
+            d_exposure_perrun_pic[i] = da_exposure_pic.where(da_exposure_pic.time < 1960 + np.floor(life_expectancy_1960)).sum(dim='time') + \
+                da_exposure_pic.where(da_exposure_pic.time == 1960 + np.floor(life_expectancy_1960)).sum(dim='time') * \
                     (life_expectancy_1960 - np.floor(life_expectancy_1960))
-                
 
-
-            # call function to compute extreme event exposure per country and per lifetime
-            # d_exposure_perrun_pic[i] = df_exposure.apply(
-            #     lambda col: calc_life_exposure(
-            #         df_exposure,
-            #         df_life_expectancy_5,
-            #         col.name,
-            #     ),
-            #     axis=0,
-            # )
-
-        
             # --------------------------------------------------------------------
             # per region
             #  
@@ -879,15 +860,12 @@ def calc_exposure_pic(
 
             # initialise dictionaries
             d_landfrac_peryear_perregion_pic[i] = {}
-            d_exposure_perregion_perrun_pic = {}
+            d_exposure_perregion_pic = {}
 
             # loop over regions
             for k, region in enumerate(df_birthyears_regions.columns): 
                 
                 print('processing region '+str(k+1)+' of '+str(len(df_birthyears_regions.columns)), end='\r')
-
-                # initialise dict
-                d_exposure_perregion_pic = {}
 
                 # Get list of member countries from region - with seperate treatment for world (luke: now inside get_countries_of_regions func)
                 member_countries = get_countries_of_region(region, df_countries)
@@ -895,7 +873,7 @@ def calc_exposure_pic(
                 # get spatial average of landfraction: historical + RCP simulations
                 ind_countries = countries_regions.map_keys(member_countries)
 
-                print('calculating landfrac')
+                print('calculating landfrac') # don't need to bootstrap more samples of lifetimes from here because this is just PIC landfrac affected
                 d_landfrac_peryear_perregion_pic[i][region] = calc_weighted_fldmean(
                     da_AFA_pic, 
                     grid_area, 
@@ -907,13 +885,19 @@ def calc_exposure_pic(
                 print('calculating cohort weights')
                 # filter cohort weights to only keep countries within mask 
                 d_cohort_weights_regions[region] = d_cohort_weights_regions[region].loc[:,d_cohort_weights_regions[region].columns.isin(df_countries.index)]
+                da_cwr_1960 = xr.DataArray(
+                    d_cohort_weights_regions[region].loc[60],
+                    coords={
+                        'country': ('country', member_countries),
+                    }
+                )
                 
                 # get weighted spatial average for all member countries per region
-                d_exposure_perregion_pic[region]   = (d_exposure_perrun_pic[i].loc[:,member_countries] * d_cohort_weights_regions[region].values).sum(axis=1) /\
-                    np.nansum(d_cohort_weights_regions[region].values, axis=1)
+                d_exposure_perregion_pic[region] = (d_exposure_perrun_pic[i].sel(country=member_countries) * da_cwr_1960).sum(axis=1) /\
+                    da_cwr_1960.sum(dim='country')
 
             # save exposures for every run
-            d_exposure_perregion_perrun_pic[i]  = d_exposure_perregion_pic
+            d_exposure_perregion_perrun_pic[i] = d_exposure_perregion_pic
 
         # --------------------------------------------------------------------
         # save workspave in pickles
@@ -926,8 +910,8 @@ def calc_exposure_pic(
 
         # pack region information
         d_exposure = {
-            'exposure_perrun_RCP' : d_exposure_perrun_pic, 
-            'exposure_perregion_perrun_RCP' : d_exposure_perregion_perrun_pic, 
+            'exposure_perrun' : d_exposure_perrun_pic, 
+            'exposure_perregion_perrun' : d_exposure_perregion_perrun_pic, 
             'landfrac_peryear_perregion' : d_landfrac_peryear_perregion_pic 
         }
 
@@ -936,3 +920,148 @@ def calc_exposure_pic(
 
         return d_exposure_perrun_pic, d_exposure_perregion_perrun_pic
 
+#%% ----------------------------------------------------------------
+# backup plotting function
+# # --------------------------------------------------------------------
+# # read in pic1 for comparison
+# with open('./data/pickles/da_exposure_pic1.pkl', 'rb') as f:
+#     da_exposure_pic1 = pk.load(f)
+    
+# # integrate both pic1 and pic2 exposure calculations
+# da_exposure_pic1 = da_exposure_pic1.where(da_exposure_pic1.time < 1960 + np.floor(life_expectancy_1960)).sum(dim='time') + \
+#     da_exposure_pic1.where(da_exposure_pic1.time == 1960 + np.floor(life_expectancy_1960)).sum(dim='time') * \
+#         (life_expectancy_1960 - np.floor(life_expectancy_1960))
+        
+# da_exposure_pic2 = da_exposure_pic2.where(da_exposure_pic2.time < 1960 + np.floor(life_expectancy_1960)).sum(dim='time') + \
+#     da_exposure_pic2.where(da_exposure_pic2.time == 1960 + np.floor(life_expectancy_1960)).sum(dim='time') * \
+#         (life_expectancy_1960 - np.floor(life_expectancy_1960))                    
+    
+# test_countries = ['United States', 'Canada', 'China']
+# da_test1 = da_exposure_pic1.sel(country=test_countries)
+# da_test2 = da_exposure_pic2.sel(country=test_countries)
+
+# x=20
+# y=8
+# colors={}
+# cmap_whole = plt.cm.get_cmap('PRGn')
+# colors['hist-noLu'] = cmap_whole(0.95) # green
+# colors['historical'] = cmap_whole(0.05) # purple
+# colors['obs'] = 'k'
+# letters=['a','b','c','d','e','f','g',
+#         'h','i','j','k','l','m','n',
+#         'o','p','q','r','s','t','u',
+#         'v','w','x','y','z']
+# # bbox
+# x0 = 0.15
+# y0 = 1.15
+# xlen = 0.75
+# ylen = 1.0
+
+# # space between entries
+# legend_entrypad = 0.5
+
+# # length per entry
+# legend_entrylen = 1
+
+# # height/width between panels
+# yspace = 1.75
+# xspace = 0
+
+# nrows = 2
+# ncols = len(test_countries)
+
+# f,axes = plt.subplots(
+#     nrows=nrows,
+#     ncols=ncols,
+#     figsize=(x,y)
+# )
+
+# i = 0
+
+# for r,da in enumerate([da_test1,da_test2]):
+    
+#     r_axes = axes[r,:]
+
+#     for ax,c in zip(r_axes,test_countries):
+        
+#         da.sel(country=c).plot.hist(ax=ax)
+            
+#         ax.set_title(letters[i],
+#                     fontweight='bold',
+#                     loc='left')
+#         ax.set_title(c,
+#                     fontweight='bold',
+#                     loc='center')                    
+#         ax.set_ylabel('')
+
+#%% ----------------------------------------------------------------
+# Back up work for retrieving natural earth shapefiles
+# os.chdir(scriptsdir)
+# countriesdir = './data/test/natural_earth/Cultural_10m/Countries'
+# if not os.path.isdir(countriesdir):
+#     os.makedirs(countriesdir)
+# if not os.path.isfile(countriesdir+'/ne_10m_admin_0_countries.shp'):
+#     url = 'https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip'
+#     r = requests.get(url)
+#     filename = url.split('/')[-1]
+#     os.chdir(countriesdir)
+#     with open(filename,'wb') as f:
+#         for chunk in r.iter_content(chunk_size=1024): 
+#             if chunk: # filter out keep-alive new chunks
+#                 f.write(chunk)
+        # f.write(r.content)
+        # z = ZipFile(io.BytesIO(r.content))
+        # z.extractall()
+# with open('./data/test/natural_earth/Cultural_10m/Countries/{}'.format(url.split('/')[-1]),'wb') as f:
+#     f.write(r.content)
+
+#%% ----------------------------------------------------------------
+# back up work for boot strapping first then weighted means after
+
+# bootstrap native pic exposed area data
+# life_extent=82 # max 1960 life expectancy is 81, therefore bootstrap lifetimes of 82 years
+# nboots=100 # number of lifetimes to be bootstrapped should go to settings
+# resample_dim='time'
+# start_time = time.time()    
+# bootstrapped_array = xr.concat([resample(da_AFA_pic,resample_dim,life_extent) for i in range(nboots)],dim='lifetimes')
+
+# # per country 
+# d_exposure_peryear_percountry_pic = {}
+
+# # get spatial average
+# for j, country in enumerate(df_countries['name']): # with other stuff running, this loop took 91 minutes
+#     # therefore consider first doing the weighted mean and then boot strapping? does that make sense?
+
+#     print('processing country '+str(j+1)+' of '+str(len(df_countries)), end='\r')
+#     # calculate mean per country weighted by population
+#     ind_country = countries_regions.map_keys(country)
+
+#     # corresponding picontrol - assume constant 1960 population density (this line takes about 16h by itself)
+#     d_exposure_peryear_percountry_pic[country] = calc_weighted_fldmean(
+#         bootstrapped_array, 
+#         da_population[0,:,:], # earliest year used for weights
+#         countries_mask, 
+#         ind_country, 
+#         flag_region= False,
+#     )
+
+# # frame = {k:v.values for k,v in d_exposure_peryear_percountry_pic.items()}
+# # df_exposure = pd.DataFrame(frame,index=pic_time)
+
+# print("--- {} seconds for 1 simulations ---".format(
+#     (time.time() - start_time),
+# )
+#     )            
+
+# # create new data array dimension for countries via d_exposure_peryear_percountry_pic
+# dim_labels = list(d_exposure_peryear_percountry_pic.keys())
+# arrays = list(d_exposure_peryear_percountry_pic.values())
+# da_exposure_pic1 = xr.concat(
+#     arrays,
+#     dim=dim_labels,
+# ).rename({'concat_dim':'country'})
+
+# # save pic1 data for checking
+# with open('./data/pickles/da_exposure_pic1.pkl', 'wb') as f: # note; 'with' handles file stream closing
+#     pk.dump(da_exposure_pic1,f)
+            
