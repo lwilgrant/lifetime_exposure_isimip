@@ -62,13 +62,13 @@ flags['extr']  = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs']  = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs']  = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask']  = 1         # 0: do not process country data (i.e. load masks pickle)
+flags['mask']  = 0         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 
 
@@ -220,6 +220,9 @@ d_isimip_meta,d_pic_meta = load_isimip(
     flags['runs'], 
     extremes, 
     model_names,
+    df_GMT_15,
+    df_GMT_20,
+    df_GMT_NDC,    
 )
 
 
@@ -234,11 +237,11 @@ from exposure import *
 # per-country number of extremes affecting one individual across life span
 
 
-if flags['exposure'] == 1: 
+if flags['exposure']: 
     
     start_time = time.time()
     
-    #  calculate exposure  per country and per region and save data
+    # calculate exposure  per country and per region and save data
     d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure_fast(
         grid_area,
         d_regions,
@@ -248,10 +251,7 @@ if flags['exposure'] == 1:
         countries_regions, 
         countries_mask, 
         da_population, 
-        df_life_expectancy_5, 
-        df_GMT_15, 
-        df_GMT_20, 
-        df_GMT_NDC,
+        df_life_expectancy_5,
     )
     
     print("--- {} minutes ---".format(
@@ -264,7 +264,7 @@ else: # load processed country data
     print('Loading processed exposures')
 
     # load country pickle
-    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[1]['extreme']), 'rb') as f:
+    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[list(d_isimip_meta.keys())[0]]['extreme']), 'rb') as f:
         d_exposure = pk.load(f)
 
     # unpack country information
@@ -280,7 +280,7 @@ else: # load processed country data
 # --------------------------------------------------------------------
 # process picontrol data
 
-if flags['exposure_pic'] == 1:
+if flags['exposure_pic']:
     
     start_time = time.time()
      # takes 38 mins crop failure
@@ -305,7 +305,7 @@ else: # load processed country data
     
     print('Loading processed exposures')
 
-    with open('./data/pickles/exposure_pic_{}.pkl'.format(d_pic_meta[1]['extreme']), 'rb') as f:
+    with open('./data/pickles/exposure_pic_{}.pkl'.format(d_pic_meta[list(d_pic_meta.keys())[0]]['extreme']), 'rb') as f:
         d_exposure_pic = pk.load(f)
     
     # unpack pic country information
@@ -314,27 +314,42 @@ else: # load processed country data
     # unpack pic regional information
     d_exposure_perregion_perrun_pic = d_exposure_pic['exposure_perregion_perrun']
     d_landfrac_peryear_perregion_pic = d_exposure_pic['landfrac_peryear_perregion']
+    
+# --------------------------------------------------------------------
+# compile RCP and pic for emergence analysis
+
+da_exposure_perrun_RCP = xr.concat(
+    [xr.DataArray(v).rename({'dim_0':'birth_year','dim_1':'country'}) for v in d_exposure_perrun_RCP.values()],
+    dim='runs',
+).assign_coords({'runs':list(d_isimip_meta.keys())})
+
+da_exposure_perrun_pic = xr.concat(
+    [v for v in d_exposure_perrun_pic.values()],
+    dim='runs',    
+).assign_coords({'runs':list(d_pic_meta.keys())})
+
+
 
 # --------------------------------------------------------------------
 # compute averages across runs and sums across extremes 
 
 
-# call function computing the multi-model mean (MMM) exposure 
+# # call function computing the multi-model mean (MMM) exposure 
 
-d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75 = calc_exposure_mmm(
-    d_exposure_perrun_RCP, 
-    extremes, 
-    d_isimip_meta,
-)
+# d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75 = calc_exposure_mmm(
+#     d_exposure_perrun_RCP, 
+#     extremes, 
+#     d_isimip_meta,
+# )
 
-# call function computing the Exposure Multiplication Factor (EMF)
-# here I use multi-model mean as a reference
-d_EMF_mmm, d_EMF_q25, d_EMF_q75 = calc_exposure_EMF(
-    d_exposure_mmm, 
-    d_exposure_q25, 
-    d_exposure_q75, 
-    d_exposure_mmm,
-)
+# # call function computing the Exposure Multiplication Factor (EMF)
+# # here I use multi-model mean as a reference
+# d_EMF_mmm, d_EMF_q25, d_EMF_q75 = calc_exposure_EMF(
+#     d_exposure_mmm, 
+#     d_exposure_q25, 
+#     d_exposure_q75, 
+#     d_exposure_mmm,
+# )
 
 
 # maybe more values needed to return

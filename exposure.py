@@ -163,7 +163,7 @@ def calc_weighted_fldmean(
     return da_weighted_fldmean
 
 #%% ----------------------------------------------------------------
-# calculated weighted fieldmean combining country masks per region
+# calculated weighted fieldmean combining country masks per region (not currently used? faster than in1d approach from calc_weighted_fldmean()?)
 def calc_weighted_fldmean_region(
     da, 
     weights, 
@@ -571,16 +571,7 @@ def calc_exposure_fast(
     countries_mask, 
     da_population, 
     df_life_expectancy_5, 
-    df_GMT_15, 
-    df_GMT_20, 
-    df_GMT_NDC,
 ):
-
-        # initialise dicts
-        d_RCP2GMT_maxdiff_15      = {}
-        d_RCP2GMT_maxdiff_20      = {}
-        d_RCP2GMT_maxdiff_NDC     = {}
-        d_RCP2GMT_maxdiff_R26eval = {}
 
         d_exposure_perrun_RCP     = {}
         d_exposure_perrun_15      = {}
@@ -603,23 +594,6 @@ def calc_exposure_fast(
             # load AFA data of that run
             with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
                 da_AFA = pk.load(f)
-
-            # Get ISIMIP GMT indices closest to GMT trajectories        
-            RCP2GMT_diff_15 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-            RCP2GMT_diff_20 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-            RCP2GMT_diff_NDC = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-            RCP2GMT_diff_R26eval = np.min(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
-
-            ind_RCP2GMT_15 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-            ind_RCP2GMT_20 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-            ind_RCP2GMT_NDC = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-            ind_RCP2GMT_R26eval = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
-
-            # Get maximum T difference between RCP and GMT trajectories (to remove rows later)
-            d_RCP2GMT_maxdiff_15[i] = np.nanmax(RCP2GMT_diff_15)
-            d_RCP2GMT_maxdiff_20[i] = np.nanmax(RCP2GMT_diff_20)
-            d_RCP2GMT_maxdiff_NDC[i] = np.nanmax(RCP2GMT_diff_NDC)
-            d_RCP2GMT_maxdiff_R26eval[i] = np.nanmax(RCP2GMT_diff_R26eval)
 
             # --------------------------------------------------------------------
             # per country 
@@ -645,9 +619,9 @@ def calc_exposure_fast(
                 )
                 
             # --------------------------------------------------------------------
-            # convert dict to dataframe for vectorizing               
+            # convert dict to dataframe for vectorizing and integrate exposures then map to GMTs        
             frame = {k:v.values for k,v in d_exposure_peryear_percountry.items()}
-            df_exposure = pd.DataFrame(frame,index=np.arange(1960,2114))
+            df_exposure = pd.DataFrame(frame,index=np.arange(1960,2114))           
 
             d_exposure_perrun_RCP[i] = df_exposure.apply(
                 lambda col: calc_life_exposure(
@@ -657,38 +631,51 @@ def calc_exposure_fast(
                 ),
                 axis=0,
             )
-            d_exposure_perrun_15[i] = df_exposure.apply(
-                lambda col: calc_life_exposure(
-                    df_exposure.reindex(df_exposure.index[ind_RCP2GMT_15]).set_index(df_exposure.index),
-                    df_life_expectancy_5,
-                    col.name,
-                ),
-                axis=0,
-            )
-            d_exposure_perrun_20[i] = df_exposure.apply(
-                lambda col: calc_life_exposure(
-                    df_exposure.reindex(df_exposure.index[ind_RCP2GMT_20]).set_index(df_exposure.index),
-                    df_life_expectancy_5,
-                    col.name,
-                ),
-                axis=0,
-            )
-            d_exposure_perrun_NDC[i] = df_exposure.apply(
-                lambda col: calc_life_exposure(
-                    df_exposure.reindex(df_exposure.index[ind_RCP2GMT_NDC]).set_index(df_exposure.index),
-                    df_life_expectancy_5,
-                    col.name,
-                ),
-                axis=0,
-            )
-            d_exposure_perrun_R26eval[i] = df_exposure.apply(
-                lambda col: calc_life_exposure(
-                    df_exposure.reindex(df_exposure.index[ind_RCP2GMT_R26eval]).set_index(df_exposure.index),
-                    df_life_expectancy_5,
-                    col.name,
-                ),
-                axis=0,
-            )
+            
+            # if max threshold criteria met, run gmt mapping
+            if d_isimip_meta[i]['GMT_15_valid']:
+                
+                d_exposure_perrun_15[i] = df_exposure.apply(
+                    lambda col: calc_life_exposure(
+                        df_exposure.reindex(df_exposure.index[d_isimip_meta[i]['ind_RCP2GMT_15']]).set_index(df_exposure.index),
+                        df_life_expectancy_5,
+                        col.name,
+                    ),
+                    axis=0,
+                )
+                
+            if d_isimip_meta[i]['GMT_20_valid']:
+                
+                d_exposure_perrun_20[i] = df_exposure.apply(
+                    lambda col: calc_life_exposure(
+                        df_exposure.reindex(df_exposure.index[d_isimip_meta[i]['ind_RCP2GMT_20']]).set_index(df_exposure.index),
+                        df_life_expectancy_5,
+                        col.name,
+                    ),
+                    axis=0,
+                )
+                
+            if d_isimip_meta[i]['GMT_NDC_valid']:
+                
+                d_exposure_perrun_NDC[i] = df_exposure.apply(
+                    lambda col: calc_life_exposure(
+                        df_exposure.reindex(df_exposure.index[d_isimip_meta[i]['ind_RCP2GMT_NDC']]).set_index(df_exposure.index),
+                        df_life_expectancy_5,
+                        col.name,
+                    ),
+                    axis=0,
+                )
+            
+            if d_isimip_meta[i]['GMT_R26eval_valid']:
+                
+                d_exposure_perrun_R26eval[i] = df_exposure.apply(
+                    lambda col: calc_life_exposure(
+                        df_exposure.reindex(df_exposure.index[d_isimip_meta[i]['ind_RCP2GMT_R26eval']]).set_index(df_exposure.index),
+                        df_life_expectancy_5,
+                        col.name,
+                    ),
+                    axis=0,
+                )
             
             # --------------------------------------------------------------------
             # per region
