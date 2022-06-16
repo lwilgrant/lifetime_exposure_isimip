@@ -54,7 +54,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr']  = 'cropfailedarea'   # 0: all
+flags['extr'] = 'cropfailedarea'   # 0: all
                                     # 1: burntarea
                                     # 2: cropfailedarea
                                     # 3: driedarea
@@ -62,9 +62,9 @@ flags['extr']  = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs']  = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask']  = 0         # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
@@ -155,7 +155,7 @@ if flags['mask']: # load data and do calculations
     gdf_country_borders = gpd.read_file('./data/natural_earth/Cultural_10m/Countries/ne_10m_admin_0_countries.shp'); 
 
     # mask population totals per country  and save country regions object and countries mask
-    df_countries, countries_regions, countries_mask = get_mask_population(
+    df_countries, countries_regions, countries_mask, gdf_country_borders = get_mask_population(
         da_population, 
         gdf_country_borders, 
         df_countries,
@@ -164,6 +164,7 @@ if flags['mask']: # load data and do calculations
     # pack country information
     d_countries = {
         'info_pop' : df_countries, 
+        'borders' : gdf_country_borders,
         'population_map' : da_population,
         'birth_years' : df_birthyears,
         'life_expectancy_5': df_life_expectancy_5, 
@@ -197,6 +198,7 @@ else: # load processed country data
 
     # unpack country information
     df_countries = d_countries['info_pop']
+    gdf_country_borders = d_countries['borders']
     da_population = d_countries['population_map']
     df_birthyears = d_countries['birth_years']
     df_life_expectancy_5 = d_countries['life_expectancy_5']
@@ -241,7 +243,7 @@ if flags['exposure']:
     
     start_time = time.time()
     
-    # calculate exposure  per country and per region and save data
+    # calculate exposure per country and per region and save data (takes 23 mins)
     d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure_fast(
         grid_area,
         d_regions,
@@ -283,7 +285,8 @@ else: # load processed country data
 if flags['exposure_pic']:
     
     start_time = time.time()
-     # takes 38 mins crop failure
+    
+    # takes 38 mins crop failure
     d_exposure_perrun_pic, d_exposure_perregion_perrun_pic, = calc_exposure_pic(
         grid_area,
         d_regions,
@@ -318,24 +321,50 @@ else: # load processed country data
 # --------------------------------------------------------------------
 # compile RCP and pic for emergence analysis
 
+# concat RCP data array from dict runs
 da_exposure_perrun_RCP = xr.concat(
     [xr.DataArray(v).rename({'dim_0':'birth_year','dim_1':'country'}) for v in d_exposure_perrun_RCP.values()],
     dim='runs',
 ).assign_coords({'runs':list(d_isimip_meta.keys())})
 
+# separate RCPs across P2.6 and 6.0
+da_exposure_perrun_RCP26 = da_exposure_perrun_RCP.sel(runs=[i for i in d_isimip_meta.keys() if d_isimip_meta[i]['rcp'] == 'rcp26'])
+da_exposure_perrun_RCP60 = da_exposure_perrun_RCP.sel(runs=[i for i in d_isimip_meta.keys() if d_isimip_meta[i]['rcp'] == 'rcp60'])
+
+# get model mean and std
+da_exposure_RCP26_mmm = da_exposure_perrun_RCP26.mean(dim='runs')
+da_exposure_RCP26_std = da_exposure_perrun_RCP26.std(dim='runs')
+da_exposure_RCP60_mmm = da_exposure_perrun_RCP60.mean(dim='runs')
+da_exposure_RCP60_std = da_exposure_perrun_RCP60.std(dim='runs')
+
+# concat pic data array from dict of separate arrays
 da_exposure_perrun_pic = xr.concat(
     [v for v in d_exposure_perrun_pic.values()],
     dim='runs',    
 ).assign_coords({'runs':list(d_pic_meta.keys())})
 
+# runs and lifetimes redundant, so compile together
+da_exposure_perrun_pic = da_exposure_perrun_pic.stack(
+    pic_lifetimes=['runs','lifetimes'],
+)
 
+# pic quantile for birth cohort emergence
+da_exposure_pic_qntl = da_exposure_perrun_pic.quantile(
+    q=0.9999,
+    dim='pic_lifetimes',
+    method='inverted_cdf',
+)
+
+# emergence
+da_exposure_RCP26_emergence = da_exposure_RCP26_mmm.where(da_exposure_RCP26_mmm > da_exposure_pic_qntl)
+da_exposure_RCP26_emergence_birth_year = da_exposure_RCP26_emergence.birth_year.where(da_exposure_RCP26_emergence.notnull()).min(dim='birth_year',skipna=True)
+gdf_exposure_RCP26_emergence_birth_year = da_exposure_RCP26_emergence_birth_year.to_dataframe().drop(columns='quantile').join(gdf_country_borders)
 
 # --------------------------------------------------------------------
 # compute averages across runs and sums across extremes 
 
 
 # # call function computing the multi-model mean (MMM) exposure 
-
 # d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75 = calc_exposure_mmm(
 #     d_exposure_perrun_RCP, 
 #     extremes, 

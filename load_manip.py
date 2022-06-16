@@ -329,6 +329,13 @@ def load_isimip(
                     file_name_gmt_fut = [s for s in file_names_gmt if d_isimip_meta[i]['rcp'] in s] 
                     file_name_gmt_his = [s for s in file_names_gmt if '_historical_' in s] 
                     file_name_gmt_pic = [s for s in file_names_gmt if '_piControl_' in s] 
+                    
+                    # test printing file names
+                    # print('testing for {}'.format(file_name))
+                    # print('pi file is {}'.format(file_name_gmt_pic[0]))
+                    # print('hist file is {}'.format(file_name_gmt_his[0]))
+                    # print('fut file is {}'.format(file_name_gmt_fut[0]))
+                    # print('')
 
                     GMT_fut = pd.read_csv(
                         file_name_gmt_fut[0],
@@ -370,15 +377,32 @@ def load_isimip(
                     d_isimip_meta[i]['GMT'] = df_GMT 
                     
                     # get ISIMIP GMT indices closest to GMT trajectories        
-                    RCP2GMT_diff_15 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-                    RCP2GMT_diff_20 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-                    RCP2GMT_diff_NDC = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-                    RCP2GMT_diff_R26eval = np.min(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
+                    RCP2GMT_diff_15 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=0)
+                    RCP2GMT_diff_20 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=0)
+                    RCP2GMT_diff_NDC = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=0)
+                    RCP2GMT_diff_R26eval = np.min(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=0)
 
-                    ind_RCP2GMT_15 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-                    ind_RCP2GMT_20 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-                    ind_RCP2GMT_NDC = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-                    ind_RCP2GMT_R26eval = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
+                    ind_RCP2GMT_15 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=0)
+                    ind_RCP2GMT_20 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=0)
+                    ind_RCP2GMT_NDC = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=0)
+                    ind_RCP2GMT_R26eval = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=0)
+                    
+                    # code for testing row/column operations in min for nanmax (was different from matlab so changed axis on np.min calls)
+                    # test = np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose())
+                    # testmin = np.min(test,axis=0)
+                    # testmax = np.nanmax(testmin)
+                    # print(testmax)
+                    # # check first row of differences 
+                    # test[0,:] == np.abs(d_isimip_meta[i]['GMT'].values[0] - df_GMT_15.values)
+                    # print(np.min(test[0,:]))
+                    
+                    # # print max diffs for testing
+                    # print('testing for {}'.format(file_name))
+                    # print('1.5 max diff is {}'.format(np.nanmax(RCP2GMT_diff_15)))
+                    # print('2.0 max diff is {}'.format(np.nanmax(RCP2GMT_diff_20)))
+                    # print('NDC max diff is {}'.format(np.nanmax(RCP2GMT_diff_NDC)))
+                    # print('R26eval max diff is {}'.format(np.nanmax(RCP2GMT_diff_NDC)))
+                    # print('')
                     
                     # store GMT maxdiffs and indices in metadatadict
                     d_isimip_meta[i]['GMT_15_valid'] = np.nanmax(RCP2GMT_diff_15) < RCP2GMT_maxdiff_threshold
@@ -527,11 +551,11 @@ def get_cohortsize_countries(
         # extract population size per age cohort data from WCDE file and
         # linearly interpolate from 5-year WCDE blocks to pre-defined birth year
         # ! this gives slightly different values than MATLAB at some interpolation points inherent to the interpolation
-        wcde_country_data_reshape   = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
-        wcde_per_country            = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
-        wcde_per_country            = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
-        [Xorig, Yorig]              = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
-        [Xnew, Ynew]                = np.meshgrid(ages, np.array(df_GMT_15.index))                                             # prepare for 2D interpolation
+        wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
+        wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
+        wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
+        [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
+        [Xnew, Ynew] = np.meshgrid(ages, np.array(df_GMT_15.index))                                             # prepare for 2D interpolation
         wcde_country_data_raw = interpolate.griddata(
             (Xorig.ravel(),Yorig.ravel()),
             wcde_per_country.ravel(),
@@ -583,8 +607,11 @@ def get_mask_population(
         
     # remove countries which are not found in country borders file
     df_countries = df_countries[~df_countries.loc[:, 'population'].isnull()]
+    
+    # fix country borders dataframe for return
+    gdf_country_borders = gdf_country_borders.set_index(gdf_country_borders.name).loc[:,['geometry','region']].reindex(df_countries.index)
 
-    return  df_countries, countries_regions, countries_mask
+    return  df_countries, countries_regions, countries_mask, gdf_country_borders
 
 #%% ----------------------------------------------------------------
 # get countries per region, returns dictionary with regions as keys and countries as values
@@ -617,9 +644,9 @@ def get_regions_data(
     d_region_countries = get_countries_per_region(df_countries, df_regions)
 
     # filter for regions used
-    df_regions          = df_regions[df_regions.index.isin(d_region_countries.keys())]
+    df_regions = df_regions[df_regions.index.isin(d_region_countries.keys())]
     df_worldbank_region = df_worldbank_region.filter(items=d_region_countries.keys())
-    df_unwpp_region     = df_unwpp_region.filter(items=d_region_countries.keys())
+    df_unwpp_region = df_unwpp_region.filter(items=d_region_countries.keys())
 
     # get birthyears and life expectancy for regions
     df_birthyears_regions, df_life_expectancy_5_regions = get_life_expectancies(df_worldbank_region, df_unwpp_region)
@@ -638,3 +665,5 @@ def get_regions_data(
     
     return d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions
 
+
+# %%

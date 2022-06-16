@@ -229,7 +229,7 @@ def calc_exposure_mmm(
         # Stack all dictionary values of different extremes
         to_stack = []
 
-        for ind_run in [1,2]: #indices_extremes: 
+        for ind_run in indices_extremes: #indices_extremes: 
             to_stack.append(exposure[ind_run].values)
 
         stacked_perextreme = np.stack(to_stack, axis=0)
