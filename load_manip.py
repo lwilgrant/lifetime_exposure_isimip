@@ -224,6 +224,7 @@ def load_GMT(
     # check and drop duplicate years
     df_GMT_15   = df_GMT_15[~df_GMT_15.index.duplicated(keep='first')]
     df_GMT_20   = df_GMT_20[~df_GMT_20.index.duplicated(keep='first')]
+    df_GMT_NDC   = df_GMT_NDC[~df_GMT_NDC.index.duplicated(keep='first')]
     df_GMT_SR15 = df_GMT_SR15[~df_GMT_SR15.index.duplicated(keep='first')]
 
     ## BELOW ORIGINAL MATLAB CODE - not translated
