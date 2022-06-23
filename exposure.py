@@ -656,18 +656,41 @@ def calc_exposure_pic(
         return d_exposure_perrun_pic, d_exposure_perregion_perrun_pic
 
 #%% ----------------------------------------------------------------
-    
+# get timing and EMF of exceedence of pic-defined extreme
 def calc_exposure_emergence(
     ds_exposure,
     ds_exposure_pic,
     gdf_country_borders,
 ):
-    da_exposure_emergence = ds_exposure.mmm.where(ds_exposure.mmm > ds_exposure_pic.ext)
-    da_exposure_emergence_birth_year = da_exposure_emergence.birth_year.where(da_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)
-    da_exposure_emergence_birth_year_EMF = ds_exposure.mmm_EMF.where(ds_exposure.mmm_EMF.birth_year==da_exposure_emergence_birth_year).min(dim='birth_year',skipna=True)
-    gdf_exposure_emergence_birth_year = da_exposure_emergence_birth_year.to_dataframe().drop(columns='quantile').join(gdf_country_borders)
+
+    mmm_subset = [
+        'mmm_RCP',
+        'mmm_15',
+        'mmm_20',
+        'mmm_NDC',
+    ]
+
+    EMF_subset = [
+        'mmm_EMF_RCP',
+        'mmm_EMF_15',
+        'mmm_EMF_20',
+        'mmm_EMF_NDC',
+    ]
+
+    # get years where mmm exposures under different trajectories exceed pic 99.99%
+    ds_exposure_emergence = ds_exposure[mmm_subset].where(ds_exposure[mmm_subset] > ds_exposure_pic.ext)
+    ds_exposure_emergence_birth_year = ds_exposure_emergence.birth_year.where(ds_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)
     
-    return gdf_exposure_emergence_birth_year    
+    # for same years, get EMF
+    for var in EMF_subset:
+    
+        ds_exposure_emergence_birth_year[var] = ds_exposure[var].where(ds_exposure[var].birth_year==ds_exposure_emergence_birth_year[var.replace('_EMF','')]).min(dim='birth_year',skipna=True)
+    
+    # move emergene birth years and EMFs to gdf for plotting
+    gdf_exposure_emergence_birth_year = gpd.GeoDataFrame(ds_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders))
+    
+    return gdf_exposure_emergence_birth_year
+
 
 #%% ----------------------------------------------------------------
 # backup plotting function

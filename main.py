@@ -42,6 +42,7 @@ import io
 import xarray as xr
 import pickle as pk
 import time
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 scriptsdir = os.getcwd()
 
@@ -54,7 +55,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'cropfailedarea'   # 0: all
+flags['extr'] = 'heatwavedarea'   # 0: all
                                     # 1: burntarea
                                     # 2: cropfailedarea
                                     # 3: driedarea
@@ -62,16 +63,14 @@ flags['extr'] = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['exposure_ens'] = 0   # 0: do not perform sample statistics for exposure across all RCPs (separate mmm, std and iqr for 2.6 and 6.0)
-                            # 1: sample exposure across all RCPs (lumped mmm, std and iqr for 2.6 and 6.0)
 
 
 # TODO: add rest of flags
@@ -360,6 +359,7 @@ ds_exposure_pic_perregion = calc_exposure_mmm_pic_xr(
     'pic',
 )
 
+# pool all datasets for different trajectories
 ds_exposure = xr.merge([
     ds_exposure_RCP,
     ds_exposure_15,
@@ -369,41 +369,58 @@ ds_exposure = xr.merge([
 
 # emergence calculations
 gdf_exposure_emergence_birth_year = calc_exposure_emergence(
-    ds_exposure_RCP,
+    ds_exposure,
     ds_exposure_pic,
     gdf_country_borders,
 )
 
+# plot
+f,axes = plt.subplots(
+    nrows=4,
+    ncols=2,
+    figsize=(12,16)
+)
 
-def calc_exposure_emergence(
-    ds_exposure,
-    ds_exposure_pic,
-    gdf_country_borders,
-):
-
-    mmm_subset = [
-        'mmm_RCP',
-        'mmm_15',
-        'mmm_20',
-        'mmm_NDC',
-    ]
-
-    EMF_subset = [
-        'mmm_EMF_RCP',
-        'mmm_EMF_15',
-        'mmm_EMF_20',
-        'mmm_EMF_NDC',
-    ]
-
-    ds_exposure_emergence = ds_exposure[mmm_subset].where(ds_exposure[mmm_subset] > ds_exposure_pic.ext_pic)
-    ds_exposure_emergence_birth_year = ds_exposure_emergence.birth_year.where(ds_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)
-    da_exposure_emergence_birth_year_EMF = ds_exposure.mmm_EMF.where(ds_exposure.mmm_EMF.birth_year==da_exposure_emergence_birth_year).min(dim='birth_year',skipna=True)
-    gdf_exposure_emergence_birth_year = da_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders)
+for row,trj in zip(axes,['RCP','15','20','NDC']):
     
-    gdf_exposure_emergence_birth_year = gdf_exposure_emergence_birth_year.rename(columns={'birth_year':'emergence_year'})
-    
-    return gdf_exposure_emergence_birth_year
-
+    for i,ax in enumerate(row):
+        
+        if i == 0:
+            
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.1)
+            gdf_exposure_emergence_birth_year.plot(
+                column='mmm_{}'.format(trj),
+                ax=ax,
+                legend=True,
+                cax=cax,
+                missing_kwds={
+                    "color": "lightgrey",
+                    "edgecolor": "red",
+                    "hatch": "///",
+                    "label": "Missing values",
+                },
+            )
+            
+        else:
+            
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.1)
+            gdf_exposure_emergence_birth_year.plot(
+                column='mmm_EMF_{}'.format(trj),
+                ax=ax,
+                legend=True,
+                cax=cax,
+                cmap='OrRd',
+                missing_kwds={
+                    "color": "lightgrey",
+                    "edgecolor": "red",
+                    "hatch": "///",
+                    "label": "Missing values",
+                },                
+            )
+            
+            
 # --------------------------------------------------------------------
 # compute averages across runs and sums across extremes 
 

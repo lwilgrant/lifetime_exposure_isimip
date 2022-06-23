@@ -450,13 +450,13 @@ def load_isimip(
                     i += 1
 
         
-        # save metadata dictionary as a pickle
-        print('Saving metadata')
-        with open('./data/pickles/isimip_metadata.pkl', 'wb') as f:
-            pk.dump(d_isimip_meta,f)
-        with open('./data/pickles/isimip_pic_metadata.pkl', 'wb') as f:
-            pk.dump(d_pic_meta,f)            
-        # pk.dump(d_isimip_meta,open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb')  )
+            # save metadata dictionary as a pickle
+            print('Saving metadata')
+            with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb') as f:
+                pk.dump(d_isimip_meta,f)
+            with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'wb') as f:
+                pk.dump(d_pic_meta,f)            
+            # pk.dump(d_isimip_meta,open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb')  )
 
 
     else: 
@@ -480,7 +480,16 @@ def open_dataarray_isimip(file_name):
     
     begin_year = int(file_name.split('_')[-2])
     end_year = int(file_name.split('_')[-1].split('.')[0])
-    da = xr.open_dataarray(file_name, decode_times=False)
+    
+    # some files contain extra var 'time_bnds', first try reading for single var
+    try:
+        
+        da = xr.open_dataarray(file_name, decode_times=False)
+        
+    except:
+        
+        da = xr.open_dataset(file_name, decode_times=False).exposure
+    
     da['time'] = np.arange(begin_year,end_year+1)
     
     return da
