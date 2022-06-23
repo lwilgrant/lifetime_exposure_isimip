@@ -199,369 +199,115 @@ def get_countries_of_region(
 
 #%% ----------------------------------------------------------------
 # function to compute multi-model mean across ISIMIP simulations based on mf_exposure_mmm.m
-def calc_exposure_mmm(
-    exposure, 
-    extremes, 
-    d_isimip_meta,
+def calc_exposure_mmm_xr(
+    d_exposure,
+    dim_1_name,
+    var_tag,
 ):
-
-
-    # define dictionaries
-    d_exposure_mmm = {}
-    d_exposure_mms = {}
-    d_exposure_q25 = {}
-    d_exposure_q75 = {}
-
-    # turn meta dictionary into list
-    l_isimip_meta =  list(d_isimip_meta.values())
-
-
-    # loop over extremes
-    for extreme in extremes:
+    # change hist+RCP exposure dictionary of runs to data array
+    da_exposure = xr.concat(
+        [xr.DataArray(v).rename({'dim_0':'birth_year','dim_1':dim_1_name}) for v in d_exposure.values()],
+        dim='runs',
+    ).assign_coords({'runs':list(d_exposure.keys())})
         
-        # get indices of runs for extreme
-        indices_extremes = []
-        for metadata in l_isimip_meta:
-            if metadata['extreme'] == extreme: 
-                indices_extremes.append(l_isimip_meta.index(metadata)+1)
-
-
-        # Stack all dictionary values of different extremes
-        to_stack = []
-
-        for ind_run in indices_extremes: #indices_extremes: 
-            to_stack.append(exposure[ind_run].values)
-
-        stacked_perextreme = np.stack(to_stack, axis=0)
-
-
-        # compute multi-model mean (mmm) along different runs and save as dataframe in dictionary
-        d_exposure_mmm[extreme] = pd.DataFrame(
-            np.nanmean(stacked_perextreme, axis=0), 
-            columns=exposure[1].columns, 
-            index=exposure[1].index,
-        )
-
-
-        # compute multi-model standard deviation (mms) per extreme impact category
-        if len(indices_extremes)> 1:  
-            d_exposure_mms[extreme]  = pd.DataFrame(
-                np.nanmean(stacked_perextreme, axis=0), 
-                columns=exposure[1].columns, 
-                index=exposure[1].index,
-            )
-        else:
-            d_exposure_mms[extreme] = pd.DataFrame(
-                np.zeros_like(exposure[1].values), 
-                columns=exposure[1].columns, 
-                index=exposure[1].index,
-            )
-
-
-        # compute multi-model IQR (q25 and q75) per extreme impact category
-        d_exposure_q25[extreme] = pd.DataFrame(
-            np.quantile(stacked_perextreme, 0.25, axis=0), 
-            columns=exposure[1].columns, 
-            index=exposure[1].index,
-        )
-        d_exposure_q75[extreme] = pd.DataFrame(
-            np.quantile(stacked_perextreme, 0.75,  axis=0), 
-            columns=exposure[1].columns, 
-            index=exposure[1].index,
-        )
-
-
-        # geometric means - not calculated here
-
-    return d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75    
-
+    # take stats
+    da_exposure_mmm = da_exposure.mean(dim='runs')
+    da_exposure_std = da_exposure.std(dim='runs')
+    da_exposure_lqntl = da_exposure.quantile(
+        q=0.25,
+        dim='runs',
+        method='inverted_cdf'
+    )
+    da_exposure_uqntl = da_exposure.quantile(
+        q=0.75,
+        dim='runs',
+        method='inverted_cdf'
+    )
+    
+    # get EMF of stats (divide by 60 yr old / 1960 cohort)
+    da_exposure_mmm_EMF = da_exposure_mmm / da_exposure_mmm.sel(birth_year=1960)
+    da_exposure_lqntl_EMF = da_exposure_lqntl / da_exposure_mmm.sel(birth_year=1960)
+    da_exposure_uqntl_EMF = da_exposure_uqntl / da_exposure_mmm.sel(birth_year=1960)
+    
+    # assemble into dataset
+    ds_exposure_stats = xr.Dataset(
+        data_vars={
+            'mmm_{}'.format(var_tag): (['birth_year',dim_1_name],da_exposure_mmm.data),
+            'std_{}'.format(var_tag): (['birth_year',dim_1_name],da_exposure_std.data),
+            'lqntl_{}'.format(var_tag): (['birth_year',dim_1_name],da_exposure_lqntl.data),
+            'uqntl_{}'.format(var_tag): (['birth_year',dim_1_name],da_exposure_uqntl.data),
+            'mmm_EMF_{}'.format(var_tag): (['birth_year',dim_1_name],da_exposure_mmm_EMF.data),
+            'mmm_lqntl_EMF_{}'.format(var_tag): (['birth_year',dim_1_name],da_exposure_lqntl_EMF.data),
+            'mmm_uqntl_EMF_{}'.format(var_tag): (['birth_year',dim_1_name],da_exposure_uqntl_EMF.data),
+        },
+        coords={
+            'birth_year': ('birth_year',da_exposure.birth_year.data),
+            dim_1_name: (dim_1_name,da_exposure[dim_1_name].data),
+        }
+    )
+    
+    return ds_exposure_stats
+    
 #%% ----------------------------------------------------------------
-# function computing the Exposure Multiplication Factor (EMF)
-def calc_exposure_EMF(
-    d_exposure_mmm, 
-    d_exposure_q25, 
-    d_exposure_q75, 
-    exposure_ref,
-):
-
-    # intialise dictionaries of EMF per extreme
-    d_EMF_mmm = {}
-    d_EMF_q25 = {}
-    d_EMF_q75 = {}
-
-    # loop over all extremes
-    for extreme in d_exposure_mmm:
-
-        # Check whether EMFs need to be computed
-        if len(d_exposure_mmm[extreme]) == len(birth_years): 
-
-            # define the year of the reference age
-            ref_age_year = birth_years[np.where(ages==age_ref)][0]
-
-            # repeat ref for ref age to divide 
-            df_exposure_ref_repeated = pd.DataFrame(
-                np.tile(exposure_ref[extreme].loc[ref_age_year].values, (len(birth_years), 1)), 
-                columns=exposure_ref[extreme].columns, 
-                index=exposure_ref[extreme].index
-            )
-                
-            # compute Exposure Multiplication Factor (EMF) maps
-            d_EMF_mmm[extreme] = d_exposure_mmm[extreme] / df_exposure_ref_repeated
+# function to compute multi-model mean across ISIMIP simulations based on mf_exposure_mmm.m
+def calc_exposure_mmm_pic_xr(
+    d_exposure_pic,
+    dim_1_name,
+    var_tag,
+):        
         
+    # concat pic data array from dict of separate arrays
+    da_exposure_pic = xr.concat(
+        [v for v in d_exposure_pic.values()],
+        dim='runs',    
+    ).assign_coords({'runs':list(d_exposure_pic.keys())})
 
-            # get IQR EMFs - note that we use the q25/75 of the young age but the mmm of the reference age
-            d_EMF_q25[extreme] = d_exposure_q25[extreme] / df_exposure_ref_repeated
-            d_EMF_q75[extreme] = d_exposure_q75[extreme] / df_exposure_ref_repeated
+    # runs and lifetimes (lifetimes from boostrapping) redundant, so compile together
+    da_exposure_pic = da_exposure_pic.stack(
+        pic_lifetimes=['runs','lifetimes'],
+    )
 
+    # pic exposure stats for EMF
+    da_exposure_pic_mmm = da_exposure_pic.mean(dim='pic_lifetimes')
+    da_exposure_pic_std = da_exposure_pic.std(dim='pic_lifetimes')
+    da_exposure_pic_lqntl = da_exposure_pic.quantile(
+        q=0.25,
+        dim='pic_lifetimes',
+        method='inverted_cdf',
+    )
+    da_exposure_pic_uqntl = da_exposure_pic.quantile(
+        q=0.75,
+        dim='pic_lifetimes',
+        method='inverted_cdf',
+    )    
 
-            # set EMFs for inf to 100 
-            d_EMF_mmm[extreme].replace(np.inf,100,inplace=True)
-        
-            # for all extremes, get the geometric mean of the EMFs - for the main paper figures
-            # not translated
-            # EMF_mmm(nextremes+1,:,:) = geomean(EMF_mmm(1:nextremes,:,:), 1, 'omitnan');
+    # pic quantile for birth cohort emergence
+    da_exposure_pic_ext = da_exposure_pic.quantile(
+        q=0.9999,
+        dim='pic_lifetimes',
+        method='inverted_cdf',
+    )
+    
+    # assemble into dataset
+    ds_exposure_pic_stats = xr.Dataset(
+        data_vars={
+            'mmm_{}'.format(var_tag): ([dim_1_name],da_exposure_pic_mmm.data),
+            'std_{}'.format(var_tag): ([dim_1_name],da_exposure_pic_std.data),
+            'lqntl_{}'.format(var_tag): ([dim_1_name],da_exposure_pic_lqntl.data),
+            'uqntl_{}'.format(var_tag): ([dim_1_name],da_exposure_pic_uqntl.data),
+            'ext': ([dim_1_name],da_exposure_pic_ext.data),
+        },
+        coords={
+            dim_1_name: (dim_1_name,da_exposure_pic[dim_1_name].data),
+        }
+    )
 
-        
-            # for all extremes, get the harmonic mean of the EMFs - for SI sensitivity plot
-            # EMF_mmm_harmmean(nextremes+1,:,:) = harmmean(EMF_mmm(1:nextremes,:,:), 1, 'omitnan');
-
-
-        # for all extremes, get the EMF of the sum of exposure across categories - for SI sensitivity plot
-        # not translated
-        #EMF_mmm_geomexp = exposure_mmm ./ repmat(exposure_ref(:,:, ages == age_ref), 1, 1, nbirthyears);   
-
-            
-        # for all extremes, get the geometric mean of the IQR of the EMFs - for the uncertainty bands in fig. 3
-        # not translated
-        # EMF_q25(nextremes+1,:,:) = geomean(EMF_q25(1:nextremes,:,:), 1, 'omitnan');
-        # EMF_q75(nextremes+1,:,:) = geomean(EMF_q75(1:nextremes,:,:), 1, 'omitnan');
-
-        
-        else: 
-        
-            # do not compute EMFS
-            d_EMF_mmm[extreme] = []
-            d_EMF_q25[extreme] = []
-            d_EMF_q75[extreme] = []
-        
-    return d_EMF_mmm, d_EMF_q25, d_EMF_q75
+    return ds_exposure_pic_stats
 
 #%% ----------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 
 # per-country number of extremes affecting one individual across life span
 def calc_exposure(
-    grid_area,
-    d_regions,
-    d_isimip_meta, 
-    df_birthyears_regions, 
-    df_countries, 
-    countries_regions, 
-    countries_mask, 
-    da_population, 
-    df_life_expectancy_5, 
-    df_birthyears, 
-    df_GMT_15, 
-    df_GMT_20, 
-    df_GMT_NDC,
-):
-
-        # initialise dicts
-        d_RCP2GMT_maxdiff_15      = {}
-        d_RCP2GMT_maxdiff_20      = {}
-        d_RCP2GMT_maxdiff_NDC     = {}
-        d_RCP2GMT_maxdiff_R26eval = {}
-
-        d_exposure_perrun_RCP     = {}
-        d_exposure_perrun_15      = {}
-        d_exposure_perrun_20      = {}
-        d_exposure_perrun_NDC     = {}
-        d_exposure_perrun_R26eval = {} 
-        
-        d_landfrac_peryear_perregion = {}
-        
-        # unpack region information
-        df_birthyears_regions = d_regions['birth_years']
-        d_cohort_weights_regions = d_regions['cohort_size']        
-
-        # loop over simulations
-        for i in list(d_isimip_meta.keys()): 
-
-            print('simulation '+str(i)+ ' of '+str(len(d_isimip_meta)))
-
-            # load AFA data of that run
-            with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
-                da_AFA = pk.load(f)
-
-            # Get ISIMIP GMT indices closest to GMT trajectories        
-            RCP2GMT_diff_15 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-            RCP2GMT_diff_20 = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-            RCP2GMT_diff_NDC = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-            RCP2GMT_diff_R26eval = np.min(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
-
-            ind_RCP2GMT_15 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose()), axis=1)
-            ind_RCP2GMT_20 = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_20.values.transpose()), axis=1)
-            ind_RCP2GMT_NDC = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=1)
-            ind_RCP2GMT_R26eval = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=1)
-
-            # Get maximum T difference between RCP and GMT trajectories (to remove rows later)
-            d_RCP2GMT_maxdiff_15[i] = np.nanmax(RCP2GMT_diff_15)
-            d_RCP2GMT_maxdiff_20[i] = np.nanmax(RCP2GMT_diff_20)
-            d_RCP2GMT_maxdiff_NDC[i] = np.nanmax(RCP2GMT_diff_NDC)
-            d_RCP2GMT_maxdiff_R26eval[i] = np.nanmax(RCP2GMT_diff_R26eval)
-
-            # --------------------------------------------------------------------
-            # per country 
-
-            # initialise dicts
-            d_exposure_peryear_percountry = {}
-
-            # get spatial average
-            for j, country in enumerate(df_countries['name']):
-
-                print('processing country '+str(j+1)+' of '+str(len(df_countries)), end='\r')
-                
-                # calculate mean per country weighted by population
-                ind_country = countries_regions.map_keys(country)
-
-                # historical + RCP simulations
-                d_exposure_peryear_percountry[country] = calc_weighted_fldmean( 
-                    da_AFA,
-                    da_population, 
-                    countries_mask, 
-                    ind_country, 
-                    flag_region= False,
-                )
-                
-            # # --------------------------------------------------------------------
-            # # test time on original method
-            # start_time = time.time()    
-            
-            # call function to compute extreme event exposure per country and per lifetime
-            d_exposure_perrun_RCP[i] = calc_life_exposure_og(
-                df_life_expectancy_5, 
-                df_countries, 
-                df_birthyears, 
-                d_exposure_peryear_percountry,
-            )
-                
-            # print("--- {} seconds for 1 simulations ---".format(
-            #     (time.time() - start_time),
-            # )
-            #     )
-            
-            # --------------------------------------------------------------------
-            # convert dict to dataframe for vectorizing               
-            # frame = {k:v.values for k,v in d_exposure_peryear_percountry.items()}
-            # df_exposure = pd.DataFrame(frame,index=np.arange(1960,2114))
-
-            # d_exposure_perrun_RCP[i] = df_exposure.apply(
-            #     lambda col: calc_life_exposure(
-            #         df_exposure,
-            #         df_life_expectancy_5,
-            #         col.name,
-            #     ),
-            #     axis=0,
-            # )    
-
-            # --------------------------------------------------------------------              
-
-            # calculate exposure for GMTs, replacing d_exposure_perrun_RCP by indexed dictionary according to corresponding GMTs with ISIMIP.
-            d_exposure_perrun_15[i] = calc_life_exposure_og(
-                df_life_expectancy_5,
-                df_countries,
-                df_birthyears,
-                {country: da[ind_RCP2GMT_15].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
-            )
-            d_exposure_perrun_20[i] = calc_life_exposure_og(
-                df_life_expectancy_5,
-                df_countries,
-                df_birthyears,
-                {country: da[ind_RCP2GMT_20].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
-            )
-            d_exposure_perrun_NDC[i] = calc_life_exposure_og(
-                df_life_expectancy_5,
-                df_countries,
-                df_birthyears,
-                {country: da[ind_RCP2GMT_NDC].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
-            )
-            d_exposure_perrun_R26eval[i] = calc_life_exposure_og(
-                df_life_expectancy_5,
-                df_countries,
-                df_birthyears,
-                {country: da[ind_RCP2GMT_R26eval].assign_coords(time=np.arange(year_start,year_end+1)) for country, da in d_exposure_peryear_percountry.items()},
-            )
-            
-            # --------------------------------------------------------------------
-            # per region
-            #  
-
-            print('')
-
-            # initialise dictionaries
-            d_landfrac_peryear_perregion[i] = {}
-            d_exposure_perregion_perrun_RCP = {}
-
-            # loop over regions
-            for k, region in enumerate(df_birthyears_regions.columns): 
-                
-                print('processing region '+str(k+1)+' of '+str(len(df_birthyears_regions.columns)), end='\r')
-
-                # initialise dict
-                d_exposure_perregion_RCP = {}
-
-                # Get list of member countries from region - with seperate treatment for world (luke: now inside get_countries_of_regions func)
-                member_countries = get_countries_of_region(region, df_countries)
-        
-                # get spatial average of landfraction: historical + RCP simulations
-                ind_countries = countries_regions.map_keys(member_countries)
-
-                print('calculating landfrac')
-                d_landfrac_peryear_perregion[i][region] = calc_weighted_fldmean(
-                    da_AFA, 
-                    grid_area, 
-                    countries_mask, 
-                    ind_countries, 
-                    flag_region=True,
-                )
-
-                print('calculating cohort weights')
-                # filter cohort weights to only keep countries within mask 
-                d_cohort_weights_regions[region] = d_cohort_weights_regions[region].loc[:,d_cohort_weights_regions[region].columns.isin(df_countries.index)]
-                
-                # get weighted spatial average for all member countries per region
-                d_exposure_perregion_RCP[region]   = (d_exposure_perrun_RCP[i].loc[:,member_countries] * d_cohort_weights_regions[region].values).sum(axis=1) /\
-                    np.nansum(d_cohort_weights_regions[region].values, axis=1)
-
-            # save exposures for every run
-            d_exposure_perregion_perrun_RCP[i]  = d_exposure_perregion_RCP
-
-        # --------------------------------------------------------------------
-        # save workspave in pickles
-        #  
-
-        # save pickles
-        print()
-        print('Saving processed exposures')
-
-        # pack exposure information
-        d_exposure = {
-            'exposure_perrun_RCP' : d_exposure_perrun_RCP, 
-            'exposure_perrun_15' : d_exposure_perrun_15,
-            'exposure_perrun_20' : d_exposure_perrun_20,
-            'exposure_perrun_NDC' : d_exposure_perrun_NDC,
-            'exposure_perregion_perrun_RCP' : d_exposure_perregion_perrun_RCP, 
-            'landfrac_peryear_perregion' : d_landfrac_peryear_perregion 
-        }
-
-        with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
-            pk.dump(d_exposure,f)
-
-        return d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP,
-
-#%% ----------------------------------------------------------------
-# convert Area Fraction Affected (AFA) to 
-# per-country number of extremes affecting one individual across life span
-def calc_exposure_fast(
     grid_area,
     d_regions,
     d_isimip_meta, 
@@ -716,7 +462,7 @@ def calc_exposure_fast(
                     np.nansum(d_cohort_weights_regions[region].values, axis=1)
 
             # save exposures for every run
-            d_exposure_perregion_perrun_RCP[i]  = d_exposure_perregion_RCP
+            d_exposure_perregion_perrun_RCP[i]  = pd.DataFrame(d_exposure_perregion_RCP)
 
         # --------------------------------------------------------------------
         # save workspave in pickles
@@ -884,8 +630,10 @@ def calc_exposure_pic(
                     da_cwr_1960.sum(dim='country')
 
             # save exposures for every run
-            d_exposure_perregion_perrun_pic[i] = d_exposure_perregion_pic
-
+            df_exposure_perregion_pic = pd.DataFrame(d_exposure_perregion_pic)
+            da_exposure_perregion_pic = xr.DataArray(df_exposure_perregion_pic).rename({'dim_0':'lifetimes','dim_1':'region'})
+            d_exposure_perregion_perrun_pic[i] = da_exposure_perregion_pic
+            
         # --------------------------------------------------------------------
         # save workspave in pickles
         #  
@@ -906,6 +654,20 @@ def calc_exposure_pic(
             pk.dump(d_exposure,f)
 
         return d_exposure_perrun_pic, d_exposure_perregion_perrun_pic
+
+#%% ----------------------------------------------------------------
+    
+def calc_exposure_emergence(
+    ds_exposure,
+    ds_exposure_pic,
+    gdf_country_borders,
+):
+    da_exposure_emergence = ds_exposure.mmm.where(ds_exposure.mmm > ds_exposure_pic.ext)
+    da_exposure_emergence_birth_year = da_exposure_emergence.birth_year.where(da_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)
+    da_exposure_emergence_birth_year_EMF = ds_exposure.mmm_EMF.where(ds_exposure.mmm_EMF.birth_year==da_exposure_emergence_birth_year).min(dim='birth_year',skipna=True)
+    gdf_exposure_emergence_birth_year = da_exposure_emergence_birth_year.to_dataframe().drop(columns='quantile').join(gdf_country_borders)
+    
+    return gdf_exposure_emergence_birth_year    
 
 #%% ----------------------------------------------------------------
 # backup plotting function
@@ -1052,3 +814,55 @@ def calc_exposure_pic(
 # with open('./data/pickles/da_exposure_pic1.pkl', 'wb') as f: # note; 'with' handles file stream closing
 #     pk.dump(da_exposure_pic1,f)
             
+            
+            
+    # if not lumping data across RCPs, separate 2.6 and 6.0
+    # else:
+        
+        # # separate RCPs across P2.6 and 6.0
+        # da_exposure_RCP26 = da_exposure.sel(runs=[i for i in d_isimip_meta.keys() if d_isimip_meta[i]['rcp'] == 'rcp26'])
+        # da_exposure_RCP60 = da_exposure.sel(runs=[i for i in d_isimip_meta.keys() if d_isimip_meta[i]['rcp'] == 'rcp60'])
+
+        # # get model mean, std and qtls
+        # da_exposure_RCP26_mmm = da_exposure_RCP26.mean(dim='runs')
+        # da_exposure_RCP26_std = da_exposure_RCP26.std(dim='runs')
+        # da_exposure_RCP26_lqntl = da_exposure_RCP26.quantile(
+        #     q=0.25,
+        #     dim='runs',
+        #     method='inverted_cdf'
+        # )
+        # da_exposure_RCP26_uqntl = da_exposure_RCP26.quantile(
+        #     q=0.75,
+        #     dim='runs',
+        #     method='inverted_cdf'
+        # )        
+        # da_exposure_RCP60_mmm = da_exposure_RCP60.mean(dim='runs')
+        # da_exposure_RCP60_std = da_exposure_RCP60.std(dim='runs')
+        # da_exposure_RCP60_lqntl = da_exposure_RCP60.quantile(
+        #     q=0.25,
+        #     dim='runs',
+        #     method='inverted_cdf'
+        # )
+        # da_exposure_RCP60_uqntl = da_exposure_RCP60.quantile(
+        #     q=0.75,
+        #     dim='runs',
+        #     method='inverted_cdf'
+        # )
+        
+        # # assemble into dataset
+        # ds_exposure_stats = xr.Dataset(
+        #     data_vars={
+        #         'mmm_RCP26': (['birth_year','country'],da_exposure_RCP26_mmm.data),
+        #         'std_RCP26': (['birth_year','country'],da_exposure_RCP26_std.data),
+        #         'lqntl_RCP26': (['birth_year','country'],da_exposure_RCP26_lqntl.data),
+        #         'uqntl_RCP26': (['birth_year','country'],da_exposure_RCP26_uqntl.data),
+        #         'mmm_RCP60': (['birth_year','country'],da_exposure_RCP60_mmm.data),
+        #         'std_RCP60': (['birth_year','country'],da_exposure_RCP60_std.data),
+        #         'lqntl_RCP60': (['birth_year','country'],da_exposure_RCP60_lqntl.data),
+        #         'uqntl_RCP60': (['birth_year','country'],da_exposure_RCP60_uqntl.data),                
+        #     },
+        #     coords={
+        #         'birth_year': ('birth_year',da_exposure.birth_year.data),
+        #         'country': ('country',da_exposure.country.data),
+        #     }
+        # )            

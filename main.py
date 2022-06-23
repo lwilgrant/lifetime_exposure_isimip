@@ -62,7 +62,7 @@ flags['extr'] = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
@@ -70,6 +70,8 @@ flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure 
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
+flags['exposure_ens'] = 0   # 0: do not perform sample statistics for exposure across all RCPs (separate mmm, std and iqr for 2.6 and 6.0)
+                            # 1: sample exposure across all RCPs (lumped mmm, std and iqr for 2.6 and 6.0)
 
 
 # TODO: add rest of flags
@@ -244,7 +246,7 @@ if flags['exposure']:
     start_time = time.time()
     
     # calculate exposure per country and per region and save data (takes 23 mins)
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure_fast(
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure(
         grid_area,
         d_regions,
         d_isimip_meta, 
@@ -318,58 +320,93 @@ else: # load processed country data
     d_exposure_perregion_perrun_pic = d_exposure_pic['exposure_perregion_perrun']
     d_landfrac_peryear_perregion_pic = d_exposure_pic['landfrac_peryear_perregion']
     
-# --------------------------------------------------------------------
-# compile RCP and pic for emergence analysis
+#%% --------------------------------------------------------------------
+# compile hist+RCP and pic for EMF and emergence analysis
 
-# concat RCP data array from dict runs
-da_exposure_perrun_RCP = xr.concat(
-    [xr.DataArray(v).rename({'dim_0':'birth_year','dim_1':'country'}) for v in d_exposure_perrun_RCP.values()],
-    dim='runs',
-).assign_coords({'runs':list(d_isimip_meta.keys())})
-
-# separate RCPs across P2.6 and 6.0
-da_exposure_perrun_RCP26 = da_exposure_perrun_RCP.sel(runs=[i for i in d_isimip_meta.keys() if d_isimip_meta[i]['rcp'] == 'rcp26'])
-da_exposure_perrun_RCP60 = da_exposure_perrun_RCP.sel(runs=[i for i in d_isimip_meta.keys() if d_isimip_meta[i]['rcp'] == 'rcp60'])
-
-# get model mean and std
-da_exposure_RCP26_mmm = da_exposure_perrun_RCP26.mean(dim='runs')
-da_exposure_RCP26_std = da_exposure_perrun_RCP26.std(dim='runs')
-da_exposure_RCP60_mmm = da_exposure_perrun_RCP60.mean(dim='runs')
-da_exposure_RCP60_std = da_exposure_perrun_RCP60.std(dim='runs')
-
-# concat pic data array from dict of separate arrays
-da_exposure_perrun_pic = xr.concat(
-    [v for v in d_exposure_perrun_pic.values()],
-    dim='runs',    
-).assign_coords({'runs':list(d_pic_meta.keys())})
-
-# runs and lifetimes redundant, so compile together
-da_exposure_perrun_pic = da_exposure_perrun_pic.stack(
-    pic_lifetimes=['runs','lifetimes'],
+# call function to compute mmm, std, qntl for exposure (also 99.99 % of pic as "ext")
+ds_exposure_RCP = calc_exposure_mmm_xr(
+    d_exposure_perrun_RCP,
+    'country',
+    'RCP',
+)
+ds_exposure_15 = calc_exposure_mmm_xr(
+    d_exposure_perrun_15,
+    'country',
+    '15',
+)
+ds_exposure_20 = calc_exposure_mmm_xr(
+    d_exposure_perrun_20,
+    'country',
+    '20',
+)
+ds_exposure_NDC = calc_exposure_mmm_xr(
+    d_exposure_perrun_NDC,
+    'country',
+    'NDC',
+)
+ds_exposure_perregion = calc_exposure_mmm_xr(
+    d_exposure_perregion_perrun_RCP,
+    'region',
+    'RCP',
+)
+ds_exposure_pic = calc_exposure_mmm_pic_xr(
+    d_exposure_perrun_pic,
+    'country',
+    'pic',
+)
+ds_exposure_pic_perregion = calc_exposure_mmm_pic_xr(
+    d_exposure_perregion_perrun_pic,
+    'region',
+    'pic',
 )
 
-# pic quantile for birth cohort emergence
-da_exposure_pic_qntl = da_exposure_perrun_pic.quantile(
-    q=0.9999,
-    dim='pic_lifetimes',
-    method='inverted_cdf',
+ds_exposure = xr.merge([
+    ds_exposure_RCP,
+    ds_exposure_15,
+    ds_exposure_20,
+    ds_exposure_NDC,
+])
+
+# emergence calculations
+gdf_exposure_emergence_birth_year = calc_exposure_emergence(
+    ds_exposure_RCP,
+    ds_exposure_pic,
+    gdf_country_borders,
 )
 
-# emergence
-da_exposure_RCP26_emergence = da_exposure_RCP26_mmm.where(da_exposure_RCP26_mmm > da_exposure_pic_qntl)
-da_exposure_RCP26_emergence_birth_year = da_exposure_RCP26_emergence.birth_year.where(da_exposure_RCP26_emergence.notnull()).min(dim='birth_year',skipna=True)
-gdf_exposure_RCP26_emergence_birth_year = da_exposure_RCP26_emergence_birth_year.to_dataframe().drop(columns='quantile').join(gdf_country_borders)
+
+def calc_exposure_emergence(
+    ds_exposure,
+    ds_exposure_pic,
+    gdf_country_borders,
+):
+
+    mmm_subset = [
+        'mmm_RCP',
+        'mmm_15',
+        'mmm_20',
+        'mmm_NDC',
+    ]
+
+    EMF_subset = [
+        'mmm_EMF_RCP',
+        'mmm_EMF_15',
+        'mmm_EMF_20',
+        'mmm_EMF_NDC',
+    ]
+
+    ds_exposure_emergence = ds_exposure[mmm_subset].where(ds_exposure[mmm_subset] > ds_exposure_pic.ext_pic)
+    ds_exposure_emergence_birth_year = ds_exposure_emergence.birth_year.where(ds_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)
+    da_exposure_emergence_birth_year_EMF = ds_exposure.mmm_EMF.where(ds_exposure.mmm_EMF.birth_year==da_exposure_emergence_birth_year).min(dim='birth_year',skipna=True)
+    gdf_exposure_emergence_birth_year = da_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders)
+    
+    gdf_exposure_emergence_birth_year = gdf_exposure_emergence_birth_year.rename(columns={'birth_year':'emergence_year'})
+    
+    return gdf_exposure_emergence_birth_year
 
 # --------------------------------------------------------------------
 # compute averages across runs and sums across extremes 
 
-
-# # call function computing the multi-model mean (MMM) exposure 
-# d_exposure_mmm, d_exposure_mms, d_exposure_q25, d_exposure_q75 = calc_exposure_mmm(
-#     d_exposure_perrun_RCP, 
-#     extremes, 
-#     d_isimip_meta,
-# )
 
 # # call function computing the Exposure Multiplication Factor (EMF)
 # # here I use multi-model mean as a reference
