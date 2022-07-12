@@ -464,10 +464,11 @@ def load_isimip(
         # loop over extremes
         print('Loading processed isimip data')
         # loac pickled metadata for isimip and isimip-pic simulations
+        extreme = extremes[0]
 
-        with open('./data/pickles/isimip_metadata.pkl', 'rb') as f:
+        with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'rb') as f:
             d_isimip_meta = pk.load(f)
-        with open('./data/pickles/isimip_pic_metadata.pkl', 'rb') as f:
+        with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'rb') as f:
             d_pic_meta = pk.load(f)                
 
     return d_isimip_meta,d_pic_meta
@@ -519,26 +520,21 @@ def get_life_expectancies(
     # dataframe filled with birthyears for every country
     df_birthyears = pd.DataFrame(np.transpose(np.tile(birth_years, (len(df_unwpp_country.keys()),1))) , columns=df_unwpp_country.keys(), index=birth_years)
 
-    # NOT TRANSLATED FROM MATLAB
-    # # extract life expectancy at birth data from World Bank file and fill in missing data - not used in final analysis
-    # ind_nan                                  = find(isnan(worldbank_country_data(i,:)));
-    # ind_data                                 = find(~isnan(worldbank_country_data(i,:)));
-    # worldbank_country_data_interp(i,ind_nan) = interp1(countries.birth_years{i,1}(ind_data), worldbank_country_data(i,ind_data), countries.birth_years{i,1}(ind_nan), 'linear', 'extrap');
-    # countries.life_expectancy_0{i,1}         = worldbank_country_data_interp(i,:);
-
-
     # extract life expectancy at age 5 data from UN WPP file and
     # linearly interpolate from 5-year WPP blocks to pre-defined birth
     # year (extrapolate from 2013 to 2020, note that UN WPP has no NaNs)
     df_birthyears_empty = pd.DataFrame(columns=df_unwpp_country.keys(), index=birth_years)
-    df_concat = pd.concat([df_unwpp_country,df_birthyears_empty]).sort_index() #remove duplicates here before interpolation?
-    df_concat = df_concat[~df_concat.index.duplicated(keep='last')] # remove rows with duplicated indices (remove first of duplicates that are nans; therefore keep native unwpp 5-yearly data)
-    df_unwpp_country_interp = df_concat.astype('float').interpolate(method='linear') #
-    # keep only birthyear rows
+    
+    df_unwpp_country_startyear = df_unwpp_country.set_index(df_unwpp_country.index.values-5)
+    df_concat = pd.concat([df_unwpp_country_startyear,df_birthyears_empty]).sort_index()
+    df_concat = df_concat[~df_concat.index.duplicated(keep='last')]
+    df_unwpp_country_interp = df_concat.astype('float').interpolate(
+        method='slinear', # original 'linear' filled end values with constants; slinear calls spline linear interp/extrap from scipy interp1d
+        limit_direction='both',
+        fill_value='extrapolate',
+    )
     df_unwpp_country_interp = df_unwpp_country_interp[df_unwpp_country_interp.index.isin(df_birthyears_empty.index)]
-
-    # add 5 to transfer from 'expected years left to live for 5-year old' to 'life expectancy of birth cohort excluding infant mortality'; add 6 to transfer from 'period life expectancy' to 'cohort life expectancy' as requested by Reviewer 1 (suggested by Marina based on Goldstein paper) (note that calendar years were already corrected during loading)
-    df_life_expectancy_5 = df_unwpp_country_interp + 5 + 6; 
+    df_life_expectancy_5 = df_unwpp_country_interp + 5 + 6
 
     return df_birthyears, df_life_expectancy_5
 

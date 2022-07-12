@@ -281,11 +281,11 @@ def calc_exposure_mmm_pic_xr(
         method='inverted_cdf',
     )    
 
-    # pic quantile for birth cohort emergence
+    # pic quantile for birth cohort exposure emergence
     da_exposure_pic_ext = da_exposure_pic.quantile(
-        q=0.9999,
+        q=0.99,
         dim='pic_lifetimes',
-        method='inverted_cdf',
+        # method='inverted_cdf',
     )
     
     # assemble into dataset
@@ -369,6 +369,7 @@ def calc_exposure(
             frame = {k:v.values for k,v in d_exposure_peryear_percountry.items()}
             df_exposure = pd.DataFrame(frame,index=np.arange(1960,2114))           
 
+            # apply calc life exposure to columns (countries) of df_exposure
             d_exposure_perrun_RCP[i] = df_exposure.apply(
                 lambda col: calc_life_exposure(
                     df_exposure,
