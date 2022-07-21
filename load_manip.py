@@ -327,9 +327,9 @@ def load_isimip(
 
                     # load GMT for rcp and historical period - note that these data are in different files
                     file_names_gmt = glob.glob('./data/isimip/DerivedInputData/globalmeans/tas/'+d_isimip_meta[i]['gcm'].upper()+'/*.fldmean.yearmean.txt') # ignore running mean files
-                    file_name_gmt_fut = [s for s in file_names_gmt if d_isimip_meta[i]['rcp'] in s] 
-                    file_name_gmt_his = [s for s in file_names_gmt if '_historical_' in s] 
-                    file_name_gmt_pic = [s for s in file_names_gmt if '_piControl_' in s] 
+                    file_name_gmt_fut = [s for s in file_names_gmt if d_isimip_meta[i]['rcp'] in s]
+                    file_name_gmt_his = [s for s in file_names_gmt if '_historical_' in s]
+                    file_name_gmt_pic = [s for s in file_names_gmt if '_piControl_' in s]
                     
                     # test printing file names
                     # print('testing for {}'.format(file_name))
@@ -363,12 +363,19 @@ def load_isimip(
 
                     # if needed, repeat last year until entire period of interest is covered
                     if da_AFA.time.max() < year_end: 
-                        da_AFA_lastyear = da_AFA.sel(time=da_AFA.time.max()).expand_dims(dim='time',axis=0) # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
-                        GMT_lastyear = df_GMT.iloc[-1:,:]
+                        # line below was fixed; supposed to be average of last 10 years, but we only selected last year
+                        # da_AFA_lastyear = da_AFA.sel(time=da_AFA.time.max()).expand_dims(dim='time',axis=0) # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
+                        da_AFA_lastyear = da_AFA.sel(time=slice(da_AFA.time.max()-9,da_AFA.time.max())).mean(dim='time').expand_dims(dim='time',axis=0)
+                        # also adapted line below for GMTs
+                        # GMT_lastyear = df_GMT.iloc[-1:,:]
+                        GMT_lastyear = df_GMT.iloc[-10:,:].mean()
 
                         for year in range(da_AFA.time.max().values+1,year_end+1): 
                             da_AFA = xr.concat([da_AFA,da_AFA_lastyear.assign_coords(time = [year])], dim='time')
-                            df_GMT = pd.concat([df_GMT,pd.DataFrame(GMT_lastyear).rename(index={0:year})])
+                            if len(df_GMT) < 439: # necessary to avoid this filling from 2100-2113 if GMTs already go to 2299
+                                df_GMT = pd.concat([df_GMT,pd.DataFrame(data={'tas':GMT_lastyear['tas']},index=[year])])
+                            # changed below to above line so that new mean of last 10 years, like with afa, is properly appended to df_GMT
+                            # df_GMT = pd.concat([df_GMT,pd.DataFrame(GMT_lastyear).rename(index={0:year})])
 
                     # retain only period of interest
                     da_AFA = da_AFA.sel(time=slice(year_start,year_end))
@@ -406,6 +413,10 @@ def load_isimip(
                     # print('')
                     
                     # store GMT maxdiffs and indices in metadatadict
+                    d_isimip_meta[i]['GMT_15_maxdiff'] = np.nanmax(RCP2GMT_diff_15)
+                    d_isimip_meta[i]['GMT_20_maxdiff'] = np.nanmax(RCP2GMT_diff_20)
+                    d_isimip_meta[i]['GMT_NDC_maxdiff'] = np.nanmax(RCP2GMT_diff_NDC)
+                    d_isimip_meta[i]['GMT_R26eval_maxdiff'] = np.nanmax(RCP2GMT_diff_R26eval)       
                     d_isimip_meta[i]['GMT_15_valid'] = np.nanmax(RCP2GMT_diff_15) < RCP2GMT_maxdiff_threshold
                     d_isimip_meta[i]['GMT_20_valid'] = np.nanmax(RCP2GMT_diff_20) < RCP2GMT_maxdiff_threshold
                     d_isimip_meta[i]['GMT_NDC_valid'] = np.nanmax(RCP2GMT_diff_NDC) < RCP2GMT_maxdiff_threshold
@@ -565,7 +576,7 @@ def get_cohortsize_countries(
         wcde_country_data_raw = interpolate.griddata(
             (Xorig.ravel(),Yorig.ravel()),
             wcde_per_country.ravel(),
-            (Xnew.ravel(),Ynew.ravel())
+            (Xnew.ravel(),Ynew.ravel()),
         )
         wcde_country_data_interp = wcde_country_data_raw.reshape( len(df_GMT_15.index),len(ages))
         d_cohort_size[name] = pd.DataFrame(

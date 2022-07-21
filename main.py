@@ -68,11 +68,11 @@ flags['extr'] = 'cropfailedarea'   # 0: all
                                     # 7: waterscarcity
 flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 0         # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 
 
@@ -711,8 +711,8 @@ python_20_mmm.loc[countries_matlab.index[countries_matlab[0]=='China']]
 # plot
 for i in python_15_mmm.index.values:
     f,ax = plt.subplots()
-    ax.plot(np.squeeze(python_NDC_mmm.loc[i].values),color='k',label='python') # python
-    ax.plot(np.squeeze(matlab_NDC_mmm.loc[i].values),color='blue',label='matlab') # python
+    ax.plot(np.squeeze(python_20_mmm.loc[i].values),color='k',label='python') # python
+    ax.plot(np.squeeze(matlab_20_mmm.loc[i].values),color='blue',label='matlab') # python
     ax.set_title(countries_python[i])
     
 # compare canada 2.0 GMT mapping from matlab to python
@@ -722,17 +722,25 @@ for i in list(d_exposure_perrun_20.keys()):
     python_20_canada.at[i-1,:] = d_exposure_perrun_20[i].loc[:,'Canada'].values
 python_20_canada = python_20_canada.round(decimals=2)
 
+# compare canada 1.5 GMT mapping from matlab to python
 matlab_15_canada = pd.read_excel('canada_perrun_15.xlsx',header=None).round(decimals=2)
 python_15_canada = pd.DataFrame().reindex_like(matlab_15_canada)
 for i in list(d_exposure_perrun_20.keys()):
     python_15_canada.at[i-1,:] = d_exposure_perrun_15[i].loc[:,'Canada'].values
 python_15_canada = python_15_canada.round(decimals=2)
 
+# compare canada 1.5 GMT mapping from matlab to python
+matlab_RCP_canada = pd.read_excel('canada_perrun_RCP.xlsx',header=None).round(decimals=2)
+python_RCP_canada = pd.DataFrame().reindex_like(matlab_RCP_canada)
+for i in list(d_exposure_perrun_RCP.keys()):
+    python_RCP_canada.at[i-1,:] = d_exposure_perrun_RCP[i].loc[:,'Canada'].values
+python_RCP_canada = python_RCP_canada.round(decimals=2)
+
 # plot
-for i in list(d_exposure_perrun_15.keys()):
+for i in list(d_exposure_perrun_RCP.keys()):
     f,ax = plt.subplots()
-    ax.plot(python_15_canada.loc[i-1,:].values,color='k',label='python') # python
-    ax.plot(matlab_15_canada.loc[i-1,:].values,color='blue',label='matlab') # python
+    ax.plot(python_RCP_canada.loc[i-1,:].values,color='k',label='python') # python
+    ax.plot(matlab_RCP_canada.loc[i-1,:].values,color='blue',label='matlab') # python
     ax.set_title(str(i))
     # clear that runs 7, 15 and 20 are all considerably higher in Canada
 

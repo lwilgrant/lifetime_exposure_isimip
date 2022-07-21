@@ -458,7 +458,7 @@ def calc_exposure(
                 # filter cohort weights to only keep countries within mask 
                 d_cohort_weights_regions[region] = d_cohort_weights_regions[region].loc[:,d_cohort_weights_regions[region].columns.isin(df_countries.index)]
                 
-                # get weighted spatial average for all member countries per region
+                # get weighted spatial average for all member countries per region (Luke: but this is not necessarily spatial; d_cohorts_weights_regions has 2020 cohort sizes per country)
                 d_exposure_perregion_RCP[region] = (d_exposure_perrun_RCP[i].loc[:,member_countries] * d_cohort_weights_regions[region].values).sum(axis=1) /\
                     np.nansum(d_cohort_weights_regions[region].values, axis=1)
 
