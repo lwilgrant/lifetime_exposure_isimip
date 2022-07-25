@@ -18,7 +18,6 @@ init()
 # 1. Functions to load (see ms_load.m)
 # ----------------------------------------------------------------
 
-
 #%% ----------------------------------------------------------------
 # Load observational data
 def load_worldbank_unwpp_data():
@@ -51,11 +50,9 @@ def load_worldbank_unwpp_data():
         columns=worldbank_region_meta[:,0]
     )
 
-
     # convert metadata in usable dataframe (the original code for this is in ms_manip.m) 
     df_countries = pd.DataFrame(worldbank_country_meta,columns=['name','abbreviation','region','incomegroup']).set_index('name')
     df_regions = pd.DataFrame(worldbank_region_meta,columns=['name','abbreviation']).set_index('name')
-
 
     # load United Nations life expectancy at age 5 data, defined as years left to live (source: https://population.un.org/wpp/Download/Standard/Mortality/)
     unwpp_years = np.arange(1952,2017+5,5)  # assume block is 5 instead of reported 6 years to avoid overlap and take middle of that 5-year block (so 1952 for period 1950-1955). Substract 5 to get birth year of 5-year old (a 5-year old in 1952 was born in 1947 and we need the latter). hard coded from 'WPP2019_MORT_F16_1_LIFE_EXPECTANCY_BY_AGE_BOTH_SEXES_orig.xls'
@@ -82,8 +79,7 @@ def load_worldbank_unwpp_data():
         index=unwpp_years, 
         columns=worldbank_region_meta[:,0]
     )
-
-
+    
     # manually adjust country names with accent problems
     correct_names = {
         'CÃ´te d\'Ivoire' : 'Côte d\Ivoire', 
@@ -120,80 +116,6 @@ def load_wcde_data():
 
     return wcde_years, wcde_ages, wcde_country_data, wcde_region_data
 
-
-""" # NOT TRANSLATED FROM MATLAB ms_load.m
-
-# load United Nations median age data (source: https://population.un.org/wpp/DataQuery/) - not used in final analysis
-# [unwpp_medianage_country_data, unwpp_medianage_country_meta, unwpp_medianage_country_raw] = xlsread('united_nations_median_age_by_country.xls',1);
-
-
-# load United Nations Human Developpent Index (HDI) data (source: http://hdr.undp.org/en/data#) - not used in final analysis
-#[unhdi_country_data, unhdi_country_meta, unhdi_country_raw] = xlsread('united_nations_HDI_by_country.xls',1);
-#unhdi_country_data(unhdi_country_data == -999) = NaN;
-
-
-# load United Nations popuplation under age 5 data (source: http://hdr.undp.org/en/data#) - not used in final analysis
-#[un_popunder5_country_data, un_popunder5_country_meta, un_popunder5_country_raw] = xlsread('united_nations_population_under_5_by_country.xls',1);
-#un_popunder5_country_data(un_popunder5_country_data == -999) = NaN;
-
-
-# Following is not translated matlab code from ms_manip.m
-
-# # # get country median age in 2015 and 2020
-# countries.median_age_2015 = unwpp_medianage_country_data(:,1);
-# countries.median_age_2020 = unwpp_medianage_country_data(:,2);
-
-
-# # get country HDI
-# countries.hdi_2015 = unhdi_country_data(:,26);
-# countries.hdi_2018 = unhdi_country_data(:,29);
-
-
-# # get country HDI
-# countries.popunder5_2015 = un_popunder5_country_data(:,10);
-# countries.popunder5_2018 = un_popunder5_country_data(:,13);
-
-
-## from ms_manip 
-
-# # loop over regions to create 2-line version of region names (for pie charts)
-# for i=1:length(regions.name)
-#     if contains(regions.name{i}, ' & ')
-#         regions.name_2lines{i,1} = strrep(regions.name{i},' & ', ' \newline& ');    
-#     elseif contains(regions.name{i}, ' middle income')
-#         regions.name_2lines{i,1} = strrep(regions.name{i},' middle income', ' \newlinemiddle \newlineincome');    
-#     else 
-#         regions.name_2lines{i,1} = regions.name{i};
-#     end    
-# end
-
-# # loop over regions to create short version of region names (for pie charts)
-# for i=1:length(regions.name)
-#     if contains(regions.name{i}, ' middle income')
-#         regions.name_short{i,1} = strrep(regions.name{i},' middle income', ' \newlinemiddle');    
-#     elseif contains(regions.name{i}, ' income')
-#         regions.name_short{i,1} = strrep(regions.name{i},' income', '');    
-#     elseif contains(regions.name{i}, 'East Asia & Pacific')
-#         regions.name_short{i,1} = 'EASP';    
-#     elseif contains(regions.name{i}, 'Europe & Central Asia')
-#         regions.name_short{i,1} = 'EUCA';    
-#     elseif contains(regions.name{i}, 'Latin America & Caribbean')
-#         regions.name_short{i,1} = 'LAMC';    
-#     elseif contains(regions.name{i}, 'Middle East & North Africa')
-#         regions.name_short{i,1} = 'MENA';    
-#     elseif contains(regions.name{i}, 'North America')
-#         regions.name_short{i,1} = 'NAM';    
-#     elseif contains(regions.name{i}, 'South Asia')
-#         regions.name_short{i,1} = 'SAS';    
-#     elseif contains(regions.name{i}, 'Sub-Saharan Africa')
-#         regions.name_short{i,1} = 'SSA';    
-#     else 
-#         regions.name_short{i,1} = regions.name{i};
-#     end    
-# end
-
- """
-
 #%% ----------------------------------------------------------------
 # Load global mean temperature projections
 def load_GMT(
@@ -226,21 +148,6 @@ def load_GMT(
     df_GMT_20   = df_GMT_20[~df_GMT_20.index.duplicated(keep='first')]
     df_GMT_NDC   = df_GMT_NDC[~df_GMT_NDC.index.duplicated(keep='first')]
     df_GMT_SR15 = df_GMT_SR15[~df_GMT_SR15.index.duplicated(keep='first')]
-
-    ## BELOW ORIGINAL MATLAB CODE - not translated
-    # Load global mean temperature projections from UVIC model - For Nico Bauer
-    #GMT_UVIC   = xlsread('CDRMIA_overshoot_scenario_UVic_output_GMTanomalies.xlsx');
-    #GMT_UVIC   = [GMT_SR15(1:3, GMT_SR15(1,:)<2005)' ; GMT_UVIC];
-    #years_UVIC = GMT_UVIC(:, 1);
-    #if nanmax(years_UVIC) < year_end 
-    #    GMT_UVIC   = cat(1, GMT_UVIC, repmat( nanmean(GMT_UVIC(end-9:end, :), 1), year_end - nanmax(years_UVIC), 1)); % repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
-    #    years_UVIC = [years_UVIC; (nanmax(years_UVIC)+1:1:year_end)'];
-    #end
-    #ind_f      = find(years_UVIC == year_start, 1, 'first');
-    #ind_l      = find(years_UVIC == year_end  , 1, 'first');
-    #GMT_OS     = GMT_UVIC(ind_f:ind_l, 2);
-    #GMT_noOS   = GMT_UVIC(ind_f:ind_l, 3);
-    #years_UVIC = years_UVIC(ind_f:ind_l);
 
     return df_GMT_15, df_GMT_20, df_GMT_NDC
 
@@ -330,13 +237,6 @@ def load_isimip(
                     file_name_gmt_fut = [s for s in file_names_gmt if d_isimip_meta[i]['rcp'] in s]
                     file_name_gmt_his = [s for s in file_names_gmt if '_historical_' in s]
                     file_name_gmt_pic = [s for s in file_names_gmt if '_piControl_' in s]
-                    
-                    # test printing file names
-                    # print('testing for {}'.format(file_name))
-                    # print('pi file is {}'.format(file_name_gmt_pic[0]))
-                    # print('hist file is {}'.format(file_name_gmt_his[0]))
-                    # print('fut file is {}'.format(file_name_gmt_fut[0]))
-                    # print('')
 
                     GMT_fut = pd.read_csv(
                         file_name_gmt_fut[0],
@@ -395,23 +295,6 @@ def load_isimip(
                     ind_RCP2GMT_NDC = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_NDC.values.transpose()), axis=0)
                     ind_RCP2GMT_R26eval = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - d_isimip_meta[1]['GMT'].values.transpose()), axis=0)
                     
-                    # code for testing row/column operations in min for nanmax (was different from matlab so changed axis on np.min calls)
-                    # test = np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_15.values.transpose())
-                    # testmin = np.min(test,axis=0)
-                    # testmax = np.nanmax(testmin)
-                    # print(testmax)
-                    # # check first row of differences 
-                    # test[0,:] == np.abs(d_isimip_meta[i]['GMT'].values[0] - df_GMT_15.values)
-                    # print(np.min(test[0,:]))
-                    
-                    # # print max diffs for testing
-                    # print('testing for {}'.format(file_name))
-                    # print('1.5 max diff is {}'.format(np.nanmax(RCP2GMT_diff_15)))
-                    # print('2.0 max diff is {}'.format(np.nanmax(RCP2GMT_diff_20)))
-                    # print('NDC max diff is {}'.format(np.nanmax(RCP2GMT_diff_NDC)))
-                    # print('R26eval max diff is {}'.format(np.nanmax(RCP2GMT_diff_NDC)))
-                    # print('')
-                    
                     # store GMT maxdiffs and indices in metadatadict
                     d_isimip_meta[i]['GMT_15_maxdiff'] = np.nanmax(RCP2GMT_diff_15)
                     d_isimip_meta[i]['GMT_20_maxdiff'] = np.nanmax(RCP2GMT_diff_20)
@@ -455,11 +338,9 @@ def load_isimip(
                     # save AFA field as pickle
                     with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(extreme,str(i)), 'wb') as f: # added extreme to string of pickle
                         pk.dump(da_AFA,f)
-                    # pk.dump([da_AFA,da_AFA_pic],open('./data/pickles/isimip_AFA_{}_{}_.pkl'.format(extreme,str(i)), 'wb')) # commented out for moment to test
 
                     # update counter
                     i += 1
-
         
             # save metadata dictionary as a pickle
             print('Saving metadata')
@@ -467,8 +348,6 @@ def load_isimip(
                 pk.dump(d_isimip_meta,f)
             with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'wb') as f:
                 pk.dump(d_pic_meta,f)            
-            # pk.dump(d_isimip_meta,open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb')  )
-
 
     else: 
         
@@ -636,6 +515,7 @@ def get_countries_per_region(
     df_countries, 
     df_regions,
 ):
+    
     d_region_countries = {}
     for region in df_regions.index:
         if df_countries.loc[df_countries['region']==region].index.values.size > 0: # if not empty
