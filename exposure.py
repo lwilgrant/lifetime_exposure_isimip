@@ -416,7 +416,7 @@ def calc_exposure(
         with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
             pk.dump(d_exposure,f)
 
-        return d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP,
+        return d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perrun_15, d_exposure_perrun_20, d_exposure_perrun_NDC
         
 #%% ----------------------------------------------------------------
 # convert PIC Area Fraction Affected (AFA) to 

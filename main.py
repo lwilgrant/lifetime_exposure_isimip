@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # ---------------------------------------------------------------
 # Main script to postprocess and visualise lifetime exposure data
 #
@@ -23,6 +24,8 @@
 # TODO
 # - not yet masked for small countries
 # - how to handle South-Sudan and Palestina? Now manually filtered out in load
+# - south sudan and palestine not dealt with (we only have 176 countries instead of 178 from matlab, these are missing in end mmm values)
+# - for import to hydra, the file loading and dealing with lower case letters in hadgem will need to be addressed (way forward is to test line 236 of load_manip on hydra to see if the gcm key string .upper() method works even though the directory has lower case "a" in hadgem)
 
 
 #               
@@ -30,10 +33,6 @@
 # IMPORT AND PATH 
 # ----------------------------------------------------------------
 
-import os
-import requests
-from zipfile import ZipFile
-import io
 import xarray as xr
 import pickle as pk
 import time
@@ -41,7 +40,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib as mpl
 import mapclassify as mc
 from copy import deepcopy as cp
-
+import os
 scriptsdir = os.getcwd()
 
 
@@ -61,13 +60,13 @@ flags['extr'] = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 0         # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 
 
@@ -243,7 +242,7 @@ if flags['exposure']:
     start_time = time.time()
     
     # calculate exposure per country and per region and save data (takes 23 mins)
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, = calc_exposure(
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perrun_15, d_exposure_perrun_20, d_exposure_perrun_NDC = calc_exposure(
         grid_area,
         d_regions,
         d_isimip_meta, 
@@ -364,3 +363,26 @@ ds_exposure = xr.merge([
     ds_exposure_20,
     ds_exposure_NDC,
 ])
+
+#     
+# with open('./data/pickles/exposure_dataset_{}.pkl'.format(d_isimip_meta[list(d_isimip_meta.keys())[0]]['extreme']), 'wb') as f:
+#     pk.dump(ds_exposure,f)    
+
+#%% ----------------------------------------------------------------
+# COMPUTE EMERGENCE PER LIFETIME
+# ------------------------------------------------------------------
+
+# from emergence import * 
+
+# # emergence calculations
+# gdf_exposure_emergence_birth_year = calc_exposure_emergence(
+#     ds_exposure,
+#     ds_exposure_pic,
+#     gdf_country_borders,
+# )
+
+# # plot emergence
+# emergence_plot(
+#     gdf_exposure_emergence_birth_year,
+# )
+# %%
