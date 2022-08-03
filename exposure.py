@@ -246,7 +246,8 @@ def calc_exposure(
     countries_regions, 
     countries_mask, 
     da_population, 
-    df_life_expectancy_5, 
+    df_life_expectancy_5,
+    d_all_cohorts,
 ):
 
         d_exposure_perrun_RCP     = {}
@@ -254,13 +255,28 @@ def calc_exposure(
         d_exposure_perrun_20      = {}
         d_exposure_perrun_NDC     = {}
         d_exposure_perrun_R26eval = {} 
+        d_cohort_exposure = {}
         
         d_landfrac_peryear_perregion = {}
         d_exposure_perregion_perrun_RCP = {}
         
         # unpack region information
         df_birthyears_regions = d_regions['birth_years']
-        d_cohort_weights_regions = d_regions['cohort_size']        
+        d_cohort_weights_regions = d_regions['cohort_size']    
+        da_cohort_size = xr.DataArray(
+            # np.asarray(list(d_cohort_size.values())),
+            np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
+            coords={
+                'country': ('country', list(df_countries['name'])),
+                'time': ('time', year_range),
+                'ages': ('ages', np.arange(104,-1,-1)),
+            },
+            dims=[
+                'country',
+                'time',
+                'ages',
+            ]
+        )            
 
         # loop over simulations
         for i in list(d_isimip_meta.keys()): 
@@ -293,6 +309,20 @@ def calc_exposure(
                     ind_country, 
                     flag_region= False,
                 )
+                
+            da_exposure_peryear_percountry = xr.DataArray(
+                list(d_exposure_peryear_percountry.values()),
+                coords={
+                    'country': ('country', list(d_exposure_peryear_percountry.keys())),
+                    'time': ('time', da_AFA.time.values),
+                },
+                dims=[
+                    'country',
+                    'time',
+                ],
+            )
+
+            d_cohort_exposure[i]= da_exposure_peryear_percountry * da_cohort_size
                 
             # --------------------------------------------------------------------
             # convert dict to dataframe for vectorizing and integrate exposures then map to GMTs        
@@ -394,6 +424,11 @@ def calc_exposure(
 
             # save exposures for every run
             d_exposure_perregion_perrun_RCP[i]  = pd.DataFrame(d_exposure_perregion_RCP)
+            
+        da_exposure_cohort = xr.concat(
+            [v for v in d_cohort_exposure.values()],
+            dim='runs',
+        ).assign_coords({'runs':list(d_cohort_exposure.keys())})
 
         # --------------------------------------------------------------------
         # save workspave in pickles
@@ -411,12 +446,13 @@ def calc_exposure(
             'exposure_perrun_NDC' : d_exposure_perrun_NDC,
             'exposure_perregion_perrun_RCP' : d_exposure_perregion_perrun_RCP, 
             'landfrac_peryear_perregion' : d_landfrac_peryear_perregion,
+            'exposure_per_cohort': da_exposure_cohort,
         }
 
         with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
             pk.dump(d_exposure,f)
 
-        return d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perrun_15, d_exposure_perrun_20, d_exposure_perrun_NDC
+        return d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perrun_15, d_exposure_perrun_20, d_exposure_perrun_NDC, da_exposure_cohort
         
 #%% ----------------------------------------------------------------
 # convert PIC Area Fraction Affected (AFA) to 
@@ -449,9 +485,6 @@ def calc_exposure_pic(
             # load AFA data of that run
             with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
                 da_AFA_pic = pk.load(f)
-            
-            # get time var for this pic run
-            pic_time = da_AFA_pic.time.values
             
             # get 1960 life expectancy
             life_expectancy_1960 = xr.DataArray(
@@ -487,7 +520,7 @@ def calc_exposure_pic(
                 list(d_exposure_peryear_percountry_pic.values()),
                 coords={
                     'country': ('country', list(d_exposure_peryear_percountry_pic.keys())),
-                    'time': ('time', pic_time),
+                    'time': ('time', da_AFA_pic.time.values),
                 },
                 dims=[
                     'country',

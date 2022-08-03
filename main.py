@@ -60,13 +60,13 @@ flags['extr'] = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 
 
@@ -125,8 +125,14 @@ if flags['mask']: # load data and do calculations
     # load population size per age cohort data
     wcde = load_wcde_data() 
 
-    # interpolate population size per age cohort data to our ages
+    # interpolate population size per age cohort data to our ages (0-60)
     d_cohort_size = get_cohortsize_countries(
+        wcde, 
+        df_countries, 
+        df_GMT_15,
+    )
+    
+    d_all_cohorts = get_all_cohorts(
         wcde, 
         df_countries, 
         df_GMT_15,
@@ -242,7 +248,7 @@ if flags['exposure']:
     start_time = time.time()
     
     # calculate exposure per country and per region and save data (takes 23 mins)
-    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perrun_15, d_exposure_perrun_20, d_exposure_perrun_NDC = calc_exposure(
+    d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perrun_15, d_exposure_perrun_20, d_exposure_perrun_NDC, da_exposure_cohort = calc_exposure(
         grid_area,
         d_regions,
         d_isimip_meta, 
@@ -252,6 +258,7 @@ if flags['exposure']:
         countries_mask, 
         da_population, 
         df_life_expectancy_5,
+        d_all_cohorts,
     )
     
     print("--- {} minutes ---".format(

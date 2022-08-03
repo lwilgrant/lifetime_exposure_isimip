@@ -9,14 +9,16 @@ import numpy as np
 def init(): 
 
     # initialise age and associated time period of interest
-    global ages, age_young, age_ref, year_ref, year_start, birth_years, year_end
+    global ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range
     ages        = np.arange(60,-1,-1)
     age_young   = 0
     age_ref     = np.nanmax(ages)
+    age_range   = np.arange(0,105)
     year_ref    = 2020
     year_start  = year_ref - age_ref
     birth_years = np.arange(year_start,year_ref+1)     
     year_end    = 2113                            # based on maximum life expectancy reported in UN WPP
+    year_range  = np.arange(year_start,year_end+1)
 
 
     # initialise age groups
