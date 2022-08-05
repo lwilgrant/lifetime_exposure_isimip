@@ -369,31 +369,3 @@ ds_exposure = xr.merge([
     ds_exposure_20,
     ds_exposure_NDC,
 ])
-
-#%% ----------------------------------------------------------------
-# COMPUTE EMERGENCE PER LIFETIME
-# ------------------------------------------------------------------
-
-from emergence import * 
-
-# emergence calculations
-gdf_exposure_emergence_birth_year = calc_exposure_emergence(
-    ds_exposure,
-    ds_exposure_pic,
-    gdf_country_borders,
-)
-
-# plot emergence
-emergence_plot(
-    gdf_exposure_emergence_birth_year,
-)
-
-# population emergence by cohort exposure
-ds_exposure_cohort = calc_cohort_emergence(
-    da_exposure_cohort,
-    df_life_expectancy_5,
-    year_start,
-    year_end,
-)
-
-# %%
