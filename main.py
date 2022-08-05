@@ -52,7 +52,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'cropfailedarea'   # 0: all
+flags['extr'] = 'heatwavedarea'   # 0: all
                                     # 1: burntarea
                                     # 2: cropfailedarea
                                     # 3: driedarea
@@ -60,13 +60,13 @@ flags['extr'] = 'cropfailedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 1         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 
 
@@ -231,7 +231,6 @@ d_isimip_meta,d_pic_meta = load_isimip(
     df_GMT_NDC,    
 )
 
-
 #%% ----------------------------------------------------------------
 # COMPUTE EXPOSURE PER LIFETIME
 # ------------------------------------------------------------------
@@ -241,7 +240,6 @@ from exposure import *
 # --------------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 
 # per-country number of extremes affecting one individual across life span
-
 
 if flags['exposure']: 
     
@@ -279,6 +277,7 @@ else: # load processed country data
     d_exposure_perrun_15 = d_exposure['exposure_perrun_15']
     d_exposure_perrun_20 = d_exposure['exposure_perrun_20']
     d_exposure_perrun_NDC = d_exposure['exposure_perrun_NDC']
+    da_exposure_cohort = d_exposure['exposure_per_cohort']
 
     # unpack region information
     d_exposure_perregion_perrun_RCP = d_exposure['exposure_perregion_perrun_RCP']
@@ -371,25 +370,30 @@ ds_exposure = xr.merge([
     ds_exposure_NDC,
 ])
 
-#     
-# with open('./data/pickles/exposure_dataset_{}.pkl'.format(d_isimip_meta[list(d_isimip_meta.keys())[0]]['extreme']), 'wb') as f:
-#     pk.dump(ds_exposure,f)    
-
 #%% ----------------------------------------------------------------
 # COMPUTE EMERGENCE PER LIFETIME
 # ------------------------------------------------------------------
 
-# from emergence import * 
+from emergence import * 
 
-# # emergence calculations
-# gdf_exposure_emergence_birth_year = calc_exposure_emergence(
-#     ds_exposure,
-#     ds_exposure_pic,
-#     gdf_country_borders,
-# )
+# emergence calculations
+gdf_exposure_emergence_birth_year = calc_exposure_emergence(
+    ds_exposure,
+    ds_exposure_pic,
+    gdf_country_borders,
+)
 
-# # plot emergence
-# emergence_plot(
-#     gdf_exposure_emergence_birth_year,
-# )
+# plot emergence
+emergence_plot(
+    gdf_exposure_emergence_birth_year,
+)
+
+# population emergence by cohort exposure
+ds_exposure_cohort = calc_cohort_emergence(
+    da_exposure_cohort,
+    df_life_expectancy_5,
+    year_start,
+    year_end,
+)
+
 # %%
