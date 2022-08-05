@@ -63,52 +63,13 @@ def get_all_cohorts(
     # unpack loaded wcde values
     wcde = load_wcde_data() 
     wcde_years, wcde_ages, wcde_country_data, unused = wcde 
-    # 31 year ranges, 21 age categories
-    # target ages 
-    # ages = np.arange(0,61)
     new_ages = np.arange(104,-1,-1)
-    # new_years = np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))
-    # ages_og = np.concatenate(([np.min(ages)], wcde_ages))
-    # years_og = np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))
-    # initialise dictionary to store cohort sizes dataframes per country with years as rows and ages as columns
+
     d_all_cohorts = {}
 
     for i,name in enumerate(df_countries.index):
-    # i=25
-    # name='Canada'    
-    # extract population size per age cohort data from WCDE file and
-    # linearly interpolate from 5-year WCDE blocks to pre-defined birth year
-    # ! this gives slightly different values than MATLAB at some interpolation points inherent to the interpolation
-        # wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
-        # wcde_per_country = np.hstack((
-        #     np.expand_dims(wcde_country_data_reshape[:,0],axis=1)/2,
-        #     np.expand_dims(wcde_country_data_reshape[:,0],axis=1)/2,
-        #     wcde_country_data_reshape[:,1:]
-        # ))
-        # wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
-        # [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
-        # [Xnew, Ynew] = np.meshgrid(ages, np.array(df_GMT_15.index)) # prepare for 2D interpolation
-        # wcde_country_data_raw = interpolate.griddata(
-        #     (Xorig.ravel(),Yorig.ravel()),
-        #     wcde_per_country.ravel(),
-        #     (Xnew.ravel(),Ynew.ravel()),
-        # )
-        # wcde_country_data_interp = wcde_country_data_raw.reshape( len(df_GMT_15.index),len(ages))
-        # d_all_cohorts[name] = pd.DataFrame(
-        #     (wcde_country_data_interp), # cchanged from '/5' to '/25' because i'm imagining that the spread of cohort sizes needs to be accounted for by years and ages (and data matches better now to original size)
-        #     columns=ages, 
-        #     index=df_GMT_15.index
-        # )
-        
+
         wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
-        # below is using the original scheme but adding years at end too so that up to 104 has data (as original 102 was actually 100-104)
-        # wcde_per_country = np.hstack((
-        #     np.expand_dims(wcde_country_data_reshape[:,0],axis=1),
-        #     wcde_country_data_reshape,
-        #     np.expand_dims(wcde_country_data_reshape[:,-1],axis=1)
-        # )) 
-        # but now we test below by saying, since we're adding the 0-4 weights at front to interpolate to 0, we need to make cohort size adjustments so we don't inflate population size
-        # therefore, we take half of the additional 0-4 in the front position 0, half of the original 0-4 at position 1, and use less of main data
         wcde_per_country = np.hstack((
             np.expand_dims(wcde_country_data_reshape[:,0],axis=1)/4,
             np.expand_dims(wcde_country_data_reshape[:,0],axis=1)*3/4,
@@ -129,45 +90,16 @@ def get_all_cohorts(
             columns=new_ages, 
             index=df_GMT_15.index
         )        
-        
-    # og_df = pd.DataFrame(
-    #     wcde_per_country,
-    #     columns=np.concatenate(([np.min(ages)], np.append(wcde_ages,107))),
-    #     index=np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))
-    # ) 
-    # allyears = np.arange(1950,2114)
-    # og_df_empty = pd.DataFrame(
-    #     columns=np.concatenate(([np.min(ages)], np.append(wcde_ages,107))),
-    #     index=allyears
-    # )
-    # test_df = pd.concat([og_df,og_df_empty]).sort_index()
-    # keeplist = []
-    # for i in list(test_df.index.values):
-    #     rows = test_df.loc[i,:]
-    #     if len(rows.shape) > 1:
-    #         keeplist.append(rows.dropna(axis=0))
-    #     else:
-    #         keeplist.append(pd.DataFrame(rows,columns=test_df.columns,index=[i]))
-    # new_test_df = pd.concat(keeplist)
-    # new_test_df = new_test_df[~new_test_df.index.duplicated()]
-    # new_og_df = new_test_df.astype('float').interpolate(
-    #     method='slinear', # original 'linear' filled end values with constants; slinear calls spline linear interp/extrap from scipy interp1d
-    #     limit_direction='both',
-    #     fill_value='extrapolate',
-    # )
-    # new_og_df.loc[1960:,0:102].sum().sum() # after interpolating years in original data but maintaining cohorts, have better check against cohort extraction
-    
-    # df_concat = df_concat[~df_concat.index.duplicated(keep='last')]
     
     return d_all_cohorts  
 
 #%% ----------------------------------------------------------------
-# *improved function to compute extreme event exposure across a person's lifetime
+# function to compute extreme event exposure per cohort per year, annual and annual cummulative
 def calc_cohort_emergence(
     da_exposure_cohort,
-    # df_life_expectancy
-    df_life_expectancy_5,
-    col,
+    df_life_expectancy,
+    year_start,
+    year_end,
 ):
 
     country_list = []
@@ -176,9 +108,9 @@ def calc_cohort_emergence(
         # country='Canada'
         birthyear_list = []
         
-        for i, birth_year in enumerate(df_life_expectancy_5.index):
+        for i, birth_year in enumerate(df_life_expectancy.index):
             
-            death_year = birth_year + np.floor(df_life_expectancy_5.loc[birth_year,country])
+            death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
             
             time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
             ages = xr.DataArray(np.arange(0,len(time)),dims='age')
@@ -199,7 +131,7 @@ def calc_cohort_emergence(
     ds_exposure_cohort = xr.Dataset(
         data_vars={
             'exposure': (da_exposure_cohort_all.dims,da_exposure_cohort_all.data),
-            'exposure_cumulative': (da_exposure_cohort_all.dims,da_exposure_cohort_all.data)
+            'exposure_cumulative': (da_exposure_cohort_all_cumsum.dims,da_exposure_cohort_all_cumsum.data)
         },
         coords={
             'country': ('country',da_exposure_cohort_all.country.data),
@@ -209,8 +141,39 @@ def calc_cohort_emergence(
         },
     )
      
-    return exposure_birthyears_percountry  
+    return ds_exposure_cohort  
+
+#%% ----------------------------------------------------------------
+# function to compute extreme event exposure across a person's lifetime
+def calc_unprec_exposure(
+    ds_exposure_cohort,
+    ds_exposure_pic,
+):
+
+    # new empty dataset with variables for population experiencing unprecedented exposure or not
+    ds_pop_frac = xr.Dataset(
+        data_vars={
+            'unprecedented': (['runs','time'], np.empty(len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data))),
+            'normal': (['runs','time'], np.empty(len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data))),
+        }
+        coords={
+            'runs': ('runs',ds_exposure_cohort.runs.data),
+            'time': ('time',ds_exposure_cohort.time.data),
+        }
+    )
     
+    # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
+    unprec = ds_exposure_cohort['exposure'].where(ds_exposure_cohort['exposure_cumulative'] >= ds_exposure_pic['ext'])
+    unprec = unprec.sum(dim=['birth_year','country'])
+    # keep only timesteps/values where cumulative exposure remains below extreme
+    normal = ds_exposure_cohort['exposure'].where(ds_exposure_cohort['exposure_cumulative'] < ds_exposure_pic['ext'])
+    normal = normal.sum(dim=['birth_year','country'])
+    
+    # assign aggregated unprecedented/normal exposure to ds_pop_frac
+    ds_pop_frac
+     
+    return ds_exposure_cohort  
+        
 #%% ----------------------------------------------------------------
 # get timing and EMF of exceedence of pic-defined extreme
 def calc_exposure_emergence(
