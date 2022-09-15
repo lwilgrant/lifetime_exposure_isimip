@@ -153,9 +153,9 @@ def calc_unprec_exposure(
     # new empty dataset with variables for population experiencing unprecedented exposure or not
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprecedented': (['runs','time'], np.empty(len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data))),
-            'normal': (['runs','time'], np.empty(len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data))),
-        }
+            'unprecedented': (['runs','time'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data)))),
+            'normal': (['runs','time'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data)))),
+        },
         coords={
             'runs': ('runs',ds_exposure_cohort.runs.data),
             'time': ('time',ds_exposure_cohort.time.data),

@@ -173,6 +173,7 @@ if flags['mask']: # load data and do calculations
         'birth_years' : df_birthyears,
         'life_expectancy_5': df_life_expectancy_5, 
         'cohort_size' : d_cohort_size, 
+        'all_cohorts' : d_all_cohorts,
         'mask' : (countries_regions,countries_mask),
     }
 
@@ -207,6 +208,7 @@ else: # load processed country data
     df_birthyears = d_countries['birth_years']
     df_life_expectancy_5 = d_countries['life_expectancy_5']
     d_cohort_size = d_countries['cohort_size']
+    d_all_cohorts = d_countries['all_cohorts']
     countries_regions, countries_mask = d_countries['mask']
 
     # load regions pickle
