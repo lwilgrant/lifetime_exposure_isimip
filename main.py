@@ -41,6 +41,7 @@ import matplotlib as mpl
 import mapclassify as mc
 from copy import deepcopy as cp
 import os
+import matplotlib.pyplot as plt
 scriptsdir = os.getcwd()
 
 
@@ -60,13 +61,13 @@ flags['extr'] = 'heatwavedarea'   # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 1         # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0         # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 
 
@@ -132,6 +133,7 @@ if flags['mask']: # load data and do calculations
         df_GMT_15,
     )
     
+    # interpolate pop sizes per age cohort for all ages (0-104)
     d_all_cohorts = get_all_cohorts(
         wcde, 
         df_countries, 
@@ -376,26 +378,116 @@ ds_exposure = xr.merge([
 # COMPUTE EMERGENCE PER LIFETIME
 # ------------------------------------------------------------------
 
-from emergence import * 
+from emergence import *
 
-# emergence calculations
-gdf_exposure_emergence_birth_year = calc_exposure_emergence(
-    ds_exposure,
-    ds_exposure_pic,
-    gdf_country_borders,
-)
+# ADD FLAG OPTION FOR COMPUTE OR LOAD PICKLES, AND THEN WRITE LOAD COMMANDS
 
-# plot emergence
-emergence_plot(
-    gdf_exposure_emergence_birth_year,
-)
+# # emergence calculations
+# gdf_exposure_emergence_birth_year = calc_exposure_emergence(
+#     ds_exposure,
+#     ds_exposure_pic,
+#     gdf_country_borders,
+# )
 
-# population emergence by cohort exposure
+# # plot emergence
+# emergence_plot(
+#     gdf_exposure_emergence_birth_year,
+# )
+
+# cohort exposure
 ds_exposure_cohort = calc_cohort_emergence(
     da_exposure_cohort,
     df_life_expectancy_5,
     year_start,
     year_end,
+    year_ref,
 )
+
+# population experiencing normal vs unprecedented exposure
+ds_pop_frac = calc_unprec_exposure(
+    ds_exposure_cohort,
+    ds_exposure_pic,
+)
+
+ds_pop_frac['mean_unprec'] = ds_pop_frac['unprec'].mean(dim='runs')
+ds_pop_frac['max_unprec'] = ds_pop_frac['unprec'].max(dim='runs')
+ds_pop_frac['min_unprec'] = ds_pop_frac['unprec'].min(dim='runs')
+
+ds_pop_frac['mean_normal'] = ds_pop_frac['normal'].mean(dim='runs')
+ds_pop_frac['max_normal'] = ds_pop_frac['normal'].max(dim='runs')
+ds_pop_frac['min_normal'] = ds_pop_frac['normal'].min(dim='runs')
+
+# pack exposure information
+d_unprecedented_exposure = {
+    'exposure_dataset' : ds_exposure_cohort, 
+    'population_fraction_dataset' : ds_pop_frac,
+}
+
+with open('./data/pickles/cohort_exposure_{}.pkl'.format(flags['extr']), 'wb') as f:
+    pk.dump(d_exposure,f)
+
+x=12
+y=9
+lw_mean=1
+lw_fill=0.1
+ub_alpha = 0.5
+title_font = 14
+tick_font = 12
+axis_font = 14
+legend_font = 14
+impactyr_font =  11
+col_grid = '0.8'     # color background grid
+style_grid = 'dashed'     # style background grid
+lw_grid = 0.5     # lineweight background grid
+col_unprec = 'darkred'       # unprec mean color
+col_unprec_fill = '#F08080'     # unprec fill color
+col_normal = 'steelblue'       # normal mean color
+col_normal_fill = 'lightsteelblue'     # normal fill color
+col_bis = 'black'     # color bisector
+style_bis = '--'     # style bisector
+lw_bis = 1     # lineweight bisector
+time = ds_pop_frac.time.values
+xmin = np.min(time)
+xmax = np.max(time)
+f,ax = plt.subplots(figsize=(x,y))
+
+# plot unprecedented
+ax.plot(
+    time,
+    ds_pop_frac['mean_unprec'].values,
+    lw=lw_mean,
+    color=col_unprec,
+    label='Population unprecedented',
+    zorder=1,
+)
+ax.fill_between(
+    time,
+    ds_pop_frac['max_unprec'].values,
+    ds_pop_frac['min_unprec'].values,
+    lw=lw_fill,
+    alpha=ub_alpha,
+    color=col_unprec_fill,
+    zorder=1,
+)
+
+# plot normal
+ax.plot(
+    time,
+    ds_pop_frac['mean_normal'].values,
+    lw=lw_mean,
+    color=col_normal,
+    label='Population normal',
+    zorder=2,
+)
+ax.fill_between(
+    time,
+    ds_pop_frac['max_normal'].values,
+    ds_pop_frac['min_normal'].values,
+    lw=lw_fill,
+    alpha=ub_alpha,
+    color=col_normal_fill,
+    zorder=2,
+)
+
 
 # %%

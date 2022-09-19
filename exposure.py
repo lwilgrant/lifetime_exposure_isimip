@@ -213,7 +213,7 @@ def calc_exposure_mmm_pic_xr(
 
     # pic quantile for birth cohort exposure emergence
     da_exposure_pic_ext = da_exposure_pic.quantile(
-        q=0.99,
+        q=0.9999,
         dim='pic_lifetimes',
         # method='inverted_cdf',
     )

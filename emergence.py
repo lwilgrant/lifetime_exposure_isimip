@@ -100,6 +100,7 @@ def calc_cohort_emergence(
     df_life_expectancy,
     year_start,
     year_end,
+    year_ref,
 ):
 
     country_list = []
@@ -108,24 +109,58 @@ def calc_cohort_emergence(
         # country='Canada'
         birthyear_list = []
         
-        for i, birth_year in enumerate(df_life_expectancy.index):
+        # for i, birth_year in enumerate(df_life_expectancy.index):
+        # instead of iterating from 1960-2020, we want to do 1960 to year_end (2113)
+        for birth_year in np.arange(year_start,year_end+1):
             
-            death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
-            
-            time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
-            ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-            # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
-            # new data points from paired coords will be under new dim called ages, to be converted
-            test = da_exposure_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
-            # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
-            test = test.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
-            test = test.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-            yr = 1960+i
-            test = test.assign_coords({'birth_year':yr}).drop_vars('ages')
-            birthyear_list.append(test)
+            if birth_year <= year_ref:
+                
+                death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
+                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
+                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
+                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
+                # new data points from paired coords will be under new dim called ages, to be converted
+                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
+                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
+                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+                birthyear_list.append(data)
+                
+            elif birth_year > year_ref and birth_year < year_end:
+                
+                death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
+                
+                if death_year > year_end:
+                    
+                    death_year = year_end
+                
+                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
+                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
+                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
+                # new data points from paired coords will be under new dim called ages, to be converted
+                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
+                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
+                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+                birthyear_list.append(data)
+                
+            elif birth_year == year_end:
+                
+                time = xr.DataArray([year_end],dims='age')
+                ages = xr.DataArray([0],dims='age')
+                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
+                # new data points from paired coords will be under new dim called ages, to be converted
+                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
+                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
+                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+                birthyear_list.append(data)                
         
-        cohort_exposure_test = xr.concat(birthyear_list,dim='birth_year')
-        country_list.append(cohort_exposure_test)
+        cohort_exposure_data = xr.concat(birthyear_list,dim='birth_year')
+        country_list.append(cohort_exposure_data)
     da_exposure_cohort_all = xr.concat(country_list,dim='country')
     da_exposure_cohort_all_cumsum = da_exposure_cohort_all.cumsum(dim='time')
     ds_exposure_cohort = xr.Dataset(
@@ -153,7 +188,7 @@ def calc_unprec_exposure(
     # new empty dataset with variables for population experiencing unprecedented exposure or not
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprecedented': (['runs','time'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data)))),
+            'unprec': (['runs','time'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data)))),
             'normal': (['runs','time'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data)))),
         },
         coords={
@@ -170,9 +205,10 @@ def calc_unprec_exposure(
     normal = normal.sum(dim=['birth_year','country'])
     
     # assign aggregated unprecedented/normal exposure to ds_pop_frac
-    ds_pop_frac
+    ds_pop_frac['unprec'] = unprec
+    ds_pop_frac['normal'] = normal
      
-    return ds_exposure_cohort  
+    return ds_pop_frac
         
 #%% ----------------------------------------------------------------
 # get timing and EMF of exceedence of pic-defined extreme
