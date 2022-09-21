@@ -255,7 +255,10 @@ def calc_exposure(
         d_exposure_perrun_20      = {}
         d_exposure_perrun_NDC     = {}
         d_exposure_perrun_R26eval = {} 
-        d_cohort_exposure = {}
+        d_cohort_exposure_RCP = {}
+        d_cohort_exposure_15 = {}
+        d_cohort_exposure_20 = {}
+        d_cohort_exposure_NDC = {}
         
         d_landfrac_peryear_perregion = {}
         d_exposure_perregion_perrun_RCP = {}
@@ -264,7 +267,6 @@ def calc_exposure(
         df_birthyears_regions = d_regions['birth_years']
         d_cohort_weights_regions = d_regions['cohort_size']    
         da_cohort_size = xr.DataArray(
-            # np.asarray(list(d_cohort_size.values())),
             np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
             coords={
                 'country': ('country', list(df_countries['name'])),
@@ -276,7 +278,7 @@ def calc_exposure(
                 'time',
                 'ages',
             ]
-        )            
+        )
 
         # loop over simulations
         for i in list(d_isimip_meta.keys()): 
@@ -322,8 +324,28 @@ def calc_exposure(
                 ],
             )
 
-            d_cohort_exposure[i]= da_exposure_peryear_percountry * da_cohort_size
+            d_cohort_exposure_RCP[i]= da_exposure_peryear_percountry * da_cohort_size
+            
+            # if max diff criteria met, run GMT mapping before scaling against cohort exposure
+            if d_isimip_meta[i]['GMT_15_valid']:
                 
+                d_cohort_exposure_15[i]= da_exposure_peryear_percountry.reindex(
+                        {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_15']]}
+                    ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
+                
+            if d_isimip_meta[i]['GMT_20_valid']:
+                
+                d_cohort_exposure_20[i]= da_exposure_peryear_percountry.reindex(
+                        {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_20']]}
+                    ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
+                
+            if d_isimip_meta[i]['GMT_NDC_valid']:
+                
+                d_cohort_exposure_NDC[i]= da_exposure_peryear_percountry.reindex(
+                        {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_NDC']]}
+                    ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
+            
+                            
             # --------------------------------------------------------------------
             # convert dict to dataframe for vectorizing and integrate exposures then map to GMTs        
             frame = {k:v.values for k,v in d_exposure_peryear_percountry.items()}
@@ -425,10 +447,25 @@ def calc_exposure(
             # save exposures for every run
             d_exposure_perregion_perrun_RCP[i]  = pd.DataFrame(d_exposure_perregion_RCP)
             
-        da_exposure_cohort = xr.concat(
-            [v for v in d_cohort_exposure.values()],
+        da_exposure_cohort_RCP = xr.concat(
+            [v for v in d_cohort_exposure_RCP.values()],
             dim='runs',
-        ).assign_coords({'runs':list(d_cohort_exposure.keys())})
+        ).assign_coords({'runs':list(d_cohort_exposure_RCP.keys())})
+        
+        da_exposure_cohort_15 = xr.concat(
+            [v for v in d_cohort_exposure_15.values()],
+            dim='runs',
+        ).assign_coords({'runs':list(d_cohort_exposure_15.keys())})
+        
+        da_exposure_cohort_20 = xr.concat(
+            [v for v in d_cohort_exposure_20.values()],
+            dim='runs',
+        ).assign_coords({'runs':list(d_cohort_exposure_20.keys())})
+        
+        da_exposure_cohort_NDC = xr.concat(
+            [v for v in d_cohort_exposure_NDC.values()],
+            dim='runs',
+        ).assign_coords({'runs':list(d_cohort_exposure_NDC.keys())})        
 
         # --------------------------------------------------------------------
         # save workspave in pickles
@@ -446,13 +483,28 @@ def calc_exposure(
             'exposure_perrun_NDC' : d_exposure_perrun_NDC,
             'exposure_perregion_perrun_RCP' : d_exposure_perregion_perrun_RCP, 
             'landfrac_peryear_perregion' : d_landfrac_peryear_perregion,
-            'exposure_per_cohort': da_exposure_cohort,
+            'exposure_percohort_RCP': da_exposure_cohort_RCP,
+            'exposure_percohort_15': da_exposure_cohort_15,
+            'exposure_percohort_20': da_exposure_cohort_20,
+            'exposure_percohort_NDC': da_exposure_cohort_NDC,
         }
 
         with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
             pk.dump(d_exposure,f)
 
-        return d_exposure_perrun_RCP, d_exposure_perregion_perrun_RCP, d_exposure_perrun_15, d_exposure_perrun_20, d_exposure_perrun_NDC, da_exposure_cohort
+        exposures = (
+            d_exposure_perrun_RCP, 
+            d_exposure_perregion_perrun_RCP, 
+            d_exposure_perrun_15, 
+            d_exposure_perrun_20, 
+            d_exposure_perrun_NDC, 
+            da_exposure_cohort_RCP, 
+            da_exposure_cohort_15, 
+            da_exposure_cohort_20, 
+            da_exposure_cohort_NDC
+        )
+        
+        return exposures
         
 #%% ----------------------------------------------------------------
 # convert PIC Area Fraction Affected (AFA) to 

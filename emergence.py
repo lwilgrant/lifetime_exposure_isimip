@@ -113,6 +113,7 @@ def calc_cohort_emergence(
         # instead of iterating from 1960-2020, we want to do 1960 to year_end (2113)
         for birth_year in np.arange(year_start,year_end+1):
             
+            # use life expectancy information where available (until 2020)
             if birth_year <= year_ref:
                 
                 death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
@@ -126,7 +127,8 @@ def calc_cohort_emergence(
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
                 birthyear_list.append(data)
-                
+            
+            # after 2020, assume constant life expectancy    
             elif birth_year > year_ref and birth_year < year_end:
                 
                 death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
@@ -145,7 +147,8 @@ def calc_cohort_emergence(
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
                 birthyear_list.append(data)
-                
+            
+            # for 2113, use single year of exposure    
             elif birth_year == year_end:
                 
                 time = xr.DataArray([year_end],dims='age')
@@ -161,6 +164,7 @@ def calc_cohort_emergence(
         
         cohort_exposure_data = xr.concat(birthyear_list,dim='birth_year')
         country_list.append(cohort_exposure_data)
+        
     da_exposure_cohort_all = xr.concat(country_list,dim='country')
     da_exposure_cohort_all_cumsum = da_exposure_cohort_all.cumsum(dim='time')
     ds_exposure_cohort = xr.Dataset(
@@ -183,6 +187,9 @@ def calc_cohort_emergence(
 def calc_unprec_exposure(
     ds_exposure_cohort,
     ds_exposure_pic,
+    d_all_cohorts,
+    year_range,
+    df_countries,
 ):
 
     # new empty dataset with variables for population experiencing unprecedented exposure or not
@@ -197,16 +204,51 @@ def calc_unprec_exposure(
         }
     )
     
+    # cohort conversiont to data array
+    da_cohort_size = xr.DataArray(
+        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
+        coords={
+            'country': ('country', list(df_countries['name'])),
+            'time': ('time', year_range),
+            'ages': ('ages', np.arange(104,-1,-1)),
+        },
+        dims=[
+            'country',
+            'time',
+            'ages',
+        ]
+    )
+    
     # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
     unprec = ds_exposure_cohort['exposure'].where(ds_exposure_cohort['exposure_cumulative'] >= ds_exposure_pic['ext'])
     unprec = unprec.sum(dim=['birth_year','country'])
-    # keep only timesteps/values where cumulative exposure remains below extreme
     normal = ds_exposure_cohort['exposure'].where(ds_exposure_cohort['exposure_cumulative'] < ds_exposure_pic['ext'])
     normal = normal.sum(dim=['birth_year','country'])
     
     # assign aggregated unprecedented/normal exposure to ds_pop_frac
     ds_pop_frac['unprec'] = unprec
     ds_pop_frac['normal'] = normal
+    
+    # stats on exposure types
+    ds_pop_frac['mean_unprec'] = ds_pop_frac['unprec'].mean(dim='runs')
+    ds_pop_frac['max_unprec'] = ds_pop_frac['unprec'].max(dim='runs')
+    ds_pop_frac['min_unprec'] = ds_pop_frac['unprec'].min(dim='runs')
+    ds_pop_frac['std_unprec'] = ds_pop_frac['unprec'].std(dim='runs')
+
+    ds_pop_frac['mean_normal'] = ds_pop_frac['normal'].mean(dim='runs')
+    ds_pop_frac['max_normal'] = ds_pop_frac['normal'].max(dim='runs')
+    ds_pop_frac['min_normal'] = ds_pop_frac['normal'].min(dim='runs')
+    ds_pop_frac['std_normal'] = ds_pop_frac['normal'].std(dim='runs')
+    
+    # unprecedented exposure as fraction of total population estimate
+    ds_pop_frac['frac_all_unprec'] = ds_pop_frac['unprec'] / da_cohort_size.sum(dim=['ages','country'])
+    ds_pop_frac['mean_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].mean(dim='runs')
+    ds_pop_frac['std_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].std(dim='runs')
+
+    # fraction of all exposed
+    ds_pop_frac['frac_exposed_unprec'] = ds_pop_frac['unprec'] / (ds_pop_frac['unprec'] + ds_pop_frac['normal'])
+    ds_pop_frac['mean_frac_exposed_unprec'] = ds_pop_frac['frac_exposed_unprec'].mean(dim='runs')
+    ds_pop_frac['std_frac_exposed_unprec'] = ds_pop_frac['frac_exposed_unprec'].std(dim='runs')
      
     return ds_pop_frac
         
