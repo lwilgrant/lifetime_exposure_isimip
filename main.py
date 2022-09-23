@@ -67,6 +67,8 @@ flags['mask'] = 0           # 0: do not process country data (i.e. load masks pi
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
+flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+                                   # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
@@ -141,6 +143,42 @@ if flags['mask']: # load data and do calculations
         df_GMT_15,
     )
 
+    # # testing for 2100-2113 cohort extrapolation ---------------------------------------------------------
+    # test_all_cohorts = {}
+    # wcde = load_wcde_data() 
+    # wcde_years, wcde_ages, wcde_country_data, unused = wcde
+    # new_ages = np.arange(100,-1,-1)
+    # # og_ages=np.concatenate(([np.min(ages)], np.append(wcde_ages,107)))
+    # og_ages=np.concatenate(([np.min(ages)], wcde_ages))
+
+    # # for i,name in enumerate(df_countries.index):
+    # # unpack loaded wcde values; 31 year ranges, 21 age categories
+    # i=1
+    # name='Afghanistan'
+    # wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
+    # test_04 = wcde_country_data_reshape[:,0]
+    # test_04 = np.insert(test_04,0,test_04[0])
+    
+    # wcde_per_country = np.hstack((
+    #     np.expand_dims(wcde_country_data_reshape[:,0],axis=1), # starting interp position for age 0 (fifth of 0-4 cohort size)
+    #     wcde_country_data_reshape,
+    # ))         
+    # # wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
+    # [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),wcde_years) 
+    # [Xnew, Ynew] = np.meshgrid(new_ages, np.arange(1960,2100+1)) # prepare for 2D interpolation
+    # wcde_country_data_raw = interpolate.griddata(
+    #     (Xorig.ravel(),Yorig.ravel()),
+    #     wcde_per_country.ravel(),
+    #     (Xnew.ravel(),Ynew.ravel()),
+    # )
+    # wcde_country_data_interp = wcde_country_data_raw.reshape( len(df_GMT_15.index),len(new_ages))
+    # test_all_cohorts[name] = pd.DataFrame(
+    #     (wcde_country_data_interp /5), 
+    #     columns=new_ages, 
+    #     index=df_GMT_15.index
+    # )
+    # -------------------------------------------------------------------------------------------------------
+    
     # do the same for the regions; get life expectancy, birth years and cohort weights per region, as well as countries per region
     d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions = get_regions_data(
         df_countries, 
@@ -268,11 +306,7 @@ if flags['exposure']:
     d_exposure_perregion_perrun_RCP,\
     d_exposure_perrun_15,\
     d_exposure_perrun_20,\
-    d_exposure_perrun_NDC,\
-    da_exposure_cohort_RCP,\
-    da_exposure_cohort_15,\
-    da_exposure_cohort_20,\
-    da_exposure_cohort_NDC = exposures
+    d_exposure_perrun_NDC  = exposures
     
     print("--- {} minutes ---".format(
         np.floor((time.time() - start_time) / 60),
@@ -284,7 +318,7 @@ else: # load processed country data
     print('Loading processed exposures')
 
     # load country pickle
-    with open('./data/pickles/exposure_{}.pkl'.format(d_isimip_meta[list(d_isimip_meta.keys())[0]]['extreme']), 'rb') as f:
+    with open('./data/pickles/exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
         d_exposure = pk.load(f)
 
     # unpack country information
@@ -292,14 +326,58 @@ else: # load processed country data
     d_exposure_perrun_15 = d_exposure['exposure_perrun_15']
     d_exposure_perrun_20 = d_exposure['exposure_perrun_20']
     d_exposure_perrun_NDC = d_exposure['exposure_perrun_NDC']
-    da_exposure_cohort_RCP = d_exposure['exposure_percohort_RCP']
-    da_exposure_cohort_15 = d_exposure['exposure_percohort_15']
-    da_exposure_cohort_20 = d_exposure['exposure_percohort_20']
-    da_exposure_cohort_NDC = d_exposure['exposure_percohort_NDC']
 
     # unpack region information
     d_exposure_perregion_perrun_RCP = d_exposure['exposure_perregion_perrun_RCP']
     d_landfrac_peryear_perregion = d_exposure['landfrac_peryear_perregion']
+
+# --------------------------------------------------------------------
+# process exposure across cohorts
+
+if flags['exposure_cohort']:
+    
+    start_time = time.time()
+    
+    # calculate exposure per country and per cohort
+    exposure_cohort = calc_cohort_exposure(
+        d_isimip_meta,
+        df_countries,
+        countries_regions,
+        countries_mask,
+        da_population,
+        d_all_cohorts,
+    )
+    
+    da_exposure_cohort_RCP,\
+    da_exposure_cohort_15,\
+    da_exposure_cohort_20,\
+    da_exposure_cohort_NDC,\
+    da_exposure_peryear_perage_percountry_RCP,\
+    da_exposure_peryear_perage_percountry_15,\
+    da_exposure_peryear_perage_percountry_20,\
+    da_exposure_peryear_perage_percountry_NDC = exposure_cohort
+    
+    print("--- {} minutes ---".format(
+        np.floor((time.time() - start_time) / 60),
+        )
+          )
+    
+else:
+    
+    print('Loading processed exposures')
+
+    # load country pickle
+    with open('./data/pickles/exposure_cohort_{}.pkl'.format(flags['extr']), 'rb') as f:
+        d_exposure_cohort = pk.load(f)
+
+    da_exposure_cohort_RCP = d_exposure_cohort['exposure_percohort_RCP']
+    da_exposure_cohort_15 = d_exposure_cohort['exposure_percohort_15']
+    da_exposure_cohort_20 = d_exposure_cohort['exposure_percohort_20']
+    da_exposure_cohort_NDC = d_exposure_cohort['exposure_percohort_NDC']
+    da_exposure_peryear_perage_percountry_RCP = d_exposure_cohort['exposure_peryear_perage_percountry_RCP']
+    da_exposure_peryear_perage_percountry_15 = d_exposure_cohort['exposure_peryear_perage_percountry_15']
+    da_exposure_peryear_perage_percountry_20 = d_exposure_cohort['exposure_peryear_perage_percountry_20']
+    da_exposure_peryear_perage_percountry_NDC = d_exposure_cohort['exposure_peryear_perage_percountry_NDC']
 
 # --------------------------------------------------------------------
 # process picontrol data
@@ -344,31 +422,31 @@ else: # load processed country data
 # compile hist+RCP and pic for EMF
 
 # call function to compute mmm, std, qntl for exposure (also 99.99 % of pic as "ext")
-ds_exposure_RCP = calc_exposure_mmm_xr(
-    d_exposure_perrun_RCP,
-    'country',
-    'RCP',
-)
-ds_exposure_15 = calc_exposure_mmm_xr(
-    d_exposure_perrun_15,
-    'country',
-    '15',
-)
-ds_exposure_20 = calc_exposure_mmm_xr(
-    d_exposure_perrun_20,
-    'country',
-    '20',
-)
-ds_exposure_NDC = calc_exposure_mmm_xr(
-    d_exposure_perrun_NDC,
-    'country',
-    'NDC',
-)
-ds_exposure_perregion = calc_exposure_mmm_xr(
-    d_exposure_perregion_perrun_RCP,
-    'region',
-    'RCP',
-)
+# ds_exposure_RCP = calc_exposure_mmm_xr(
+#     d_exposure_perrun_RCP,
+#     'country',
+#     'RCP',
+# )
+# ds_exposure_15 = calc_exposure_mmm_xr(
+#     d_exposure_perrun_15,
+#     'country',
+#     '15',
+# )
+# ds_exposure_20 = calc_exposure_mmm_xr(
+#     d_exposure_perrun_20,
+#     'country',
+#     '20',
+# )
+# ds_exposure_NDC = calc_exposure_mmm_xr(
+#     d_exposure_perrun_NDC,
+#     'country',
+#     'NDC',
+# )
+# ds_exposure_perregion = calc_exposure_mmm_xr(
+#     d_exposure_perregion_perrun_RCP,
+#     'region',
+#     'RCP',
+# )
 ds_exposure_pic = calc_exposure_mmm_pic_xr(
     d_exposure_perrun_pic,
     'country',
@@ -381,12 +459,12 @@ ds_exposure_pic_perregion = calc_exposure_mmm_pic_xr(
 )
 
 # pool all datasets for different trajectories
-ds_exposure = xr.merge([
-    ds_exposure_RCP,
-    ds_exposure_15,
-    ds_exposure_20,
-    ds_exposure_NDC,
-])
+# ds_exposure = xr.merge([
+#     ds_exposure_RCP,
+#     ds_exposure_15,
+#     ds_exposure_20,
+#     ds_exposure_NDC,
+# ])
 
 #%% ----------------------------------------------------------------
 # COMPUTE EMERGENCE PER LIFETIME
@@ -409,6 +487,40 @@ from emergence import *
 # emergence_plot(
 #     gdf_exposure_emergence_birth_year,
 # )
+# --------------------------------------------------------------------
+# process exposures to sum cumulatively across life expectancies, for comparison against cohort exposures for pop frac analysis
+ds_exposure_mask_RCP = calc_cohort_emergence(
+    da_exposure_peryear_perage_percountry_RCP,
+    df_life_expectancy_5,
+    year_start,
+    year_end,
+    year_ref,
+)
+
+ds_exposure_mask_15 = calc_cohort_emergence(
+    da_exposure_peryear_perage_percountry_15,
+    df_life_expectancy_5,
+    year_start,
+    year_end,
+    year_ref,
+)
+
+ds_exposure_mask_20 = calc_cohort_emergence(
+    da_exposure_peryear_perage_percountry_20,
+    df_life_expectancy_5,
+    year_start,
+    year_end,
+    year_ref,
+)
+
+ds_exposure_mask_NDC = calc_cohort_emergence(
+    da_exposure_peryear_perage_percountry_NDC,
+    df_life_expectancy_5,
+    year_start,
+    year_end,
+    year_ref,
+)
+
 
 # --------------------------------------------------------------------
 # process cohort emergence 
@@ -422,6 +534,11 @@ if flags['emergence']:
         year_end,
         year_ref,
     )
+    
+    # testing for age of emergence
+    test = ds_exposure_cohort_RCP
+    unprec = test['exposure'].where(test['exposure_cumulative'] >= ds_exposure_pic['ext'])
+    unprec_yr = unprec.time.where(unprec.notnull()).min(dim='birth_year',skipna=True)    
     
     # population experiencing normal vs unprecedented exposure
     ds_pop_frac_RCP = calc_unprec_exposure(
@@ -486,36 +603,40 @@ if flags['emergence']:
         df_countries,        
     )    
 
-    # pack exposure information
-    d_unprecedented_exposure = {
-        'exposure_ds_RCP' : ds_exposure_cohort_RCP,
-        'pop_frac_ds_RCP' : ds_pop_frac_RCP,
-        'exposure_ds_15' : ds_exposure_cohort_15,
-        'pop_frac_ds_15' : ds_pop_frac_15,
-        'exposure_ds_20' : ds_exposure_cohort_20,
-        'pop_frac_ds_20' : ds_pop_frac_20,
-        'exposure_ds_NDC' : ds_exposure_cohort_NDC,
-        'pop_frac_ds_NDC' : ds_pop_frac_NDC,        
-    }
+    # # pack exposure information DOESNT WORK, TOO MUCH DATA FOR PC (USING COHORT_EXPOSURE FOR NEW "calc_cohort_exposure()" function)
+    # d_unprecedented_exposure = {
+    #     'exposure_ds_RCP' : ds_exposure_cohort_RCP,
+    #     'pop_frac_ds_RCP' : ds_pop_frac_RCP,
+    #     'exposure_ds_15' : ds_exposure_cohort_15,
+    #     'pop_frac_ds_15' : ds_pop_frac_15,
+    #     'exposure_ds_20' : ds_exposure_cohort_20,
+    #     'pop_frac_ds_20' : ds_pop_frac_20,
+    #     'exposure_ds_NDC' : ds_exposure_cohort_NDC,
+    #     'pop_frac_ds_NDC' : ds_pop_frac_NDC,        
+    # }
 
-    with open('./data/pickles/cohort_exposure_{}.pkl'.format(flags['extr']), 'wb') as f:
-        pk.dump(d_unprecedented_exposure,f)
-        
-    unprec = ds_exposure_cohort_NDC['exposure'].where(ds_exposure_cohort_NDC['exposure_cumulative'] >= ds_exposure_pic['ext'])        
+    # with open('./data/pickles/cohort_exposure_{}.pkl'.format(flags['extr']), 'wb') as f:
+    #     pk.dump(d_unprecedented_exposure,f)
+    
+    # # use sample ds to find age of emergence
+    # unprec = ds_exposure_cohort_NDC['exposure'].where(ds_exposure_cohort_NDC['exposure_cumulative'] >= ds_exposure_pic['ext'])
         
 else:
     
-    with open('./data/pickles/cohort_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
-        d_unprecedented_exposure = pk.load(f)
+    pass
+    
+    # DOESN'T WORK, TOO MUCH DATA FOR PC TO STORE THIS PICKLE (WILL DO WITH ANOTHER NAME ON SERVER)
+    # with open('./data/pickles/cohort_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
+    #     d_unprecedented_exposure = pk.load(f)
         
-    ds_exposure_cohort_RCP = d_unprecedented_exposure['exposure_ds_RCP']
-    ds_pop_frac_RCP = d_unprecedented_exposure['pop_frac_ds_RCP']
-    ds_exposure_cohort_15 = d_unprecedented_exposure['exposure_ds_15']
-    ds_pop_frac_15 = d_unprecedented_exposure['pop_frac_ds_15']
-    ds_exposure_cohort_20 = d_unprecedented_exposure['exposure_ds_20']
-    ds_pop_frac_20 = d_unprecedented_exposure['pop_frac_ds_20']
-    ds_exposure_cohort_NDC = d_unprecedented_exposure['exposure_ds_NDC']
-    ds_pop_frac_NDC = d_unprecedented_exposure['pop_frac_ds_NDC']    
+    # ds_exposure_cohort_RCP = d_unprecedented_exposure['exposure_ds_RCP']
+    # ds_pop_frac_RCP = d_unprecedented_exposure['pop_frac_ds_RCP']
+    # ds_exposure_cohort_15 = d_unprecedented_exposure['exposure_ds_15']
+    # ds_pop_frac_15 = d_unprecedented_exposure['pop_frac_ds_15']
+    # ds_exposure_cohort_20 = d_unprecedented_exposure['exposure_ds_20']
+    # ds_pop_frac_20 = d_unprecedented_exposure['pop_frac_ds_20']
+    # ds_exposure_cohort_NDC = d_unprecedented_exposure['exposure_ds_NDC']
+    # ds_pop_frac_NDC = d_unprecedented_exposure['pop_frac_ds_NDC']    
 
 #%% ----------------------------------------------------------------
 # plotting pop frac
