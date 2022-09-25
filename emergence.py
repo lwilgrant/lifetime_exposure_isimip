@@ -180,13 +180,29 @@ def calc_cohort_emergence(
         },
     )
      
-    return ds_exposure_cohort  
+    return ds_exposure_cohort
+
+#%% ----------------------------------------------------------------
+# function to generate mask of unprecedented timesteps per birth year and age of emergence
+def exposure_pic_masking(
+    ds_exposure_mask,
+    ds_exposure_pic,
+):
+    
+    ds_exposure_mask = xr.where(ds_exposure_mask['exposure_cumulative'] >= ds_exposure_pic['ext'],1,0)
+    # age_emergence = ds_exposure_mask.time.where(ds_exposure_mask==1)
+    # time_emergence = ds_exposure_mask * ds_exposure_mask.time
+    age_emergence = ds_exposure_mask * (ds_exposure_mask.time - ds_exposure_mask.birth_year)
+    age_emergence = age_emergence.min(dim='time',skipna=True)
+    # age_emergence = time_emergence - time_emergence.birth_year
+    
+    return ds_exposure_mask,age_emergence
 
 #%% ----------------------------------------------------------------
 # function to compute extreme event exposure across a person's lifetime
 def calc_unprec_exposure(
     ds_exposure_cohort,
-    ds_exposure_pic,
+    ds_exposure_mask,
     d_all_cohorts,
     year_range,
     df_countries,
@@ -220,9 +236,9 @@ def calc_unprec_exposure(
     )
     
     # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
-    unprec = ds_exposure_cohort['exposure'].where(ds_exposure_cohort['exposure_cumulative'] >= ds_exposure_pic['ext'])
+    unprec = ds_exposure_cohort['exposure'].where(ds_exposure_mask == 1)
     unprec = unprec.sum(dim=['birth_year','country'])
-    normal = ds_exposure_cohort['exposure'].where(ds_exposure_cohort['exposure_cumulative'] < ds_exposure_pic['ext'])
+    normal = ds_exposure_cohort['exposure'].where(ds_exposure_mask == 0)
     normal = normal.sum(dim=['birth_year','country'])
     
     # assign aggregated unprecedented/normal exposure to ds_pop_frac

@@ -247,7 +247,6 @@ def calc_exposure(
     countries_mask, 
     da_population, 
     df_life_expectancy_5,
-    d_all_cohorts,
 ):
 
         d_exposure_perrun_RCP     = {}
@@ -602,20 +601,25 @@ def calc_cohort_exposure(
         print()
         print('Saving processed exposures')
 
-        # pack exposure information
-        d_exposure_cohort = {
-            'exposure_percohort_RCP': da_exposure_cohort_RCP,
-            'exposure_percohort_15': da_exposure_cohort_15,
-            'exposure_percohort_20': da_exposure_cohort_20,
-            'exposure_percohort_NDC': da_exposure_cohort_NDC,
-            'exposure_peryear_perage_percountry_RCP': da_exposure_peryear_perage_percountry_RCP,
-            'exposure_peryear_perage_percountry_15': da_exposure_peryear_perage_percountry_15,
-            'exposure_peryear_perage_percountry_20': da_exposure_peryear_perage_percountry_20,
-            'exposure_peryear_perage_percountry_NDC': da_exposure_peryear_perage_percountry_NDC,            
-        }
-
-        with open('./data/pickles/exposure_cohort_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
-            pk.dump(d_exposure_cohort,f)
+        # pickle cohort exposures
+        with open('./data/pickles/exposure_cohort_RCP_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_cohort_RCP,f)
+        with open('./data/pickles/exposure_cohort_15_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_cohort_15,f)
+        with open('./data/pickles/exposure_cohort_20_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_cohort_20,f)
+        with open('./data/pickles/exposure_cohort_NDC_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_cohort_NDC,f)
+            
+        # pickle exposure peryear perage percountry
+        with open('./data/pickles/exposure_peryear_perage_percountry_RCP_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_peryear_perage_percountry_RCP,f)
+        with open('./data/pickles/exposure_peryear_perage_percountry_15_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_peryear_perage_percountry_15,f)
+        with open('./data/pickles/exposure_peryear_perage_percountry_20_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_peryear_perage_percountry_20,f)
+        with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+            pk.dump(da_exposure_peryear_perage_percountry_NDC,f)
 
         exposure_cohort = (
             da_exposure_cohort_RCP, 
@@ -628,7 +632,7 @@ def calc_cohort_exposure(
             da_exposure_peryear_perage_percountry_NDC,
         )
         
-        return exposure_cohort       
+        return exposure_cohort
         
         
 #%% ----------------------------------------------------------------
