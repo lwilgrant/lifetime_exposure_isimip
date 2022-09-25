@@ -193,7 +193,7 @@ def exposure_pic_masking(
     # age_emergence = ds_exposure_mask.time.where(ds_exposure_mask==1)
     # time_emergence = ds_exposure_mask * ds_exposure_mask.time
     age_emergence = ds_exposure_mask * (ds_exposure_mask.time - ds_exposure_mask.birth_year)
-    age_emergence = age_emergence.min(dim='time',skipna=True)
+    age_emergence = age_emergence.where(age_emergence!=0).min(dim='time',skipna=True)
     # age_emergence = time_emergence - time_emergence.birth_year
     
     return ds_exposure_mask,age_emergence

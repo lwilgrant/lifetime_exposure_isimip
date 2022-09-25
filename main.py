@@ -440,6 +440,7 @@ from emergence import *
 # process exposures to sum cumulatively across life expectancies, for comparison against cohort exposures for pop frac analysis
 
 # RCP unprecedented exposure
+# ds_exposure_mask_RCP = calc_cohort_emergence(
 ds_exposure_mask_RCP = calc_cohort_emergence(
     da_exposure_peryear_perage_percountry_RCP,
     df_life_expectancy_5,
