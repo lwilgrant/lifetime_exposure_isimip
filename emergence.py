@@ -188,21 +188,21 @@ def exposure_pic_masking(
     ds_exposure_mask,
     ds_exposure_pic,
 ):
-    
-    ds_exposure_mask = xr.where(ds_exposure_mask['exposure_cumulative'] >= ds_exposure_pic['ext'],1,0)
+    ds_exposure_pic['ext'] = ds_exposure_pic['ext'].where(ds_exposure_pic['ext']>0)
+    da_exposure_mask = xr.where(ds_exposure_mask['exposure_cumulative'] >= ds_exposure_pic['ext'],1,0)
     # age_emergence = ds_exposure_mask.time.where(ds_exposure_mask==1)
     # time_emergence = ds_exposure_mask * ds_exposure_mask.time
-    age_emergence = ds_exposure_mask * (ds_exposure_mask.time - ds_exposure_mask.birth_year)
-    age_emergence = age_emergence.where(age_emergence!=0).min(dim='time',skipna=True)
+    da_age_emergence = da_exposure_mask * (da_exposure_mask.time - da_exposure_mask.birth_year)
+    da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
     # age_emergence = time_emergence - time_emergence.birth_year
     
-    return ds_exposure_mask,age_emergence
+    return da_exposure_mask,da_age_emergence
 
 #%% ----------------------------------------------------------------
 # function to compute extreme event exposure across a person's lifetime
 def calc_unprec_exposure(
     ds_exposure_cohort,
-    ds_exposure_mask,
+    da_exposure_mask,
     d_all_cohorts,
     year_range,
     df_countries,
@@ -236,9 +236,9 @@ def calc_unprec_exposure(
     )
     
     # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
-    unprec = ds_exposure_cohort['exposure'].where(ds_exposure_mask == 1)
+    unprec = ds_exposure_cohort['exposure'].where(da_exposure_mask == 1)
     unprec = unprec.sum(dim=['birth_year','country'])
-    normal = ds_exposure_cohort['exposure'].where(ds_exposure_mask == 0)
+    normal = ds_exposure_cohort['exposure'].where(da_exposure_mask == 0)
     normal = normal.sum(dim=['birth_year','country'])
     
     # assign aggregated unprecedented/normal exposure to ds_pop_frac
@@ -303,6 +303,65 @@ def calc_exposure_emergence(
     gdf_exposure_emergence_birth_year = gpd.GeoDataFrame(ds_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders))
     
     return gdf_exposure_emergence_birth_year
+
+#%% ----------------------------------------------------------------
+def all_emergence(
+    da_exposure_peryear_perage_percountry,
+    da_exposure_cohort,
+    df_life_expectancy_5,
+    year_start,
+    year_end,
+    year_ref,
+    ds_exposure_pic,
+    d_all_cohorts,
+    year_range,
+    df_countries,
+    flag,
+    traject,
+):
+    
+    # exposure mask setup
+    ds_exposure_mask = calc_cohort_emergence(
+        da_exposure_peryear_perage_percountry,
+        df_life_expectancy_5,
+        year_start,
+        year_end,
+        year_ref,
+    )
+    
+    # age emergence
+    da_exposure_mask,da_age_emergence = exposure_pic_masking(
+        ds_exposure_mask,
+        ds_exposure_pic,
+    )
+    
+    # cohort exposure emergence
+    ds_exposure_cohort = calc_cohort_emergence(
+        da_exposure_cohort,
+        df_life_expectancy_5,
+        year_start,
+        year_end,
+        year_ref,
+    ) 
+    
+    # population experiencing normal vs unprecedented exposure
+    ds_pop_frac = calc_unprec_exposure(
+        ds_exposure_cohort,
+        da_exposure_mask,
+        d_all_cohorts,
+        year_range,
+        df_countries,
+    )
+    
+    # pickle pop frac
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flag,traject), 'wb') as f:
+        pk.dump(ds_pop_frac,f)
+        
+    # pickle age emergence
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flag,traject), 'wb') as f:
+        pk.dump(da_age_emergence,f)        
+
+    return da_age_emergence, ds_pop_frac
 
 #%% ----------------------------------------------------------------
 # get timing and EMF of exceedence of pic-defined extreme
@@ -575,3 +634,423 @@ def emergence_plot(
     )
     cb_emf.outline.set_edgecolor('0.9')
     cb_emf.outline.set_linewidth(0)                      
+
+
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_pop_frac(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    year_range,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=9
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1960
+    xmax = 2100
+
+    ax1_ylab = 'Billions unprecendented'
+    ax2_ylab = 'Unprecedented/Total'
+    ax3_ylab = 'Unprecedented/Exposed'
+
+    f,(ax1,ax2,ax3) = plt.subplots(
+        nrows=3,
+        ncols=1,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented pop numbers
+
+    # NDC
+    ax1.plot(
+        time,
+        # ds_pop_frac['mean_unprec'].values * 1000,
+        ds_pop_frac_NDC['mean_unprec'].values / 1e6,
+        lw=lw_mean,
+        color=col_NDC,
+        label='Population unprecedented',
+        zorder=1,
+    )
+    ax1.fill_between(
+        time,
+        # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
+        (ds_pop_frac_NDC['mean_unprec'].values / 1e6) + (ds_pop_frac_NDC['std_unprec'].values / 1e6),
+        # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
+        (ds_pop_frac_NDC['mean_unprec'].values / 1e6) - (ds_pop_frac_NDC['std_unprec'].values / 1e6),
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_NDC_fill,
+        zorder=1,
+    )
+
+    # 2.0 degrees
+    ax1.plot(
+        time,
+        # ds_pop_frac['mean_unprec'].values * 1000,
+        ds_pop_frac_20['mean_unprec'].values / 1e6,
+        lw=lw_mean,
+        color=col_20,
+        label='Population unprecedented',
+        zorder=2,
+    )
+    ax1.fill_between(
+        time,
+        # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
+        (ds_pop_frac_20['mean_unprec'].values / 1e6) + (ds_pop_frac_20['std_unprec'].values / 1e6),
+        # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
+        (ds_pop_frac_20['mean_unprec'].values / 1e6) - (ds_pop_frac_20['std_unprec'].values / 1e6),
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_20_fill,
+        zorder=2,
+    )
+
+    # 1.5 degrees
+    ax1.plot(
+        time,
+        # ds_pop_frac['mean_unprec'].values * 1000,
+        ds_pop_frac_15['mean_unprec'].values / 1e6,
+        lw=lw_mean,
+        color=col_15,
+        label='Population unprecedented',
+        zorder=3,
+    )
+    ax1.fill_between(
+        time,
+        # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
+        (ds_pop_frac_15['mean_unprec'].values / 1e6) + (ds_pop_frac_15['std_unprec'].values / 1e6),
+        # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
+        (ds_pop_frac_15['mean_unprec'].values / 1e6) - (ds_pop_frac_15['std_unprec'].values / 1e6),
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_15_fill,
+        zorder=3,
+    )
+
+    ax1.set_ylabel(
+        ax1_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of total pop
+
+    # NDC
+    ax2.plot(
+        time,
+        ds_pop_frac_NDC['mean_frac_all_unprec'].values,
+        lw=lw_mean,
+        color=col_NDC,
+        label='Population unprecedented',
+        zorder=1,
+    )
+    ax2.fill_between(
+        time,
+        ds_pop_frac_NDC['mean_frac_all_unprec'].values + ds_pop_frac_NDC['std_frac_all_unprec'].values,
+        ds_pop_frac_NDC['mean_frac_all_unprec'].values - ds_pop_frac_NDC['std_frac_all_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_NDC_fill,
+        zorder=1,
+    )
+
+    # 2.0 degrees
+    ax2.plot(
+        time,
+        ds_pop_frac_20['mean_frac_all_unprec'].values,
+        lw=lw_mean,
+        color=col_20,
+        label='Population unprecedented',
+        zorder=2,
+    )
+    ax2.fill_between(
+        time,
+        ds_pop_frac_20['mean_frac_all_unprec'].values + ds_pop_frac_20['std_frac_all_unprec'].values,
+        ds_pop_frac_20['mean_frac_all_unprec'].values - ds_pop_frac_20['std_frac_all_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_20_fill,
+        zorder=2,
+    )
+
+    # 1.5 degrees
+    ax2.plot(
+        time,
+        ds_pop_frac_15['mean_frac_all_unprec'].values,
+        lw=lw_mean,
+        color=col_15,
+        label='Population unprecedented',
+        zorder=3,
+    )
+    ax2.fill_between(
+        time,
+        ds_pop_frac_15['mean_frac_all_unprec'].values + ds_pop_frac_15['std_frac_all_unprec'].values,
+        ds_pop_frac_15['mean_frac_all_unprec'].values - ds_pop_frac_15['std_frac_all_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_15_fill,
+        zorder=3,
+    )
+
+    ax2.set_ylabel(
+        ax2_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of exposed pop
+
+    # NDC
+    ax3.plot(
+        time,
+        ds_pop_frac_NDC['mean_frac_exposed_unprec'].values,
+        lw=lw_mean,
+        color=col_NDC,
+        label='Population unprecedented',
+        zorder=1,
+    )
+    ax3.fill_between(
+        time,
+        ds_pop_frac_NDC['mean_frac_exposed_unprec'].values + ds_pop_frac_NDC['std_frac_exposed_unprec'].values,
+        ds_pop_frac_NDC['mean_frac_exposed_unprec'].values - ds_pop_frac_NDC['std_frac_exposed_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_NDC_fill,
+        zorder=1,
+    )
+
+    # 2.0 degrees
+    ax3.plot(
+        time,
+        ds_pop_frac_20['mean_frac_exposed_unprec'].values,
+        lw=lw_mean,
+        color=col_20,
+        label='Population unprecedented',
+        zorder=2,
+    )
+    ax3.fill_between(
+        time,
+        ds_pop_frac_20['mean_frac_exposed_unprec'].values + ds_pop_frac_20['std_frac_exposed_unprec'].values,
+        ds_pop_frac_20['mean_frac_exposed_unprec'].values - ds_pop_frac_20['std_frac_exposed_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_20_fill,
+        zorder=2,
+    )
+
+    # 1.5 degrees
+    ax3.plot(
+        time,
+        ds_pop_frac_15['mean_frac_exposed_unprec'].values,
+        lw=lw_mean,
+        color=col_15,
+        label='Population unprecedented',
+        zorder=3,
+    )
+    ax3.fill_between(
+        time,
+        ds_pop_frac_15['mean_frac_exposed_unprec'].values + ds_pop_frac_15['std_frac_exposed_unprec'].values,
+        ds_pop_frac_15['mean_frac_exposed_unprec'].values - ds_pop_frac_15['std_frac_exposed_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_15_fill,
+        zorder=3,
+    )
+
+    ax3.set_ylabel(
+        ax3_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+
+    for i,ax in enumerate([ax1,ax2,ax3]):
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        # ax.xaxis.set_ticks(xticks_ts)
+        # ax.xaxis.set_ticklabels(xtick_labels_ts)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        if i < 2:
+            ax.tick_params(labelbottom=False)
+            
+    f.savefig('./figures/pop_frac.png',dpi=300)
+    
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_age_emergence(
+    da_age_emergence_NDC,
+    da_age_emergence_15,
+    da_age_emergence_20,
+    year_range,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=7
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1960
+    xmax = 2100
+
+    ax1_ylab = 'Age of emergence'
+
+
+    f,ax1 = plt.subplots(
+        nrows=1,
+        ncols=1,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot age emergence
+
+    # NDC
+    ax1.plot(
+        time,
+        da_age_emergence_NDC.mean(dim=('country','runs')).values,
+        lw=lw_mean,
+        color=col_NDC,
+        zorder=1,
+    )
+    ax1.fill_between(
+        time,
+        da_age_emergence_NDC.mean(dim=('country','runs')).values + da_age_emergence_NDC.std(dim=('country','runs')).values,
+        da_age_emergence_NDC.mean(dim=('country','runs')).values - da_age_emergence_NDC.std(dim=('country','runs')).values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_NDC_fill,
+        zorder=1,
+    )
+
+    # 2.0 degrees
+    ax1.plot(
+        time,
+        da_age_emergence_20.mean(dim=('country','runs')).values,
+        lw=lw_mean,
+        color=col_20,
+        zorder=2,
+    )
+    ax1.fill_between(
+        time,
+        da_age_emergence_20.mean(dim=('country','runs')).values + da_age_emergence_20.std(dim=('country','runs')).values,
+        da_age_emergence_20.mean(dim=('country','runs')).values - da_age_emergence_20.std(dim=('country','runs')).values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_20_fill,
+        zorder=2,
+    )
+
+    # 1.5 degrees
+    ax1.plot(
+        time,
+        da_age_emergence_15.mean(dim=('country','runs')).values,
+        lw=lw_mean,
+        color=col_15,
+        zorder=3,
+    )
+    ax1.fill_between(
+        time,
+        da_age_emergence_15.mean(dim=('country','runs')).values + da_age_emergence_15.std(dim=('country','runs')).values,
+        da_age_emergence_15.mean(dim=('country','runs')).values - da_age_emergence_15.std(dim=('country','runs')).values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_15_fill,
+        zorder=3,
+    )
+
+    ax1.set_ylabel(
+        ax1_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+
+
+    for i,ax in enumerate([ax1]):
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        # ax.xaxis.set_ticks(xticks_ts)
+        # ax.xaxis.set_ticklabels(xtick_labels_ts)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        # if i < 2:
+        #     ax.tick_params(labelbottom=False)
+            
+    f.savefig('./figures/age_emergence.png',dpi=300)    
+# %%

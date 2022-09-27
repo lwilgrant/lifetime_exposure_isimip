@@ -61,17 +61,17 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 
 # TODO: add rest of flags
@@ -278,7 +278,7 @@ if flags['exposure']:
         )
           )
 
-else: # load processed country data
+else: # load processed exposure data
 
     print('Loading processed exposures')
 
@@ -327,7 +327,7 @@ if flags['exposure_cohort']:
         )
           )
     
-else:
+else:  # load processed cohort exposure data
     
     print('Loading processed exposures')
 
@@ -376,11 +376,11 @@ if flags['exposure_pic']:
         )
           )    
     
-else: # load processed country data
+else: # load processed pic data
     
     print('Loading processed pic exposures')
 
-    with open('./data/pickles/exposure_pic_{}.pkl'.format(d_pic_meta[list(d_pic_meta.keys())[0]]['extreme']), 'rb') as f:
+    with open('./data/pickles/exposure_pic_{}.pkl'.format(flags['extr']), 'rb') as f:
         d_exposure_pic = pk.load(f)
     
     # unpack pic country information
@@ -437,453 +437,105 @@ ds_exposure_pic_perregion = calc_exposure_mmm_pic_xr(
 from emergence import *
 
 # --------------------------------------------------------------------
-# process exposures to sum cumulatively across life expectancies, for comparison against cohort exposures for pop frac analysis
+# process emergence of cumulative exposures, mask cohort exposures for time steps of emergence
 
-# RCP unprecedented exposure
-# ds_exposure_mask_RCP = calc_cohort_emergence(
-ds_exposure_mask_RCP = calc_cohort_emergence(
-    da_exposure_peryear_perage_percountry_RCP,
-    df_life_expectancy_5,
-    year_start,
-    year_end,
-    year_ref,
-)
-
-# RCP mask for unprecedented exposure and age of emergence
-ds_exposure_mask_RCP,age_emergence_RCP = exposure_pic_masking(
-    ds_exposure_mask_RCP,
-    ds_exposure_pic,
-)
-
-# 1.5 deg unprecedented exposure
-ds_exposure_mask_15 = calc_cohort_emergence(
-    da_exposure_peryear_perage_percountry_15,
-    df_life_expectancy_5,
-    year_start,
-    year_end,
-    year_ref,
-)
-
-# 1.5 deg mask for unprecedented exposure and age of emergence
-ds_exposure_mask_15,age_emergence_15 = exposure_pic_masking(
-    ds_exposure_mask_15,
-    ds_exposure_pic,
-)
-
-# 2.0 deg unprecedented exposure
-ds_exposure_mask_20 = calc_cohort_emergence(
-    da_exposure_peryear_perage_percountry_20,
-    df_life_expectancy_5,
-    year_start,
-    year_end,
-    year_ref,
-)
-
-# 2.0 deg mask for unprecedented exposure and age of emergence
-ds_exposure_mask_20,age_emergence_20 = exposure_pic_masking(
-    ds_exposure_mask_20,
-    ds_exposure_pic,
-)
-
-# NDC unprecedented exposure
-ds_exposure_mask_NDC = calc_cohort_emergence(
-    da_exposure_peryear_perage_percountry_NDC,
-    df_life_expectancy_5,
-    year_start,
-    year_end,
-    year_ref,
-)
-
-# NDC mask for unprecedented exposure and age of emergence
-ds_exposure_mask_NDC,age_emergence_NDC = exposure_pic_masking(
-    ds_exposure_mask_NDC,
-    ds_exposure_pic,
-)
-
-# --------------------------------------------------------------------
-# process cohort emergence 
 if flags['emergence']:
 
-    # cohort exposure RCP
-    ds_exposure_cohort_RCP = calc_cohort_emergence(
+    da_age_emergence_RCP, ds_pop_frac_RCP = all_emergence(
+        da_exposure_peryear_perage_percountry_RCP,
         da_exposure_cohort_RCP,
         df_life_expectancy_5,
         year_start,
         year_end,
         year_ref,
-    ) 
-    
-    # population experiencing normal vs unprecedented exposure
-    ds_pop_frac_RCP = calc_unprec_exposure(
-        ds_exposure_cohort_RCP,
-        ds_exposure_mask_RCP,
+        ds_exposure_pic,
         d_all_cohorts,
         year_range,
         df_countries,
-    )    
-    
-    # cohort exposure 1.5 deg
-    ds_exposure_cohort_15 = calc_cohort_emergence(
+        flags['extr'],
+        'RCP',
+    )
+
+    da_age_emergence_15, ds_pop_frac_15 = all_emergence(
+        da_exposure_peryear_perage_percountry_15,
         da_exposure_cohort_15,
         df_life_expectancy_5,
         year_start,
         year_end,
         year_ref,
-    )
-
-    # population experiencing normal vs unprecedented exposure
-    ds_pop_frac_15 = calc_unprec_exposure(
-        ds_exposure_cohort_15,
-        ds_exposure_mask_15,
+        ds_exposure_pic,
         d_all_cohorts,
         year_range,
-        df_countries,        
+        df_countries,
+        flags['extr'],
+        '15',
     )
-    
-    # cohort exposure 2.0 deg
-    ds_exposure_cohort_20 = calc_cohort_emergence(
+
+    da_age_emergence_20, ds_pop_frac_20 = all_emergence(
+        da_exposure_peryear_perage_percountry_20,
         da_exposure_cohort_20,
         df_life_expectancy_5,
         year_start,
         year_end,
         year_ref,
-    )
-
-    # population experiencing normal vs unprecedented exposure
-    ds_pop_frac_20 = calc_unprec_exposure(
-        ds_exposure_cohort_20,
-        ds_exposure_mask_20,
+        ds_exposure_pic,
         d_all_cohorts,
         year_range,
-        df_countries,        
+        df_countries,
+        flags['extr'],
+        '20',
     )
-    
-    # cohort exposure NDCs
-    ds_exposure_cohort_NDC = calc_cohort_emergence(
+
+    da_age_emergence_NDC, ds_pop_frac_NDC = all_emergence(
+        da_exposure_peryear_perage_percountry_NDC,
         da_exposure_cohort_NDC,
         df_life_expectancy_5,
         year_start,
         year_end,
         year_ref,
-    )
-
-    # population experiencing normal vs unprecedented exposure
-    ds_pop_frac_NDC = calc_unprec_exposure(
-        ds_exposure_cohort_NDC,
-        ds_exposure_mask_NDC,
+        ds_exposure_pic,
         d_all_cohorts,
         year_range,
-        df_countries,        
-    )    
-
-    # # pack exposure information DOESNT WORK, TOO MUCH DATA FOR PC (USING COHORT_EXPOSURE FOR NEW "calc_cohort_exposure()" function)
-    # d_unprecedented_exposure = {
-    #     'exposure_ds_RCP' : ds_exposure_cohort_RCP,
-    #     'pop_frac_ds_RCP' : ds_pop_frac_RCP,
-    #     'exposure_ds_15' : ds_exposure_cohort_15,
-    #     'pop_frac_ds_15' : ds_pop_frac_15,
-    #     'exposure_ds_20' : ds_exposure_cohort_20,
-    #     'pop_frac_ds_20' : ds_pop_frac_20,
-    #     'exposure_ds_NDC' : ds_exposure_cohort_NDC,
-    #     'pop_frac_ds_NDC' : ds_pop_frac_NDC,        
-    # }
-
-    # with open('./data/pickles/cohort_exposure_{}.pkl'.format(flags['extr']), 'wb') as f:
-    #     pk.dump(d_unprecedented_exposure,f)
-    
-    # # use sample ds to find age of emergence
-    # unprec = ds_exposure_cohort_NDC['exposure'].where(ds_exposure_cohort_NDC['exposure_cumulative'] >= ds_exposure_pic['ext'])
+        df_countries,
+        flags['extr'],
+        'NDC',
+    )
         
-else:
+else: # load pickles
     
-    pass
+    # pop frac
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
+        ds_pop_frac_RCP = pk.load(f)
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'15'), 'rb') as f:
+        ds_pop_frac_15 = pk.load(f)
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'20'), 'rb') as f:
+        ds_pop_frac_20 = pk.load(f)
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
+        ds_pop_frac_NDC = pk.load(f)          
     
-    # DOESN'T WORK, TOO MUCH DATA FOR PC TO STORE THIS PICKLE (WILL DO WITH ANOTHER NAME ON SERVER)
-    # with open('./data/pickles/cohort_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
-    #     d_unprecedented_exposure = pk.load(f)
+    # age emergence
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
+        da_age_emergence_RCP = pk.load(f)
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'15'), 'rb') as f:
+        da_age_emergence_15 = pk.load(f)
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'20'), 'rb') as f:
+        da_age_emergence_20 = pk.load(f)
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
+        da_age_emergence_NDC = pk.load(f)                        
         
-    # ds_exposure_cohort_RCP = d_unprecedented_exposure['exposure_ds_RCP']
-    # ds_pop_frac_RCP = d_unprecedented_exposure['pop_frac_ds_RCP']
-    # ds_exposure_cohort_15 = d_unprecedented_exposure['exposure_ds_15']
-    # ds_pop_frac_15 = d_unprecedented_exposure['pop_frac_ds_15']
-    # ds_exposure_cohort_20 = d_unprecedented_exposure['exposure_ds_20']
-    # ds_pop_frac_20 = d_unprecedented_exposure['pop_frac_ds_20']
-    # ds_exposure_cohort_NDC = d_unprecedented_exposure['exposure_ds_NDC']
-    # ds_pop_frac_NDC = d_unprecedented_exposure['pop_frac_ds_NDC']    
-
-#%% ----------------------------------------------------------------
-# plotting pop frac
-# ------------------------------------------------------------------
-# --------------------------------------------------------------------
-# plotting utils
-letters = ['a', 'b', 'c',\
-            'd', 'e', 'f',\
-            'g', 'h', 'i',\
-            'j', 'k', 'l']
-x=10
-y=9
-lw_mean=1
-lw_fill=0.1
-ub_alpha = 0.5
-title_font = 14
-tick_font = 12
-axis_font = 11
-legend_font = 14
-impactyr_font =  11
-col_grid = '0.8'     # color background grid
-style_grid = 'dashed'     # style background grid
-lw_grid = 0.5     # lineweight background grid
-col_NDC = 'darkred'       # unprec mean color
-col_NDC_fill = '#F08080'     # unprec fill color
-col_15 = 'steelblue'       # normal mean color
-col_15_fill = 'lightsteelblue'     # normal fill color
-col_20 = 'darkgoldenrod'   # rcp60 mean color
-col_20_fill = '#ffec80'     # rcp60 fill color
-col_bis = 'black'     # color bisector
-style_bis = '--'     # style bisector
-lw_bis = 1     # lineweight bisector
-time = year_range
-# xmin = np.min(time)
-# xmax = np.max(time)
-xmin = 1960
-xmax = 2100
-
-ax1_ylab = 'Billions unprecendented'
-ax2_ylab = 'Unprecedented/Total'
-ax3_ylab = 'Unprecedented/Exposed'
-
-f,(ax1,ax2,ax3) = plt.subplots(
-    nrows=3,
-    ncols=1,
-    figsize=(x,y),
+# plot pop frac
+plot_pop_frac(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    year_range,
 )
 
-# --------------------------------------------------------------------
-# plot unprecedented pop numbers
-
-# NDC
-ax1.plot(
-    time,
-    # ds_pop_frac['mean_unprec'].values * 1000,
-    ds_pop_frac_NDC['mean_unprec'].values / 1e6,
-    lw=lw_mean,
-    color=col_NDC,
-    label='Population unprecedented',
-    zorder=1,
+# plot age of emergence
+plot_age_emergence(
+    da_age_emergence_NDC,
+    da_age_emergence_15,
+    da_age_emergence_20,
+    year_range,
 )
-ax1.fill_between(
-    time,
-    # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
-    (ds_pop_frac_NDC['mean_unprec'].values / 1e6) + (ds_pop_frac_NDC['std_unprec'].values / 1e6),
-    # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
-    (ds_pop_frac_NDC['mean_unprec'].values / 1e6) - (ds_pop_frac_NDC['std_unprec'].values / 1e6),
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_NDC_fill,
-    zorder=1,
-)
-
-# 2.0 degrees
-ax1.plot(
-    time,
-    # ds_pop_frac['mean_unprec'].values * 1000,
-    ds_pop_frac_20['mean_unprec'].values / 1e6,
-    lw=lw_mean,
-    color=col_20,
-    label='Population unprecedented',
-    zorder=2,
-)
-ax1.fill_between(
-    time,
-    # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
-    (ds_pop_frac_20['mean_unprec'].values / 1e6) + (ds_pop_frac_20['std_unprec'].values / 1e6),
-    # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
-    (ds_pop_frac_20['mean_unprec'].values / 1e6) - (ds_pop_frac_20['std_unprec'].values / 1e6),
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_20_fill,
-    zorder=2,
-)
-
-# 1.5 degrees
-ax1.plot(
-    time,
-    # ds_pop_frac['mean_unprec'].values * 1000,
-    ds_pop_frac_15['mean_unprec'].values / 1e6,
-    lw=lw_mean,
-    color=col_15,
-    label='Population unprecedented',
-    zorder=3,
-)
-ax1.fill_between(
-    time,
-    # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
-    (ds_pop_frac_15['mean_unprec'].values / 1e6) + (ds_pop_frac_15['std_unprec'].values / 1e6),
-    # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
-    (ds_pop_frac_15['mean_unprec'].values / 1e6) - (ds_pop_frac_15['std_unprec'].values / 1e6),
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_15_fill,
-    zorder=3,
-)
-
-ax1.set_ylabel(
-    ax1_ylab, 
-    va='center', 
-    rotation='vertical', 
-    fontsize=axis_font, 
-    labelpad=10,
-)
-
-# --------------------------------------------------------------------
-# plot unprecedented frac of total pop
-
-# NDC
-ax2.plot(
-    time,
-    ds_pop_frac_NDC['mean_frac_all_unprec'].values,
-    lw=lw_mean,
-    color=col_NDC,
-    label='Population unprecedented',
-    zorder=1,
-)
-ax2.fill_between(
-    time,
-    ds_pop_frac_NDC['mean_frac_all_unprec'].values + ds_pop_frac_NDC['std_frac_all_unprec'].values,
-    ds_pop_frac_NDC['mean_frac_all_unprec'].values - ds_pop_frac_NDC['std_frac_all_unprec'].values,
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_NDC_fill,
-    zorder=1,
-)
-
-# 2.0 degrees
-ax2.plot(
-    time,
-    ds_pop_frac_20['mean_frac_all_unprec'].values,
-    lw=lw_mean,
-    color=col_20,
-    label='Population unprecedented',
-    zorder=2,
-)
-ax2.fill_between(
-    time,
-    ds_pop_frac_20['mean_frac_all_unprec'].values + ds_pop_frac_20['std_frac_all_unprec'].values,
-    ds_pop_frac_20['mean_frac_all_unprec'].values - ds_pop_frac_20['std_frac_all_unprec'].values,
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_20_fill,
-    zorder=2,
-)
-
-# 1.5 degrees
-ax2.plot(
-    time,
-    ds_pop_frac_15['mean_frac_all_unprec'].values,
-    lw=lw_mean,
-    color=col_15,
-    label='Population unprecedented',
-    zorder=3,
-)
-ax2.fill_between(
-    time,
-    ds_pop_frac_15['mean_frac_all_unprec'].values + ds_pop_frac_15['std_frac_all_unprec'].values,
-    ds_pop_frac_15['mean_frac_all_unprec'].values - ds_pop_frac_15['std_frac_all_unprec'].values,
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_15_fill,
-    zorder=3,
-)
-
-ax2.set_ylabel(
-    ax2_ylab, 
-    va='center', 
-    rotation='vertical', 
-    fontsize=axis_font, 
-    labelpad=10,
-)
-
-# --------------------------------------------------------------------
-# plot unprecedented frac of exposed pop
-
-# NDC
-ax3.plot(
-    time,
-    ds_pop_frac_NDC['mean_frac_exposed_unprec'].values,
-    lw=lw_mean,
-    color=col_NDC,
-    label='Population unprecedented',
-    zorder=1,
-)
-ax3.fill_between(
-    time,
-    ds_pop_frac_NDC['mean_frac_exposed_unprec'].values + ds_pop_frac_NDC['std_frac_exposed_unprec'].values,
-    ds_pop_frac_NDC['mean_frac_exposed_unprec'].values - ds_pop_frac_NDC['std_frac_exposed_unprec'].values,
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_NDC_fill,
-    zorder=1,
-)
-
-# 2.0 degrees
-ax3.plot(
-    time,
-    ds_pop_frac_20['mean_frac_exposed_unprec'].values,
-    lw=lw_mean,
-    color=col_20,
-    label='Population unprecedented',
-    zorder=2,
-)
-ax3.fill_between(
-    time,
-    ds_pop_frac_20['mean_frac_exposed_unprec'].values + ds_pop_frac_20['std_frac_exposed_unprec'].values,
-    ds_pop_frac_20['mean_frac_exposed_unprec'].values - ds_pop_frac_20['std_frac_exposed_unprec'].values,
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_20_fill,
-    zorder=2,
-)
-
-# 1.5 degrees
-ax3.plot(
-    time,
-    ds_pop_frac_15['mean_frac_exposed_unprec'].values,
-    lw=lw_mean,
-    color=col_15,
-    label='Population unprecedented',
-    zorder=3,
-)
-ax3.fill_between(
-    time,
-    ds_pop_frac_15['mean_frac_exposed_unprec'].values + ds_pop_frac_15['std_frac_exposed_unprec'].values,
-    ds_pop_frac_15['mean_frac_exposed_unprec'].values - ds_pop_frac_15['std_frac_exposed_unprec'].values,
-    lw=lw_fill,
-    alpha=ub_alpha,
-    color=col_15_fill,
-    zorder=3,
-)
-
-ax3.set_ylabel(
-    ax3_ylab, 
-    va='center', 
-    rotation='vertical', 
-    fontsize=axis_font, 
-    labelpad=10,
-)
-
-for i,ax in enumerate([ax1,ax2,ax3]):
-    ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
-    ax.set_xlim(xmin,xmax)
-    # ax.xaxis.set_ticks(xticks_ts)
-    # ax.xaxis.set_ticklabels(xtick_labels_ts)
-    ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
-    ax.tick_params(labelsize=tick_font,axis="y",direction="in")
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
-    ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
-    ax.set_axisbelow(True) 
-    if i < 2:
-        ax.tick_params(labelbottom=False)
-
 # %%
