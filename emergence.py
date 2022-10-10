@@ -15,6 +15,7 @@ import xarray as xr
 import pickle as pk
 import time
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.lines import Line2D
 import matplotlib as mpl
 import mapclassify as mc
 from copy import deepcopy as cp
@@ -183,18 +184,106 @@ def calc_cohort_emergence(
     return ds_exposure_cohort
 
 #%% ----------------------------------------------------------------
+# function to compute extreme event exposure per cohort per year, annual and annual cummulative
+def calc_birthyear_cohortsizes(
+    da_cohort,
+    df_life_expectancy,
+    year_start,
+    year_end,
+    year_ref,
+):
+
+    country_list = []
+    for country in da_cohort.country.values:
+        
+        # country='Canada'
+        birthyear_list = []
+        
+        # for i, birth_year in enumerate(df_life_expectancy.index):
+        # instead of iterating from 1960-2020, we want to do 1960 to year_end (2113)
+        for birth_year in np.arange(year_start,year_end+1):
+            
+            # use life expectancy information where available (until 2020)
+            if birth_year <= year_ref:
+                
+                death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
+                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
+                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
+                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
+                # new data points from paired coords will be under new dim called ages, to be converted
+                data = da_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
+                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
+                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+                birthyear_list.append(data)
+            
+            # after 2020, assume constant life expectancy    
+            elif birth_year > year_ref and birth_year < year_end:
+                
+                death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
+                
+                if death_year > year_end:
+                    
+                    death_year = year_end
+                
+                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
+                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
+                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
+                # new data points from paired coords will be under new dim called ages, to be converted
+                data = da_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
+                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
+                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+                birthyear_list.append(data)
+            
+            # for 2113, use single year of pop
+            elif birth_year == year_end:
+                
+                time = xr.DataArray([year_end],dims='age')
+                ages = xr.DataArray([0],dims='age')
+                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
+                # new data points from paired coords will be under new dim called ages, to be converted
+                data = da_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
+                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
+                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+                birthyear_list.append(data)                
+        
+        cohort_data = xr.concat(birthyear_list,dim='birth_year')
+        country_list.append(cohort_data)
+        
+    da_cohort_all = xr.concat(country_list,dim='country')
+    da_cohort_all= da_cohort_all.sum(dim='time')
+    ds_cohort_all = xr.Dataset(
+        data_vars={
+            'population': (da_cohort_all.dims,da_cohort_all.data),
+        },
+        coords={
+            'country': ('country',da_cohort_all.country.data),
+            'birth_year': ('birth_year',da_cohort_all.birth_year.data),
+        },
+    )
+     
+    return ds_cohort_all
+
+#%% ----------------------------------------------------------------
 # function to generate mask of unprecedented timesteps per birth year and age of emergence
 def exposure_pic_masking(
     ds_exposure_mask,
     ds_exposure_pic,
 ):
+    # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
     ds_exposure_pic['ext'] = ds_exposure_pic['ext'].where(ds_exposure_pic['ext']>0)
     da_exposure_mask = xr.where(ds_exposure_mask['exposure_cumulative'] >= ds_exposure_pic['ext'],1,0)
-    # age_emergence = ds_exposure_mask.time.where(ds_exposure_mask==1)
-    # time_emergence = ds_exposure_mask * ds_exposure_mask.time
     da_age_emergence = da_exposure_mask * (da_exposure_mask.time - da_exposure_mask.birth_year)
     da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
-    # age_emergence = time_emergence - time_emergence.birth_year
+    
+    # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all time steps and 0 for other birth cohorts
+    da_exposure_mask = da_exposure_mask.where(da_exposure_mask==1).bfill(dim='time')
+    da_exposure_mask = xr.where(da_exposure_mask==1,1,0)
     
     return da_exposure_mask,da_age_emergence
 
@@ -206,21 +295,29 @@ def calc_unprec_exposure(
     d_all_cohorts,
     year_range,
     df_countries,
+    df_life_expectancy,
+    year_start,
+    year_end,
+    year_ref,
 ):
 
     # new empty dataset with variables for population experiencing unprecedented exposure or not
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprec': (['runs','time'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data)))),
-            'normal': (['runs','time'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.time.data)))),
+            'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
+            'normal': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
         },
         coords={
             'runs': ('runs',ds_exposure_cohort.runs.data),
-            'time': ('time',ds_exposure_cohort.time.data),
+            'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
+            # 'time': ('time',ds_exposure_cohort.time.data),
         }
     )
     
-    # cohort conversiont to data array
+    # cohort conversion to data array
+    # now that x axis will be birth year, need to reconsider cohort for denominator of fraction
+    # cohorts currently ages and time, need to do paired seleciton like in calc_cohort_emergence() to get full cohort pops for 1960 birth year (or do it elsewhere in separate function)
+    # need new cohort array that has total population per birth year (using life expectancy info; each country has a different end point)
     da_cohort_size = xr.DataArray(
         np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
         coords={
@@ -235,11 +332,21 @@ def calc_unprec_exposure(
         ]
     )
     
+    ds_cohorts = calc_birthyear_cohortsizes(
+        da_cohort_size,
+        df_life_expectancy,
+        year_start,
+        year_end,
+        year_ref,
+    )
+    
     # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
     unprec = ds_exposure_cohort['exposure'].where(da_exposure_mask == 1)
-    unprec = unprec.sum(dim=['birth_year','country'])
+    # unprec = unprec.sum(dim=['birth_year','country'])
+    unprec = unprec.sum(dim=['time','country'])
     normal = ds_exposure_cohort['exposure'].where(da_exposure_mask == 0)
-    normal = normal.sum(dim=['birth_year','country'])
+    # normal = normal.sum(dim=['birth_year','country'])
+    normal = normal.sum(dim=['time','country'])
     
     # assign aggregated unprecedented/normal exposure to ds_pop_frac
     ds_pop_frac['unprec'] = unprec
@@ -257,7 +364,8 @@ def calc_unprec_exposure(
     ds_pop_frac['std_normal'] = ds_pop_frac['normal'].std(dim='runs')
     
     # unprecedented exposure as fraction of total population estimate
-    ds_pop_frac['frac_all_unprec'] = ds_pop_frac['unprec'] / da_cohort_size.sum(dim=['ages','country'])
+    # ds_pop_frac['frac_all_unprec'] = ds_pop_frac['unprec'] / da_cohort_size.sum(dim=['ages','country'])
+    ds_pop_frac['frac_all_unprec'] = ds_pop_frac['unprec'] / ds_cohorts['population'].sum(dim=['country'])
     ds_pop_frac['mean_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].mean(dim='runs')
     ds_pop_frac['std_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].std(dim='runs')
 
@@ -292,7 +400,8 @@ def calc_exposure_emergence(
 
     # get years where mmm exposures under different trajectories exceed pic 99.99%
     ds_exposure_emergence = ds_exposure[mmm_subset].where(ds_exposure[mmm_subset] > ds_exposure_pic.ext)
-    ds_exposure_emergence_birth_year = ds_exposure_emergence.birth_year.where(ds_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)
+    ds_exposure_emergence_birth_year = ds_exposure_emergence.birth_year.where(ds_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)#.astype('int')
+    # ds_exposure_emergence_birth_year = xr.where(ds_exposure_emergence_birth_year > 0, ds_exposure_emergence_birth_year, 0)
     
     # for same years, get EMF
     for var in EMF_subset:
@@ -302,7 +411,7 @@ def calc_exposure_emergence(
     # move emergene birth years and EMFs to gdf for plotting
     gdf_exposure_emergence_birth_year = gpd.GeoDataFrame(ds_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders))
     
-    return gdf_exposure_emergence_birth_year
+    return gdf_exposure_emergence_birth_year,ds_exposure_emergence_birth_year
 
 #%% ----------------------------------------------------------------
 def all_emergence(
@@ -342,7 +451,7 @@ def all_emergence(
         year_start,
         year_end,
         year_ref,
-    ) 
+    )
     
     # population experiencing normal vs unprecedented exposure
     ds_pop_frac = calc_unprec_exposure(
@@ -351,6 +460,10 @@ def all_emergence(
         d_all_cohorts,
         year_range,
         df_countries,
+        df_life_expectancy_5,
+        year_start,
+        year_end,
+        year_ref,        
     )
     
     # pickle pop frac
@@ -364,7 +477,7 @@ def all_emergence(
     return da_age_emergence, ds_pop_frac
 
 #%% ----------------------------------------------------------------
-# get timing and EMF of exceedence of pic-defined extreme
+# plot timing and EMF of exceedence of pic-defined extreme
 def emergence_plot(
     gdf_exposure_emergence_birth_year,
 ):
@@ -633,7 +746,9 @@ def emergence_plot(
         rotation=45,
     )
     cb_emf.outline.set_edgecolor('0.9')
-    cb_emf.outline.set_linewidth(0)                      
+    cb_emf.outline.set_linewidth(0)
+    
+    f.savefig('./figures/birth_year_emergence.png',dpi=300)
 
 
 #%% ----------------------------------------------------------------
@@ -670,6 +785,13 @@ def plot_pop_frac(
     col_15_fill = 'lightsteelblue'     # normal fill color
     col_20 = 'darkgoldenrod'   # rcp60 mean color
     col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.1 # bbox for legend
+    y0 = 0.5
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
     col_bis = 'black'     # color bisector
     style_bis = '--'     # style bisector
     lw_bis = 1     # lineweight bisector
@@ -699,7 +821,7 @@ def plot_pop_frac(
         ds_pop_frac_NDC['mean_unprec'].values / 1e6,
         lw=lw_mean,
         color=col_NDC,
-        label='Population unprecedented',
+        label='NDC',
         zorder=1,
     )
     ax1.fill_between(
@@ -721,7 +843,7 @@ def plot_pop_frac(
         ds_pop_frac_20['mean_unprec'].values / 1e6,
         lw=lw_mean,
         color=col_20,
-        label='Population unprecedented',
+        label='2.0 °C',
         zorder=2,
     )
     ax1.fill_between(
@@ -743,7 +865,7 @@ def plot_pop_frac(
         ds_pop_frac_15['mean_unprec'].values / 1e6,
         lw=lw_mean,
         color=col_15,
-        label='Population unprecedented',
+        label='1.5 °C',
         zorder=3,
     )
     ax1.fill_between(
@@ -775,7 +897,7 @@ def plot_pop_frac(
         ds_pop_frac_NDC['mean_frac_all_unprec'].values,
         lw=lw_mean,
         color=col_NDC,
-        label='Population unprecedented',
+        # label='Population unprecedented',
         zorder=1,
     )
     ax2.fill_between(
@@ -794,7 +916,7 @@ def plot_pop_frac(
         ds_pop_frac_20['mean_frac_all_unprec'].values,
         lw=lw_mean,
         color=col_20,
-        label='Population unprecedented',
+        # label='Population unprecedented',
         zorder=2,
     )
     ax2.fill_between(
@@ -813,7 +935,7 @@ def plot_pop_frac(
         ds_pop_frac_15['mean_frac_all_unprec'].values,
         lw=lw_mean,
         color=col_15,
-        label='Population unprecedented',
+        # label='Population unprecedented',
         zorder=3,
     )
     ax2.fill_between(
@@ -843,7 +965,7 @@ def plot_pop_frac(
         ds_pop_frac_NDC['mean_frac_exposed_unprec'].values,
         lw=lw_mean,
         color=col_NDC,
-        label='Population unprecedented',
+        # label='Population unprecedented',
         zorder=1,
     )
     ax3.fill_between(
@@ -862,7 +984,7 @@ def plot_pop_frac(
         ds_pop_frac_20['mean_frac_exposed_unprec'].values,
         lw=lw_mean,
         color=col_20,
-        label='Population unprecedented',
+        # label='Population unprecedented',
         zorder=2,
     )
     ax3.fill_between(
@@ -881,7 +1003,7 @@ def plot_pop_frac(
         ds_pop_frac_15['mean_frac_exposed_unprec'].values,
         lw=lw_mean,
         color=col_15,
-        label='Population unprecedented',
+        # label='Population unprecedented',
         zorder=3,
     )
     ax3.fill_between(
@@ -917,8 +1039,644 @@ def plot_pop_frac(
         if i < 2:
             ax.tick_params(labelbottom=False)
             
-    f.savefig('./figures/pop_frac.png',dpi=300)
+    # legend
+    legendcols = [
+        col_NDC,
+        col_20,
+        col_15,
+    ]
+    handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2])]
+    labels= [
+        'NDC',
+        '2.0 °C',
+        '1.5 °C',
+    ]
     
+    ax1.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )            
+            
+    f.savefig('./figures/pop_frac.png',dpi=300)
+
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_pop_frac_birth_year(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    year_range,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=9
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.1 # bbox for legend
+    y0 = 0.5
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1960
+    xmax = 2020
+
+    ax1_ylab = 'Fraction unprecedented'
+    ax2_ylab = 'Fraction unprecedented'
+    ax2_xlab = 'Birth year'
+
+    f,(ax1,ax2) = plt.subplots(
+        nrows=2,
+        ncols=1,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of total pop, ax1 for mean +/- std
+
+    # NDC
+    ax1.plot(
+        time,
+        ds_pop_frac_NDC['mean_frac_all_unprec'].values,
+        lw=lw_mean,
+        color=col_NDC,
+        # label='Population unprecedented',
+        zorder=1,
+    )
+    ax1.fill_between(
+        time,
+        ds_pop_frac_NDC['mean_frac_all_unprec'].values + ds_pop_frac_NDC['std_frac_all_unprec'].values,
+        ds_pop_frac_NDC['mean_frac_all_unprec'].values - ds_pop_frac_NDC['std_frac_all_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_NDC_fill,
+        zorder=1,
+    )
+
+    # 2.0 degrees
+    ax1.plot(
+        time,
+        ds_pop_frac_20['mean_frac_all_unprec'].values,
+        lw=lw_mean,
+        color=col_20,
+        # label='Population unprecedented',
+        zorder=2,
+    )
+    ax1.fill_between(
+        time,
+        ds_pop_frac_20['mean_frac_all_unprec'].values + ds_pop_frac_20['std_frac_all_unprec'].values,
+        ds_pop_frac_20['mean_frac_all_unprec'].values - ds_pop_frac_20['std_frac_all_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_20_fill,
+        zorder=2,
+    )
+
+    # 1.5 degrees
+    ax1.plot(
+        time,
+        ds_pop_frac_15['mean_frac_all_unprec'].values,
+        lw=lw_mean,
+        color=col_15,
+        # label='Population unprecedented',
+        zorder=3,
+    )
+    ax1.fill_between(
+        time,
+        ds_pop_frac_15['mean_frac_all_unprec'].values + ds_pop_frac_15['std_frac_all_unprec'].values,
+        ds_pop_frac_15['mean_frac_all_unprec'].values - ds_pop_frac_15['std_frac_all_unprec'].values,
+        lw=lw_fill,
+        alpha=ub_alpha,
+        color=col_15_fill,
+        zorder=3,
+    )
+
+    ax1.set_ylabel(
+        ax2_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of exposed pop, all runs
+
+    # NDC
+    for run in ds_pop_frac_NDC.runs:
+        
+        ax2.plot(
+            time,
+            ds_pop_frac_NDC['frac_all_unprec'].sel(runs=run).values,
+            lw=lw_mean,
+            color=col_NDC,
+            # label='Population unprecedented',
+            zorder=1,
+        )
+    # 2.0 degrees
+    for run in ds_pop_frac_20.runs:
+        
+        ax2.plot(
+            time,
+            ds_pop_frac_20['frac_all_unprec'].sel(runs=run).values,
+            lw=lw_mean,
+            color=col_20,
+            # label='Population unprecedented',
+            zorder=2,
+        )
+    # 1.5 degrees
+    for run in ds_pop_frac_15.runs:
+
+        ax2.plot(
+            time,
+            ds_pop_frac_15['frac_all_unprec'].sel(runs=run).values,
+            lw=lw_mean,
+            color=col_15,
+            # label='Population unprecedented',
+            zorder=3,
+        )
+
+    ax2.set_ylabel(
+        ax2_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+    ax2.set_xlabel(
+        ax2_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+
+    for i,ax in enumerate([ax1,ax2]):
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        # ax.xaxis.set_ticks(xticks_ts)
+        # ax.xaxis.set_ticklabels(xtick_labels_ts)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        if i < 1:
+            ax.tick_params(labelbottom=False)
+            
+    # legend
+    legendcols = [
+        col_NDC,
+        col_20,
+        col_15,
+    ]
+    handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2])]
+    labels= [
+        'NDC',
+        '2.0 °C',
+        '1.5 °C',
+    ]
+    
+    ax1.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )            
+            
+    f.savefig('./figures/pop_frac_birthyear.png',dpi=300)
+
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_pop_frac_birth_year_gcms(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    runs,
+    year_range,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=13
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.1 # bbox for legend
+    y0 = 0.5
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1960
+    xmax = 2020
+
+    ax1_ylab = 'Fraction unprecedented'
+    ax2_ylab = 'Fraction unprecedented'
+    ax2_xlab = 'Birth year'
+
+    f,(ax1,ax2,ax3,ax4) = plt.subplots(
+        nrows=4,
+        ncols=1,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of exposed pop, all runs
+    for ax,gcm in zip((ax1,ax2,ax3,ax4),list(runs.keys())):
+        
+        for run in runs[gcm]:
+            
+            # NDC
+            if run in ds_pop_frac_NDC['frac_all_unprec'].runs.values:
+                
+                ax.plot(
+                    time,
+                    ds_pop_frac_NDC['frac_all_unprec'].sel(runs=run).values,
+                    lw=lw_mean,
+                    color=col_NDC,
+                    # label='Population unprecedented',
+                    zorder=1,
+                )
+                
+            else:
+                
+                pass
+            
+            # 2.0 degrees
+            if run in ds_pop_frac_20['frac_all_unprec'].runs.values:
+                
+                ax.plot(
+                    time,
+                    ds_pop_frac_20['frac_all_unprec'].sel(runs=run).values,
+                    lw=lw_mean,
+                    color=col_20,
+                    # label='Population unprecedented',
+                    zorder=2,
+                )
+            
+            else:
+                
+                pass
+            
+            # 1.5 degrees
+            if run in ds_pop_frac_15['frac_all_unprec'].runs.values:
+                
+                ax.plot(
+                    time,
+                    ds_pop_frac_15['frac_all_unprec'].sel(runs=run).values,
+                    lw=lw_mean,
+                    color=col_15,
+                    # label='Population unprecedented',
+                    zorder=3,
+                )
+                
+            else:
+                
+                pass
+            
+        ax.set_title(
+            gcm,
+            loc='center',
+            fontweight='bold',
+        )
+
+        ax.set_ylabel(
+            ax2_ylab, 
+            va='center', 
+            rotation='vertical', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )
+        ax4.set_xlabel(
+            ax2_xlab, 
+            va='center', 
+            rotation='horizontal', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )    
+
+    for i,ax in enumerate([ax1,ax2,ax3,ax4]):
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        # ax.xaxis.set_ticks(xticks_ts)
+        # ax.xaxis.set_ticklabels(xtick_labels_ts)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        if i < 3:
+            ax.tick_params(labelbottom=False)
+            
+    # legend
+    legendcols = [
+        col_NDC,
+        col_20,
+        col_15,
+    ]
+    handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2])]
+    labels= [
+        'NDC',
+        '2.0 °C',
+        '1.5 °C',
+    ]
+    
+    ax1.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )            
+            
+    f.savefig('./figures/pop_frac_birthyear_gcms.png',dpi=300)
+        
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_pop_frac_birth_year_models(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    runs,
+    year_range,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=20
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.1 # bbox for legend
+    y0 = 0.5
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1960
+    xmax = 2020
+
+    ax1_ylab = 'Fraction unprecedented'
+    ax2_ylab = 'Fraction unprecedented'
+    ax2_xlab = 'Birth year'
+
+    f,axes = plt.subplots(
+        nrows=len(list(runs.keys())),
+        ncols=1,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of exposed pop, all runs
+    for ax,mod in zip(axes.flatten(),list(runs.keys())):
+        
+        for run in runs[mod]:
+            
+            # NDC
+            if run in ds_pop_frac_NDC['frac_all_unprec'].runs.values:
+                
+                ax.plot(
+                    time,
+                    ds_pop_frac_NDC['frac_all_unprec'].sel(runs=run).values,
+                    lw=lw_mean,
+                    color=col_NDC,
+                    # label='Population unprecedented',
+                    zorder=1,
+                )
+                
+            else:
+                
+                pass
+            
+            # 2.0 degrees
+            if run in ds_pop_frac_20['frac_all_unprec'].runs.values:
+                
+                ax.plot(
+                    time,
+                    ds_pop_frac_20['frac_all_unprec'].sel(runs=run).values,
+                    lw=lw_mean,
+                    color=col_20,
+                    # label='Population unprecedented',
+                    zorder=2,
+                )
+            
+            else:
+                
+                pass
+            
+            # 1.5 degrees
+            if run in ds_pop_frac_15['frac_all_unprec'].runs.values:
+                
+                ax.plot(
+                    time,
+                    ds_pop_frac_15['frac_all_unprec'].sel(runs=run).values,
+                    lw=lw_mean,
+                    color=col_15,
+                    # label='Population unprecedented',
+                    zorder=3,
+                )
+                
+            else:
+                
+                pass
+            
+        ax.set_title(
+            mod,
+            loc='center',
+            fontweight='bold',
+        )
+        ax.set_title(
+            len(runs[mod]),
+            loc='right',
+            fontweight='bold',
+        )        
+
+        # ax.set_ylabel(
+        #     ax2_ylab, 
+        #     va='center', 
+        #     rotation='vertical', 
+        #     fontsize=axis_font, 
+        #     labelpad=10,
+        # )
+        
+    # legend
+    legendcols = [
+        col_NDC,
+        col_20,
+        col_15,
+    ]
+    handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2])]
+    labels= [
+        'NDC',
+        '2.0 °C',
+        '1.5 °C',
+    ]        
+
+    for i,ax in enumerate(axes.flatten()):
+        
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        ax.yaxis.set_ticks([0,0.25,0.5,0.75,1])
+        # ax.xaxis.set_ticklabels(xtick_labels_ts)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        
+        if i == 0:
+            
+            ax.legend(
+                handles, 
+                labels, 
+                bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+                loc=3,
+                ncol=1,
+                fontsize=legend_font, 
+                mode="expand", 
+                borderaxespad=0.,
+                frameon=False, 
+                columnspacing=0.05, 
+                handlelength=legend_entrylen, 
+                handletextpad=legend_entrypad,
+            )             
+        
+        if i < len(axes.flatten())-1:
+            
+            ax.tick_params(labelbottom=False)
+            
+        if i == len(axes.flatten())-1:
+            
+                ax.set_xlabel(
+                    ax2_xlab, 
+                    va='center', 
+                    rotation='horizontal', 
+                    fontsize=axis_font, 
+                    labelpad=10,
+                )               
+            
+    f.savefig('./figures/pop_frac_birthyear_mods.png',dpi=300)
+
 #%% ----------------------------------------------------------------
 # plotting pop frac
 def plot_age_emergence(
@@ -953,6 +1711,13 @@ def plot_age_emergence(
     col_15_fill = 'lightsteelblue'     # normal fill color
     col_20 = 'darkgoldenrod'   # rcp60 mean color
     col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.85 # bbox for legend
+    y0 = 0.5
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
     col_bis = 'black'     # color bisector
     style_bis = '--'     # style bisector
     lw_bis = 1     # lineweight bisector
@@ -963,6 +1728,7 @@ def plot_age_emergence(
     xmax = 2100
 
     ax1_ylab = 'Age of emergence'
+    ax1_xlab = 'Birth year'
 
 
     f,ax1 = plt.subplots(
@@ -1035,13 +1801,19 @@ def plot_age_emergence(
         fontsize=axis_font, 
         labelpad=10,
     )
+    
+    ax1.set_xlabel(
+        ax1_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
 
 
     for i,ax in enumerate([ax1]):
         ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
         ax.set_xlim(xmin,xmax)
-        # ax.xaxis.set_ticks(xticks_ts)
-        # ax.xaxis.set_ticklabels(xtick_labels_ts)
         ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
         ax.tick_params(labelsize=tick_font,axis="y",direction="in")
         ax.spines['right'].set_visible(False)
@@ -1049,8 +1821,36 @@ def plot_age_emergence(
         ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
         ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
         ax.set_axisbelow(True) 
-        # if i < 2:
-        #     ax.tick_params(labelbottom=False)
+        
+    # legend
+    legendcols = [
+        col_NDC,
+        col_20,
+        col_15,
+    ]
+    handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
+               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2])]
+    labels= [
+        'NDC',
+        '2.0 °C',
+        '1.5 °C',
+    ]        
+        
+    ax1.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )               
             
     f.savefig('./figures/age_emergence.png',dpi=300)    
 # %%

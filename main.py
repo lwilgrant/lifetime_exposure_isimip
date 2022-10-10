@@ -61,17 +61,17 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 
 # TODO: add rest of flags
@@ -430,6 +430,14 @@ ds_exposure_pic_perregion = calc_exposure_mmm_pic_xr(
     'pic',
 )
 
+# pool all mmm exposures together
+ds_exposure = xr.merge([
+    ds_exposure_RCP,
+    ds_exposure_15,
+    ds_exposure_20,
+    ds_exposure_NDC,
+])
+
 #%% ----------------------------------------------------------------
 # COMPUTE EMERGENCE PER LIFETIME
 # ------------------------------------------------------------------
@@ -438,6 +446,10 @@ from emergence import *
 
 # --------------------------------------------------------------------
 # process emergence of cumulative exposures, mask cohort exposures for time steps of emergence
+
+# note that pop fracs only include cohorts exposed once cumulative exposure for their birth cohort passess pic 99.99% (doesn't include exposed people before this time)
+# need to add to all_emergence():
+    # generation of object that shows all cohort populations exposed for a given birth year if the cohort passes 99.99% (so, if 1980 birth year passes 99.99% at 2040, still include exposed people from 1980-2040)
 
 if flags['emergence']:
 
@@ -524,7 +536,7 @@ else: # load pickles
         da_age_emergence_NDC = pk.load(f)                        
         
 # plot pop frac
-plot_pop_frac(
+plot_pop_frac_birth_year(
     ds_pop_frac_NDC,
     ds_pop_frac_15,
     ds_pop_frac_20,
@@ -538,4 +550,90 @@ plot_age_emergence(
     da_age_emergence_20,
     year_range,
 )
+
+# calculate birth year emergence in simple approach
+gdf_exposure_emergence_birth_year,ds_exposure_emergence_birth_year = calc_exposure_emergence(
+    ds_exposure,
+    ds_exposure_pic,
+    gdf_country_borders,
+)
+
+# plot birth year emergence
+emergence_plot(
+    gdf_exposure_emergence_birth_year,
+)
+
+# collect all data arrays for age of emergence into dataset for finding age per birth year
+ds_age_emergence = xr.merge([
+    da_age_emergence_RCP.to_dataset(name='age_RCP'),
+    da_age_emergence_15.to_dataset(name='age_15'),
+    da_age_emergence_20.to_dataset(name='age_20'),
+    da_age_emergence_NDC.to_dataset(name='age_NDC'),
+])
+
+scen_subset = [
+    'RCP',
+    '15',
+    '20',
+    'NDC',
+]
+
+for scen in scen_subset:
+    ds_age_emergence['age_{}_by'.format(scen)] = ds_age_emergence['age_{}'.format(scen)].where(
+        ds_age_emergence['age_{}'.format(scen)].birth_year==ds_exposure_emergence_birth_year['mmm_{}'.format(scen)]
+    ).mean(dim='runs').min(dim='birth_year',skipna=True)
+    
+test_age = da_age_emergence_15
+test_by = ds_exposure_emergence_birth_year['mmm_15']
+test = test_age.where(test_age.birth_year==test_by)
+test = test.mean(dim='runs')
+test = test.min(dim='birth_year',skipna=True)
+
+#%% ----------------------------------------------------------------
+# testing
+# ------------------------------------------------------------------
+
+# testing for runs across gcms to see if fractionality is due to GCMs (possibly because there appear to be 4 groups)
+runs = {'gfdl-esm2m':[],'hadgem2-es':[],'ipsl-cm5a-lr':[],'miroc5':[]}
+for k,v in list(d_isimip_meta.items()):
+    runs[v['gcm']].append(k)
+
+plot_pop_frac_birth_year_gcms(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    runs,
+    year_range,
+)
+
+# testing for runs across rcps; would less think this to be the case since these are GMT-mapped results
+rcps = {'rcp26':[],'rcp60':[],'rcp85':[]}
+for k,v in list(d_isimip_meta.items()):
+    rcps[v['rcp']].append(k)
+    
+plot_pop_frac_birth_year_gcms(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    rcps,
+    year_range,
+)
+
+# testing for runs across impact models
+imods = {}
+for mod in model_names[flags['extr']]:
+    imods[mod.lower()]=[]
+
+for k,v in list(d_isimip_meta.items()):
+    imods[v['model']].append(k)
+
+plot_pop_frac_birth_year_models(
+    ds_pop_frac_NDC,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    imods,
+    year_range,
+)
+
+
 # %%

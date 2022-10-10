@@ -385,6 +385,7 @@ def calc_exposure(
                 )
 
                 print('calculating cohort weights')
+                
                 # filter cohort weights to only keep countries within mask 
                 d_cohort_weights_regions[region] = d_cohort_weights_regions[region].loc[:,d_cohort_weights_regions[region].columns.isin(df_countries.index)]
                 
