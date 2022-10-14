@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from scipy import interpolate
+import cartopy.crs as ccrs
 
 #%% --------------------------------------------------------------------
 # test colors for plotting
@@ -105,13 +106,13 @@ def calc_cohort_emergence(
 ):
 
     country_list = []
+    
+    # loop through countries
     for country in da_exposure_cohort.country.values:
         
-        # country='Canada'
         birthyear_list = []
         
-        # for i, birth_year in enumerate(df_life_expectancy.index):
-        # instead of iterating from 1960-2020, we want to do 1960 to year_end (2113)
+        # per birth year, make (year,age) selections
         for birth_year in np.arange(year_start,year_end+1):
             
             # use life expectancy information where available (until 2020)
@@ -120,12 +121,9 @@ def calc_cohort_emergence(
                 death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
-                # new data points from paired coords will be under new dim called ages, to be converted
-                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
-                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = da_exposure_cohort.sel(country=country,time=time,ages=ages) # paired selections
                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
-                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
                 birthyear_list.append(data)
             
@@ -134,16 +132,14 @@ def calc_cohort_emergence(
                 
                 death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
                 
+                # if lifespan not encompassed by 2113, set death to 2113
                 if death_year > year_end:
                     
                     death_year = year_end
                 
                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
-                # new data points from paired coords will be under new dim called ages, to be converted
-                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
-                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)
                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
@@ -154,20 +150,17 @@ def calc_cohort_emergence(
                 
                 time = xr.DataArray([year_end],dims='age')
                 ages = xr.DataArray([0],dims='age')
-                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
-                # new data points from paired coords will be under new dim called ages, to be converted
-                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
-                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)
                 data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
                 birthyear_list.append(data)                
         
-        cohort_exposure_data = xr.concat(birthyear_list,dim='birth_year')
-        country_list.append(cohort_exposure_data)
+        da_cohort_exposure_data = xr.concat(birthyear_list,dim='birth_year')
+        country_list.append(da_cohort_exposure_data)
         
     da_exposure_cohort_all = xr.concat(country_list,dim='country')
-    da_exposure_cohort_all_cumsum = da_exposure_cohort_all.cumsum(dim='time')
+    da_exposure_cohort_all_cumsum = da_exposure_cohort_all.cumsum(dim='time').where(da_exposure_cohort_all>0)
     ds_exposure_cohort = xr.Dataset(
         data_vars={
             'exposure': (da_exposure_cohort_all.dims,da_exposure_cohort_all.data),
@@ -184,7 +177,8 @@ def calc_cohort_emergence(
     return ds_exposure_cohort
 
 #%% ----------------------------------------------------------------
-# function to compute extreme event exposure per cohort per year, annual and annual cummulative
+# function to organize cohort size data into array that shows full sizes per birth year
+# same approach of time/age selections to organize data across birth years as calc_cohort_emergence(), but cohort sizes instead of exposure/cohort numbers exposed
 def calc_birthyear_cohortsizes(
     da_cohort,
     df_life_expectancy,
@@ -196,11 +190,8 @@ def calc_birthyear_cohortsizes(
     country_list = []
     for country in da_cohort.country.values:
         
-        # country='Canada'
         birthyear_list = []
         
-        # for i, birth_year in enumerate(df_life_expectancy.index):
-        # instead of iterating from 1960-2020, we want to do 1960 to year_end (2113)
         for birth_year in np.arange(year_start,year_end+1):
             
             # use life expectancy information where available (until 2020)
@@ -209,10 +200,7 @@ def calc_birthyear_cohortsizes(
                 death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
-                # new data points from paired coords will be under new dim called ages, to be converted
-                data = da_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
-                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = da_cohort.sel(country=country,time=time,ages=ages)
                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
@@ -221,7 +209,7 @@ def calc_birthyear_cohortsizes(
             # after 2020, assume constant life expectancy    
             elif birth_year > year_ref and birth_year < year_end:
                 
-                death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
+                death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country])
                 
                 if death_year > year_end:
                     
@@ -229,10 +217,7 @@ def calc_birthyear_cohortsizes(
                 
                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
-                # new data points from paired coords will be under new dim called ages, to be converted
-                data = da_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
-                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = da_cohort.sel(country=country,time=time,ages=ages)
                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
@@ -243,10 +228,7 @@ def calc_birthyear_cohortsizes(
                 
                 time = xr.DataArray([year_end],dims='age')
                 ages = xr.DataArray([0],dims='age')
-                # for birth year 1960, we want paired coord selections of (1960, age 0), (1961, age 1), (1962, age 2) & (1963, age 3) ... until death year/age
-                # new data points from paired coords will be under new dim called ages, to be converted
-                data = da_cohort.sel(country=country,time=time,ages=ages)#.cumsum(dim='age') # cumulative sum for each year to show progress of exposure
-                # but do we want the above cum sum? maybe we rather want a copy of the final data array with this cum sum for checking against 99% from pic? Removed it for this reason
+                data = da_cohort.sel(country=country,time=time,ages=ages)
                 data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
@@ -256,7 +238,7 @@ def calc_birthyear_cohortsizes(
         country_list.append(cohort_data)
         
     da_cohort_all = xr.concat(country_list,dim='country')
-    da_cohort_all= da_cohort_all.sum(dim='time')
+    da_cohort_all= da_cohort_all.sum(dim='time') # for each birth year, get total number of people (population in ds)
     ds_cohort_all = xr.Dataset(
         data_vars={
             'population': (da_cohort_all.dims,da_cohort_all.data),
@@ -282,13 +264,16 @@ def exposure_pic_masking(
     da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
     
     # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all time steps and 0 for other birth cohorts
+    # this may be a point where I need to check for the seemingly small pop frac
+    # da_birth_year_exposure_mask = ds_exposure_mask['exposure_cumulative'].birth_year.where(ds_exposure_mask['exposure_cumulative']> ds_exposure_pic['ext'])
     da_exposure_mask = da_exposure_mask.where(da_exposure_mask==1).bfill(dim='time')
     da_exposure_mask = xr.where(da_exposure_mask==1,1,0)
     
     return da_exposure_mask,da_age_emergence
 
 #%% ----------------------------------------------------------------
-# function to compute extreme event exposure across a person's lifetime
+# function to find number of people with unprecedented exposure 
+# (original) that summed across time and countries before taking means across runs, creating another copy that does the opposite
 def calc_unprec_exposure(
     ds_exposure_cohort,
     da_exposure_mask,
@@ -301,23 +286,18 @@ def calc_unprec_exposure(
     year_ref,
 ):
 
-    # new empty dataset with variables for population experiencing unprecedented exposure or not
+    # new empty dataset with variables for population experiencing unprecedented exposure
     ds_pop_frac = xr.Dataset(
         data_vars={
             'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
-            'normal': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
         },
         coords={
             'runs': ('runs',ds_exposure_cohort.runs.data),
             'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
-            # 'time': ('time',ds_exposure_cohort.time.data),
         }
     )
     
-    # cohort conversion to data array
-    # now that x axis will be birth year, need to reconsider cohort for denominator of fraction
-    # cohorts currently ages and time, need to do paired seleciton like in calc_cohort_emergence() to get full cohort pops for 1960 birth year (or do it elsewhere in separate function)
-    # need new cohort array that has total population per birth year (using life expectancy info; each country has a different end point)
+    # cohort conversion to data array (again)
     da_cohort_size = xr.DataArray(
         np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
         coords={
@@ -332,6 +312,7 @@ def calc_unprec_exposure(
         ]
     )
     
+    # need new cohort array that has total population per birth year (using life expectancy info; each country has a different end point)
     ds_cohorts = calc_birthyear_cohortsizes(
         da_cohort_size,
         df_life_expectancy,
@@ -342,45 +323,30 @@ def calc_unprec_exposure(
     
     # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
     unprec = ds_exposure_cohort['exposure'].where(da_exposure_mask == 1)
-    # unprec = unprec.sum(dim=['birth_year','country'])
     unprec = unprec.sum(dim=['time','country'])
-    normal = ds_exposure_cohort['exposure'].where(da_exposure_mask == 0)
-    # normal = normal.sum(dim=['birth_year','country'])
-    normal = normal.sum(dim=['time','country'])
     
     # assign aggregated unprecedented/normal exposure to ds_pop_frac
     ds_pop_frac['unprec'] = unprec
-    ds_pop_frac['normal'] = normal
     
     # stats on exposure types
     ds_pop_frac['mean_unprec'] = ds_pop_frac['unprec'].mean(dim='runs')
     ds_pop_frac['max_unprec'] = ds_pop_frac['unprec'].max(dim='runs')
     ds_pop_frac['min_unprec'] = ds_pop_frac['unprec'].min(dim='runs')
     ds_pop_frac['std_unprec'] = ds_pop_frac['unprec'].std(dim='runs')
-
-    ds_pop_frac['mean_normal'] = ds_pop_frac['normal'].mean(dim='runs')
-    ds_pop_frac['max_normal'] = ds_pop_frac['normal'].max(dim='runs')
-    ds_pop_frac['min_normal'] = ds_pop_frac['normal'].min(dim='runs')
-    ds_pop_frac['std_normal'] = ds_pop_frac['normal'].std(dim='runs')
     
     # unprecedented exposure as fraction of total population estimate
-    # ds_pop_frac['frac_all_unprec'] = ds_pop_frac['unprec'] / da_cohort_size.sum(dim=['ages','country'])
     ds_pop_frac['frac_all_unprec'] = ds_pop_frac['unprec'] / ds_cohorts['population'].sum(dim=['country'])
     ds_pop_frac['mean_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].mean(dim='runs')
     ds_pop_frac['std_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].std(dim='runs')
-
-    # fraction of all exposed
-    ds_pop_frac['frac_exposed_unprec'] = ds_pop_frac['unprec'] / (ds_pop_frac['unprec'] + ds_pop_frac['normal'])
-    ds_pop_frac['mean_frac_exposed_unprec'] = ds_pop_frac['frac_exposed_unprec'].mean(dim='runs')
-    ds_pop_frac['std_frac_exposed_unprec'] = ds_pop_frac['frac_exposed_unprec'].std(dim='runs')
      
     return ds_pop_frac
-        
+
 #%% ----------------------------------------------------------------
 # get timing and EMF of exceedence of pic-defined extreme
 def calc_exposure_emergence(
     ds_exposure,
     ds_exposure_pic,
+    ds_age_emergence,
     gdf_country_borders,
 ):
 
@@ -391,27 +357,27 @@ def calc_exposure_emergence(
         'mmm_NDC',
     ]
 
-    EMF_subset = [
-        'mmm_EMF_RCP',
-        'mmm_EMF_15',
-        'mmm_EMF_20',
-        'mmm_EMF_NDC',
-    ]
-
     # get years where mmm exposures under different trajectories exceed pic 99.99%
-    ds_exposure_emergence = ds_exposure[mmm_subset].where(ds_exposure[mmm_subset] > ds_exposure_pic.ext)
+    ds_exposure_emergence = ds_exposure[mmm_subset].where(ds_exposure[mmm_subset] > ds_exposure_pic['ext'])
     ds_exposure_emergence_birth_year = ds_exposure_emergence.birth_year.where(ds_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)#.astype('int')
-    # ds_exposure_emergence_birth_year = xr.where(ds_exposure_emergence_birth_year > 0, ds_exposure_emergence_birth_year, 0)
     
-    # for same years, get EMF
-    for var in EMF_subset:
+    scen_subset = [
+        'RCP',
+        '15',
+        '20',
+        'NDC',
+    ]
     
-        ds_exposure_emergence_birth_year[var] = ds_exposure[var].where(ds_exposure[var].birth_year==ds_exposure_emergence_birth_year[var.replace('_EMF','')]).min(dim='birth_year',skipna=True)
+    for scen in scen_subset:
+        
+        ds_exposure_emergence_birth_year['birth_year_age_{}'.format(scen)] = ds_age_emergence['age_{}'.format(scen)].where(
+            ds_age_emergence['age_{}'.format(scen)].birth_year==ds_exposure_emergence_birth_year['mmm_{}'.format(scen)]
+        ).mean(dim='runs').min(dim='birth_year',skipna=True)    
     
     # move emergene birth years and EMFs to gdf for plotting
     gdf_exposure_emergence_birth_year = gpd.GeoDataFrame(ds_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders))
     
-    return gdf_exposure_emergence_birth_year,ds_exposure_emergence_birth_year
+    return gdf_exposure_emergence_birth_year
 
 #%% ----------------------------------------------------------------
 def all_emergence(
@@ -486,7 +452,8 @@ def emergence_plot(
     f,axes = plt.subplots(
         nrows=4,
         ncols=2,
-        figsize=(20,16)
+        figsize=(20,16),
+        subplot_kw = dict(projection=ccrs.PlateCarree()),
     )
 
     # letters
@@ -528,19 +495,27 @@ def emergence_plot(
     cmap_50 = cmap_by(0.95)  #dark
     cmap_55 = cmap_by(0.99)
 
+    # colors_by = [
+    #     cmap55,cmap45,cmap35,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1990
+    #     cmap_5,cmap_10,cmap_25,cmap_35,cmap_45,cmap_55, # 6 light colors for 1990-2020
+    # ]
     colors_by = [
-        cmap55,cmap45,cmap35,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1990
-        cmap_5,cmap_10,cmap_25,cmap_35,cmap_45,cmap_55, # 6 light colors for 1990-2020
-    ]
+        cmap45,cmap35,cmap30,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1965
+        cmap_5,cmap_10,cmap_25,cmap_30,cmap_35, # 6 light colors for 1966-1970
+    ]    
 
     # declare list of colors for discrete colormap of colorbar for birth years
     cmap_list_by = mpl.colors.ListedColormap(colors_by,N=len(colors_by))
+    cmap_list_by.set_under(cmap55)
+    cmap_list_by.set_over(cmap_45)
 
     # colorbar args for birth years
-    values_by = [1960,1965,1970,1975,1980,1985,1990,1995,2000,2005,2010,2015,2020]
-    tick_locs_by = [1960,1970,1980,1990,2000,2010,2020]
+    # values_by = [1960,1965,1970,1975,1980,1985,1990,1995,2000,2005,2010,2015,2020]
+    values_by = [1959.5,1960.5,1961.5,1962.5,1963.5,1964.5,1965.5,1966.5,1967.5,1968.5,1969.5,1970.5]
+    # tick_locs_by = [1960,1970,1980,1990,2000,2010,2020]
+    tick_locs_by = [1960,1961,1962,1963,1964,1965,1966,1967,1968,1969,1970]
     tick_labels_by = list(str(n) for n in tick_locs_by)
-    norm_by = mpl.colors.BoundaryNorm(values_by,cmap_list_by.N)    
+    norm_by = mpl.colors.BoundaryNorm(values_by,cmap_list_by.N)
 
     # identify colors for EMF
     cmap_emf = plt.cm.get_cmap('OrRd')
@@ -576,7 +551,7 @@ def emergence_plot(
 
     data = np.empty(1)
     for trj in ['RCP','15','20','NDC']:
-        data = np.append(data,gdf_exposure_emergence_birth_year.loc[:,'mmm_EMF_{}'.format(trj)].values)        
+        data = np.append(data,gdf_exposure_emergence_birth_year.loc[:,'birth_year_age_{}'.format(trj)].values)        
     data = data[~np.isnan(data)]
     q_samples = []
     q_samples.append(np.abs(np.quantile(data,0.95)))
@@ -634,6 +609,7 @@ def emergence_plot(
                     legend=False,
                     cmap=cmap_list_by,
                     cax=cbax_by,
+                    # aspect="equal",
                     missing_kwds={
                         "color": "lightgrey",
                         "edgecolor": "red",
@@ -660,12 +636,13 @@ def emergence_plot(
             else:
                 
                 gdf_exposure_emergence_birth_year.plot(
-                    column='mmm_EMF_{}'.format(trj),
+                    column='birth_year_age_{}'.format(trj),
                     ax=ax,
                     norm=norm_emf,
                     legend=False,
                     cmap=cmap_list_emf,
                     cax=cbax_emf,
+                    # aspect="equal",
                     missing_kwds={
                         "color": "lightgrey",
                         "edgecolor": "red",
@@ -683,6 +660,7 @@ def emergence_plot(
                 fontsize = 16,
                 fontweight='bold'
             )
+            ax.set_aspect('equal')
             l += 1
             
                 
@@ -693,7 +671,7 @@ def emergence_plot(
         norm=norm_by,
         spacing='uniform',
         orientation='horizontal',
-        extend='neither',
+        extend='both',
         ticks=tick_locs_by,
         drawedges=False,
     )
@@ -729,7 +707,7 @@ def emergence_plot(
         drawedges=False,
     )
     cb_emf.set_label(
-        'EMF of emergence',
+        'Age of emergence',
         size=16,
     )
     cb_emf.ax.xaxis.set_label_position('top')
