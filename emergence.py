@@ -259,15 +259,14 @@ def exposure_pic_masking(
 ):
     # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
     ds_exposure_pic['ext'] = ds_exposure_pic['ext'].where(ds_exposure_pic['ext']>0)
-    da_exposure_mask = xr.where(ds_exposure_mask['exposure_cumulative'] >= ds_exposure_pic['ext'],1,0)
-    da_age_emergence = da_exposure_mask * (da_exposure_mask.time - da_exposure_mask.birth_year)
+    da_age_exposure_mask = xr.where(ds_exposure_mask['exposure_cumulative'] >= ds_exposure_pic['ext'],1,0)
+    da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
     da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
     
-    # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all time steps and 0 for other birth cohorts
-    # this may be a point where I need to check for the seemingly small pop frac
-    # da_birth_year_exposure_mask = ds_exposure_mask['exposure_cumulative'].birth_year.where(ds_exposure_mask['exposure_cumulative']> ds_exposure_pic['ext'])
-    da_exposure_mask = da_exposure_mask.where(da_exposure_mask==1).bfill(dim='time')
-    da_exposure_mask = xr.where(da_exposure_mask==1,1,0)
+    # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
+    da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
+    da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure']>0,1,0).where(da_birthyear_exposure_mask==1) # 
+    da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0)
     
     return da_exposure_mask,da_age_emergence
 
