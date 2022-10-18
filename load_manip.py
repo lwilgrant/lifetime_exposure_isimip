@@ -126,7 +126,7 @@ def load_GMT(
     # Load global mean temperature projections from SR15
     df_GMT_SR15 = pd.read_excel('./data/temperature_trajectories_SR15/GMT_50pc_manualoutput_4pathways.xlsx', header=1);
     df_GMT_SR15 = df_GMT_SR15.iloc[:4,1:].transpose().rename(columns={
-        0 : 'IPCCSR15_IMAGE 3.0.1_SSP1-26_GAS', 
+        0 : 'IPCCSR15_IMAGE 3.0.1_SSP1-26_GAS',
         1 : 'IPCCSR15_MESSAGE-GLOBIOM 1.0_ADVANCE_INDC_GAS',
         2 : 'IPCCSR15_MESSAGE-GLOBIOM 1.0_SSP2-19_GAS',
         3 : 'IPCCSR15_MESSAGEix-GLOBIOM 1.0_LowEnergyDemand_GAS'
@@ -148,6 +148,15 @@ def load_GMT(
     df_GMT_20   = df_GMT_20[~df_GMT_20.index.duplicated(keep='first')]
     df_GMT_NDC   = df_GMT_NDC[~df_GMT_NDC.index.duplicated(keep='first')]
     df_GMT_SR15 = df_GMT_SR15[~df_GMT_SR15.index.duplicated(keep='first')]
+    
+    # stylized trajectories
+    GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+    GMT_min = df_GMT_15.loc[GMT_fut_strtyr-1]
+    GMT_steps = np.arange(0,GMT_max+0.1,GMT_inc)
+    GMT_steps = GMT_steps[np.where(GMT_steps>GMT_min)]
+    n_steps = len(GMT_steps)
+    
+    
 
     return df_GMT_15, df_GMT_20, df_GMT_NDC
 
@@ -469,15 +478,56 @@ def get_cohortsize_countries(
     
     return d_cohort_size
 
+# #%% ----------------------------------------------------------------
+# # interpolate cohortsize per country
+# def get_all_cohorts(
+#     wcde, 
+#     df_countries, 
+#     df_GMT_15,
+# ): 
+
+#     # unpack loaded wcde values; 31 year ranges, 21 age categories
+#     wcde = load_wcde_data() 
+#     wcde_years, wcde_ages, wcde_country_data, unused = wcde 
+#     new_ages = np.arange(104,-1,-1)
+
+#     d_all_cohorts = {}
+
+#     for i,name in enumerate(df_countries.index):
+
+#         wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
+#         wcde_per_country = np.hstack((
+#             np.expand_dims(wcde_country_data_reshape[:,0],axis=1)/4,
+#             np.expand_dims(wcde_country_data_reshape[:,0],axis=1)*3/4,
+#             wcde_country_data_reshape[:,1:],
+#             np.expand_dims(wcde_country_data_reshape[:,-1],axis=1)
+#         ))         
+#         wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
+#         [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], np.append(wcde_ages,107))),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
+#         [Xnew, Ynew] = np.meshgrid(new_ages, np.array(df_GMT_15.index)) # prepare for 2D interpolation
+#         wcde_country_data_raw = interpolate.griddata(
+#             (Xorig.ravel(),Yorig.ravel()),
+#             wcde_per_country.ravel(),
+#             (Xnew.ravel(),Ynew.ravel()),
+#         )
+#         wcde_country_data_interp = wcde_country_data_raw.reshape( len(df_GMT_15.index),len(new_ages))
+#         d_all_cohorts[name] = pd.DataFrame(
+#             (wcde_country_data_interp /5), 
+#             columns=new_ages, 
+#             index=df_GMT_15.index
+#         )        
+    
+#     return d_all_cohorts  
+
 #%% ----------------------------------------------------------------
-# interpolate cohortsize per country
+# interpolate cohortsize per country (changing to use same start points as original cohort extraction for ages 0-60)
 def get_all_cohorts(
     wcde, 
     df_countries, 
     df_GMT_15,
 ): 
 
-    # unpack loaded wcde values
+    # unpack loaded wcde values; 31 year ranges, 21 age categories
     wcde = load_wcde_data() 
     wcde_years, wcde_ages, wcde_country_data, unused = wcde 
     new_ages = np.arange(104,-1,-1)
@@ -487,14 +537,9 @@ def get_all_cohorts(
     for i,name in enumerate(df_countries.index):
 
         wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
-        wcde_per_country = np.hstack((
-            np.expand_dims(wcde_country_data_reshape[:,0],axis=1)/4,
-            np.expand_dims(wcde_country_data_reshape[:,0],axis=1)*3/4,
-            wcde_country_data_reshape[:,1:],
-            np.expand_dims(wcde_country_data_reshape[:,-1],axis=1)
-        ))         
+        wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
         wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
-        [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], np.append(wcde_ages,107))),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
+        [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
         [Xnew, Ynew] = np.meshgrid(new_ages, np.array(df_GMT_15.index)) # prepare for 2D interpolation
         wcde_country_data_raw = interpolate.griddata(
             (Xorig.ravel(),Yorig.ravel()),
