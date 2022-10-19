@@ -117,7 +117,7 @@ def load_wcde_data():
     return wcde_years, wcde_ages, wcde_country_data, wcde_region_data
 
 #%% ----------------------------------------------------------------
-# Load global mean temperature projections
+# Load global mean temperature projections and build stylized trajectories
 def load_GMT(
     year_start,
     year_end,
@@ -151,14 +151,43 @@ def load_GMT(
     
     # stylized trajectories
     GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+    ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
     GMT_min = df_GMT_15.loc[GMT_fut_strtyr-1]
     GMT_steps = np.arange(0,GMT_max+0.1,GMT_inc)
-    GMT_steps = GMT_steps[np.where(GMT_steps>GMT_min)]
+    GMT_steps = np.insert(GMT_steps[np.where(GMT_steps>GMT_min)],0,GMT_min)
     n_steps = len(GMT_steps)
-    
-    
+    ind_15 = np.argmin(np.abs(GMT_steps-df_GMT_15.iloc[-1]))
+    ind_20 = np.argmin(np.abs(GMT_steps-df_GMT_20.iloc[-1]))
+    ind_NDC = np.argmin(np.abs(GMT_steps-df_GMT_NDC.iloc[-1]))
+    n_years = len(year_range)
+    trj = np.empty((n_years,n_steps))
+    trj.fill(np.nan)
+    trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
+    trj[ind_fut_strtyr:,0] = GMT_min
+    trj[ind_fut_strtyr:,-1] = np.interp(
+        x=year_range[ind_fut_strtyr:],
+        xp=[GMT_fut_strtyr,year_end],
+        fp=[GMT_min,GMT_max],
+    )
+    trj[:,ind_15] = df_GMT_15.values
+    trj[:,ind_20] = df_GMT_20.values
+    trj[:,ind_NDC] = df_GMT_NDC.values
+    trj_msk = np.ma.masked_invalid(trj)
+    [xx, yy] = np.meshgrid(range(n_steps),range(n_years))
+    x1 = xx[~trj_msk.mask]
+    y1 = yy[~trj_msk.mask]
+    trj_interpd = interpolate.griddata(
+        (x1,y1), # only include coords with valid data
+        trj[~trj_msk.mask].ravel(), # inputs are valid only, too
+        (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
+    )
+    df_GMT_strj = pd.DataFrame(
+        trj_interpd, 
+        columns=range(n_steps), 
+        index=year_range,
+    )
 
-    return df_GMT_15, df_GMT_20, df_GMT_NDC
+    return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj
 
 #%% ----------------------------------------------------------------
 # Load SSP population totals
@@ -198,6 +227,7 @@ def load_isimip(
     df_GMT_15,
     df_GMT_20,
     df_GMT_NDC,
+    df_GMT_strj,
 ): 
     
     if flags_run: 
@@ -321,6 +351,17 @@ def load_isimip(
                     d_isimip_meta[i]['ind_RCP2GMT_NDC'] = ind_RCP2GMT_NDC
                     d_isimip_meta[i]['ind_RCP2GMT_R26eval'] = ind_RCP2GMT_R26eval
                     
+                    # run GMT mapping for stylized trajectories (repeat above but for dataframe of all trajectories)
+                    d_isimip_meta[i]['GMT_strj_maxdiff'] = np.empty_like(np.arange(len(df_GMT_strj.columns)))
+                    d_isimip_meta[i]['GMT_strj_valid'] = np.empty_like(np.arange(len(df_GMT_strj.columns)))
+                    d_isimip_meta[i]['ind_RCP2GMT_strj'] = np.empty_like(df_GMT_strj.values)
+                    
+                    for step in range(len(df_GMT_strj.columns)):
+                        RCP2GMT_diff = np.min(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_strj.loc[:,step].values.transpose()), axis=0)
+                        d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step] = np.argmin(np.abs(d_isimip_meta[i]['GMT'].values - df_GMT_strj.loc[:,step].values.transpose()), axis=0).astype('int')
+                        d_isimip_meta[i]['GMT_strj_maxdiff'][step] = np.nanmax(RCP2GMT_diff)
+                        d_isimip_meta[i]['GMT_strj_valid'][step] = np.nanmax(RCP2GMT_diff) < RCP2GMT_maxdiff_threshold
+
                     # adding this to avoid duplicates of da_AFA_pic in pickles
                     if '{}_{}'.format(d_isimip_meta[i]['model'],d_isimip_meta[i]['gcm']) not in pic_list:
 
@@ -329,7 +370,7 @@ def load_isimip(
 
                         if  isinstance(file_names_pic, str): # single pic file 
                             da_AFA_pic  = open_dataarray_isimip(file_names_pic)
-                        else:                               # concat pic files
+                        else: # concat pic files
                             das_AFA_pic = [open_dataarray_isimip(file_name_pic) for file_name_pic in file_names_pic]
                             da_AFA_pic  = xr.concat(das_AFA_pic, dim='time')
                             
@@ -359,7 +400,7 @@ def load_isimip(
             with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb') as f:
                 pk.dump(d_isimip_meta,f)
             with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'wb') as f:
-                pk.dump(d_pic_meta,f)            
+                pk.dump(d_pic_meta,f)
 
     else: 
         

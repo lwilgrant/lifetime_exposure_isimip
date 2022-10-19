@@ -61,9 +61,9 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
@@ -100,10 +100,10 @@ from load_manip import *
 # Load global mean temperature projections
 global df_GMT_15, df_GMT_20, df_GMT_NDC
 
-df_GMT_15, df_GMT_20, df_GMT_NDC = load_GMT(
+df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj = load_GMT(
     year_start,
     year_end,
-) 
+)
 
 # --------------------------------------------------------------------
 # Load and manipulate life expectancy, cohort and mortality data
@@ -237,7 +237,8 @@ d_isimip_meta,d_pic_meta = load_isimip(
     model_names,
     df_GMT_15,
     df_GMT_20,
-    df_GMT_NDC,    
+    df_GMT_NDC,
+    df_GMT_strj,
 )
 
 #%% ----------------------------------------------------------------
