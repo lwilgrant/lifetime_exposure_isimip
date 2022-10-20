@@ -61,13 +61,13 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
@@ -144,7 +144,6 @@ if flags['mask']: # load data and do calculations
     )
 
     # -------------------------------------------------------------------------------------------------------
-    
     # do the same for the regions; get life expectancy, birth years and cohort weights per region, as well as countries per region
     d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions = get_regions_data(
         df_countries, 
@@ -318,10 +317,12 @@ if flags['exposure_cohort']:
     da_exposure_cohort_15,\
     da_exposure_cohort_20,\
     da_exposure_cohort_NDC,\
+    da_exposure_cohort_strj,\
     da_exposure_peryear_perage_percountry_RCP,\
     da_exposure_peryear_perage_percountry_15,\
     da_exposure_peryear_perage_percountry_20,\
-    da_exposure_peryear_perage_percountry_NDC = exposure_cohort
+    da_exposure_peryear_perage_percountry_NDC,\
+    da_exposure_peryear_perage_percountry_strj = exposure_cohort   
     
     print("--- {} minutes ---".format(
         np.floor((time.time() - start_time) / 60),
@@ -341,6 +342,8 @@ else:  # load processed cohort exposure data
         da_exposure_cohort_20 = pk.load(f)
     with open('./data/pickles/exposure_cohort_NDC_{}.pkl'.format(flags['extr']), 'rb') as f:
         da_exposure_cohort_NDC = pk.load(f)
+    with open('./data/pickles/exposure_cohort_strj_{}.pkl'.format(flags['extr']), 'rb') as f:
+        da_exposure_cohort_strj = pk.load(f)        
         
     # pickle exposure peryear perage percountry
     with open('./data/pickles/exposure_peryear_perage_percountry_RCP_{}.pkl'.format(flags['extr']), 'rb') as f:
@@ -351,6 +354,8 @@ else:  # load processed cohort exposure data
         da_exposure_peryear_perage_percountry_20 = pk.load(f)
     with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}.pkl'.format(flags['extr']), 'rb') as f:
         da_exposure_peryear_perage_percountry_NDC = pk.load(f)
+    with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}.pkl'.format(flags['extr']), 'rb') as f:
+        da_exposure_peryear_perage_percountry_strj = pk.load(f)
 
 # --------------------------------------------------------------------
 # process picontrol data
@@ -508,6 +513,21 @@ if flags['emergence']:
         df_countries,
         flags['extr'],
         'NDC',
+    )
+    
+    da_age_emergence_strj, ds_pop_frac_strj = all_emergence(
+        da_exposure_peryear_perage_percountry_strj,
+        da_exposure_cohort_strj,
+        df_life_expectancy_5,
+        year_start,
+        year_end,
+        year_ref,
+        ds_exposure_pic,
+        d_all_cohorts,
+        year_range,
+        df_countries,
+        flags['extr'],
+        'strj',
     )
         
 else: # load pickles

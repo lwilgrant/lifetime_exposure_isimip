@@ -96,19 +96,19 @@ def get_all_cohorts(
     return d_all_cohorts  
 
 #%% ----------------------------------------------------------------
-# function to compute extreme event exposure per cohort per year, annual and annual cummulative
-def calc_cohort_emergence(
-    da_exposure_cohort,
+# make age+time selections to align exposure, cohort exposure and cohort sizes along birth year and time
+def calc_birthyear_align(
+    da,
     df_life_expectancy,
     year_start,
     year_end,
     year_ref,
 ):
-
+    
     country_list = []
     
     # loop through countries
-    for country in da_exposure_cohort.country.values:
+    for country in da.country.values:
         
         birthyear_list = []
         
@@ -121,7 +121,7 @@ def calc_cohort_emergence(
                 death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                data = da_exposure_cohort.sel(country=country,time=time,ages=ages) # paired selections
+                data = da.sel(country=country,time=time,ages=ages) # paired selections
                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
@@ -139,7 +139,7 @@ def calc_cohort_emergence(
                 
                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)
+                data = da.sel(country=country,time=time,ages=ages)
                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
@@ -150,106 +150,80 @@ def calc_cohort_emergence(
                 
                 time = xr.DataArray([year_end],dims='age')
                 ages = xr.DataArray([0],dims='age')
-                data = da_exposure_cohort.sel(country=country,time=time,ages=ages)
+                data = da.sel(country=country,time=time,ages=ages)
                 data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
                 birthyear_list.append(data)                
         
-        da_cohort_exposure_data = xr.concat(birthyear_list,dim='birth_year')
-        country_list.append(da_cohort_exposure_data)
+        da_data = xr.concat(birthyear_list,dim='birth_year')
+        country_list.append(da_data)
         
-    da_exposure_cohort_all = xr.concat(country_list,dim='country')
-    da_exposure_cohort_all_cumsum = da_exposure_cohort_all.cumsum(dim='time').where(da_exposure_cohort_all>0)
-    ds_exposure_cohort = xr.Dataset(
-        data_vars={
-            'exposure': (da_exposure_cohort_all.dims,da_exposure_cohort_all.data),
-            'exposure_cumulative': (da_exposure_cohort_all_cumsum.dims,da_exposure_cohort_all_cumsum.data)
-        },
-        coords={
-            'country': ('country',da_exposure_cohort_all.country.data),
-            'birth_year': ('birth_year',da_exposure_cohort_all.birth_year.data),
-            'runs': ('runs',da_exposure_cohort_all.runs.data),
-            'time': ('time',da_exposure_cohort_all.time.data),
-        },
-    )
+    da_all = xr.concat(country_list,dim='country')    
+    
+    return da_all
+
+
+#%% ----------------------------------------------------------------
+# create dataset out of birthyear aligned cohort exposure and regular rexposure, add cumulative exposure, 
+def ds_exposure_align(
+    da,
+    traject,
+):
+
+    if traject != 'strj':
+        
+        da_cumsum = da.cumsum(dim='time').where(da>0)
+        ds_exposure_cohort = xr.Dataset(
+            data_vars={
+                'exposure': (da.dims,da.data),
+                'exposure_cumulative': (da_cumsum.dims,da_cumsum.data)
+            },
+            coords={
+                'country': ('country',da.country.data),
+                'birth_year': ('birth_year',da.birth_year.data),
+                'runs': ('runs',da.runs.data),
+                'time': ('time',da.time.data),
+            },
+        )
+        
+    else:
+        
+        da_cumsum = da.cumsum(dim='time').where(da>0)
+        ds_exposure_cohort = xr.Dataset(
+            data_vars={
+                'exposure': (da.dims,da.data),
+                'exposure_cumulative': (da_cumsum.dims,da_cumsum.data)
+            },
+            coords={
+                'country': ('country',da.country.data),
+                'birth_year': ('birth_year',da.birth_year.data),
+                'runs': ('runs',da.runs.data),
+                'GMT': ('GMT',da.GMT.data),
+                'time': ('time',da.time.data),
+            },
+        )        
      
     return ds_exposure_cohort
 
 #%% ----------------------------------------------------------------
-# function to organize cohort size data into array that shows full sizes per birth year
-# same approach of time/age selections to organize data across birth years as calc_cohort_emergence(), but cohort sizes instead of exposure/cohort numbers exposed
-def calc_birthyear_cohortsizes(
-    da_cohort,
-    df_life_expectancy,
-    year_start,
-    year_end,
-    year_ref,
+# create dataset out of birthyear aligned cohort sizes
+def ds_cohort_align(
+    da,
 ):
 
-    country_list = []
-    for country in da_cohort.country.values:
-        
-        birthyear_list = []
-        
-        for birth_year in np.arange(year_start,year_end+1):
-            
-            # use life expectancy information where available (until 2020)
-            if birth_year <= year_ref:
-                
-                death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
-                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
-                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                data = da_cohort.sel(country=country,time=time,ages=ages)
-                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
-                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
-                birthyear_list.append(data)
-            
-            # after 2020, assume constant life expectancy    
-            elif birth_year > year_ref and birth_year < year_end:
-                
-                death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country])
-                
-                if death_year > year_end:
-                    
-                    death_year = year_end
-                
-                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
-                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                data = da_cohort.sel(country=country,time=time,ages=ages)
-                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
-                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
-                birthyear_list.append(data)
-            
-            # for 2113, use single year of pop
-            elif birth_year == year_end:
-                
-                time = xr.DataArray([year_end],dims='age')
-                ages = xr.DataArray([0],dims='age')
-                data = da_cohort.sel(country=country,time=time,ages=ages)
-                data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
-                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
-                birthyear_list.append(data)                
-        
-        cohort_data = xr.concat(birthyear_list,dim='birth_year')
-        country_list.append(cohort_data)
-        
-    da_cohort_all = xr.concat(country_list,dim='country')
-    da_cohort_all= da_cohort_all.sum(dim='time') # for each birth year, get total number of people (population in ds)
-    ds_cohort_all = xr.Dataset(
+    da = da.sum(dim='time') # for each birth year, get total number of people (population in ds)
+    ds_cohort_sizes = xr.Dataset(
         data_vars={
-            'population': (da_cohort_all.dims,da_cohort_all.data),
+            'population': (da.dims,da.data),
         },
         coords={
-            'country': ('country',da_cohort_all.country.data),
-            'birth_year': ('birth_year',da_cohort_all.birth_year.data),
+            'country': ('country',da.country.data),
+            'birth_year': ('birth_year',da.birth_year.data),
         },
     )
      
-    return ds_cohort_all
+    return ds_cohort_sizes
 
 #%% ----------------------------------------------------------------
 # function to generate mask of unprecedented timesteps per birth year and age of emergence
@@ -283,18 +257,34 @@ def calc_unprec_exposure(
     year_start,
     year_end,
     year_ref,
+    traject,
 ):
 
     # new empty dataset with variables for population experiencing unprecedented exposure
-    ds_pop_frac = xr.Dataset(
-        data_vars={
-            'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
-        },
-        coords={
-            'runs': ('runs',ds_exposure_cohort.runs.data),
-            'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
-        }
-    )
+    if traject != 'strj':
+        
+        ds_pop_frac = xr.Dataset(
+            data_vars={
+                'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
+            },
+            coords={
+                'runs': ('runs',ds_exposure_cohort.runs.data),
+                'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
+            }
+        )
+        
+    else:
+        
+        ds_pop_frac = xr.Dataset(
+            data_vars={
+                'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
+            },
+            coords={
+                'runs': ('runs',ds_exposure_cohort.runs.data),
+                'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
+                'GMT': ('GMT',ds_exposure_cohort.GMT.data),
+            }
+        )
     
     # cohort conversion to data array (again)
     da_cohort_size = xr.DataArray(
@@ -311,14 +301,15 @@ def calc_unprec_exposure(
         ]
     )
     
-    # need new cohort array that has total population per birth year (using life expectancy info; each country has a different end point)
-    ds_cohorts = calc_birthyear_cohortsizes(
+    # need new cohort dataset that has total population per birth year (using life expectancy info; each country has a different end point)
+    da_cohort_aligned = calc_birthyear_align(
         da_cohort_size,
         df_life_expectancy,
         year_start,
         year_end,
         year_ref,
     )
+    ds_cohorts = ds_cohort_align(da_cohort_aligned)
     
     # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
     unprec = ds_exposure_cohort['exposure'].where(da_exposure_mask == 1)
@@ -393,9 +384,10 @@ def all_emergence(
     flag,
     traject,
 ):
+    start_time = time.time()
     
-    # exposure mask setup
-    ds_exposure_mask = calc_cohort_emergence(
+    # align age + time selections of annual mean exposure along birthyears + time per country, birth cohort, run to act as mask for birthyears when pic threshold is passed
+    da_exposure_aligned = calc_birthyear_align(
         da_exposure_peryear_perage_percountry,
         df_life_expectancy_5,
         year_start,
@@ -403,14 +395,25 @@ def all_emergence(
         year_ref,
     )
     
-    # age emergence
+    # dataset of birthyear aligned exposure, add cumulative exposure 
+    ds_exposure_aligned = ds_exposure_align(
+        da_exposure_aligned,
+        traject,
+    )    
+    
+    print("--- {} minutes ---".format(
+        np.floor((time.time() - start_time) / 60),
+        )
+          )    
+    
+    # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
     da_exposure_mask,da_age_emergence = exposure_pic_masking(
-        ds_exposure_mask,
+        ds_exposure_aligned,
         ds_exposure_pic,
     )
     
-    # cohort exposure emergence
-    ds_exposure_cohort = calc_cohort_emergence(
+    # aligned cohort exposure age+time selections
+    da_exposure_cohort_aligned = calc_birthyear_align(
         da_exposure_cohort,
         df_life_expectancy_5,
         year_start,
@@ -418,9 +421,15 @@ def all_emergence(
         year_ref,
     )
     
+    # convert aligned cohort exposure to dataset
+    ds_exposure_cohort_aligned = ds_exposure_align(
+        da_exposure_cohort_aligned,
+        traject,
+    )
+    
     # population experiencing normal vs unprecedented exposure
     ds_pop_frac = calc_unprec_exposure(
-        ds_exposure_cohort,
+        ds_exposure_cohort_aligned,
         da_exposure_mask,
         d_all_cohorts,
         year_range,
@@ -428,7 +437,8 @@ def all_emergence(
         df_life_expectancy_5,
         year_start,
         year_end,
-        year_ref,        
+        year_ref,
+        traject,
     )
     
     # pickle pop frac
