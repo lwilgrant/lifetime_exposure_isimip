@@ -67,7 +67,7 @@ flags['mask'] = 0           # 0: do not process country data (i.e. load masks pi
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
@@ -515,7 +515,7 @@ if flags['emergence']:
         'NDC',
     )
     
-    da_age_emergence_strj, ds_pop_frac_strj = all_emergence(
+    da_age_emergence_strj, ds_pop_frac_strj = strj_emergence(
         da_exposure_peryear_perage_percountry_strj,
         da_exposure_cohort_strj,
         df_life_expectancy_5,
@@ -557,6 +557,13 @@ plot_pop_frac_birth_year(
     ds_pop_frac_NDC,
     ds_pop_frac_15,
     ds_pop_frac_20,
+    year_range,
+)
+
+# plot pop frac across stylized trajectories
+plot_pop_frac_birth_year_strj(
+    ds_pop_frac_strj,
+    df_GMT_strj,
     year_range,
 )
 

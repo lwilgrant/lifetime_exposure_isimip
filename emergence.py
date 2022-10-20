@@ -159,7 +159,7 @@ def calc_birthyear_align(
         da_data = xr.concat(birthyear_list,dim='birth_year')
         country_list.append(da_data)
         
-    da_all = xr.concat(country_list,dim='country')    
+    da_all = xr.concat(country_list,dim='country')
     
     return da_all
 
@@ -199,7 +199,7 @@ def ds_exposure_align(
                 'country': ('country',da.country.data),
                 'birth_year': ('birth_year',da.birth_year.data),
                 'runs': ('runs',da.runs.data),
-                'GMT': ('GMT',da.GMT.data),
+                # 'GMT': ('GMT',da.GMT.data),
                 'time': ('time',da.time.data),
             },
         )        
@@ -282,7 +282,7 @@ def calc_unprec_exposure(
             coords={
                 'runs': ('runs',ds_exposure_cohort.runs.data),
                 'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
-                'GMT': ('GMT',ds_exposure_cohort.GMT.data),
+                # 'GMT': ('GMT',ds_exposure_cohort.GMT.data),
             }
         )
     
@@ -440,6 +440,100 @@ def all_emergence(
         year_ref,
         traject,
     )
+    
+    # pickle pop frac
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flag,traject), 'wb') as f:
+        pk.dump(ds_pop_frac,f)
+        
+    # pickle age emergence
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flag,traject), 'wb') as f:
+        pk.dump(da_age_emergence,f)        
+
+    return da_age_emergence, ds_pop_frac
+
+#%% ----------------------------------------------------------------
+def strj_emergence(
+    da_exposure_peryear_perage_percountry,
+    da_exposure_cohort,
+    df_life_expectancy_5,
+    year_start,
+    year_end,
+    year_ref,
+    ds_exposure_pic,
+    d_all_cohorts,
+    year_range,
+    df_countries,
+    flag,
+    traject,
+):
+    start_time = time.time()
+    exposure_ages = []
+    pop_fracs = []
+    
+    for step in da_exposure_peryear_perage_percountry.GMT.values:
+    
+        # align age + time selections of annual mean exposure along birthyears + time per country, birth cohort, run to act as mask for birthyears when pic threshold is passed
+        da_exposure_aligned = calc_birthyear_align(
+            da_exposure_peryear_perage_percountry.sel(GMT=step),
+            df_life_expectancy_5,
+            year_start,
+            year_end,
+            year_ref,
+        )
+        
+        # dataset of birthyear aligned exposure, add cumulative exposure 
+        ds_exposure_aligned = ds_exposure_align(
+            da_exposure_aligned,
+            traject,
+        )
+        
+        # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
+        da_exposure_mask,da_age_emergence = exposure_pic_masking(
+            ds_exposure_aligned,
+            ds_exposure_pic,
+        )
+        
+        # aligned cohort exposure age+time selections
+        da_exposure_cohort_aligned = calc_birthyear_align(
+            da_exposure_cohort.sel(GMT=step),
+            df_life_expectancy_5,
+            year_start,
+            year_end,
+            year_ref,
+        )
+        
+        # convert aligned cohort exposure to dataset
+        ds_exposure_cohort_aligned = ds_exposure_align(
+            da_exposure_cohort_aligned,
+            traject,
+        )
+        
+        # population experiencing normal vs unprecedented exposure
+        ds_pop_frac = calc_unprec_exposure(
+            ds_exposure_cohort_aligned,
+            da_exposure_mask,
+            d_all_cohorts,
+            year_range,
+            df_countries,
+            df_life_expectancy_5,
+            year_start,
+            year_end,
+            year_ref,
+            traject,
+        )
+        
+        
+        exposure_ages.append(da_age_emergence)
+        pop_fracs.append(ds_pop_frac)
+        
+    # testing concat on datasets while loop is small (3)
+    ds_pop_frac = xr.concat(pop_fracs,dim='GMT').assign_coords({'GMT':da_exposure_peryear_perage_percountry.GMT.values})
+    da_age_emergence = xr.concat(exposure_ages,dim='GMT').assign_coords({'GMT':da_exposure_peryear_perage_percountry.GMT.values})
+    
+    print("--- {} minutes ---".format(
+        np.floor((time.time() - start_time) / 60),
+        )
+          )        
     
     # pickle pop frac
     with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flag,traject), 'wb') as f:
@@ -1284,6 +1378,146 @@ def plot_pop_frac_birth_year(
     )            
             
     f.savefig('./figures/pop_frac_birthyear.png',dpi=300)
+
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_pop_frac_birth_year_strj(
+    ds_pop_frac_strj,
+    da_age_emergence_strj,
+    df_GMT_strj,
+    year_range,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=9
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.1 # bbox for legend
+    y0 = 0.5
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 0.85
+    xmax = 3.5
+
+    ax1_ylab = 'Fraction unprecedented'
+    ax2_ylab = 'Age emergence'
+    ax2_xlab = 'GMT at 2100'
+
+    f,(ax1,ax2) = plt.subplots(
+        nrows=2,
+        ncols=1,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of total pop, ax1 for mean +/- std
+
+    # NDC
+    for by in np.arange(1960,2021,10):
+        
+        ax1.plot(
+            df_GMT_strj.loc[2100,:].values,
+            ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values,
+            lw=lw_mean,
+            color=col_NDC,
+            # label='Population unprecedented',
+            zorder=1,
+        )
+        ax1.annotate(
+            text=str(by), 
+            xy=(df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1]),
+            xytext=((df_GMT_strj.loc[2100,:].values[-1]+0.1, ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1]+0.1)),
+            color='k',
+            fontsize=impactyr_font,
+            # zorder=5
+        )
+        
+        ax2.plot(
+            df_GMT_strj.loc[2100,:].values,
+            da_age_emergence_strj.mean(dim=('country','runs')).values,
+            lw=lw_mean,
+            color=col_NDC,
+            zorder=1,
+        )
+        
+        ax1.annotate(
+            text=str(by), 
+            xy=(df_GMT_strj.loc[2100,:].values[-1], da_age_emergence_strj.mean(dim=('country','runs')).values[-1]),
+            xytext=((df_GMT_strj.loc[2100,:].values[-1]+0.1, da_age_emergence_strj.mean(dim=('country','runs')).values[-1]+0.1)),
+            color='k',
+            fontsize=impactyr_font,
+            # zorder=5
+        )        
+
+    ax1.set_ylabel(
+        ax1_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+    ax2.set_ylabel(
+        ax2_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+    ax2.set_xlabel(
+        ax2_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+
+    for i,ax in enumerate([ax1,ax2]):
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        # ax.xaxis.set_ticks(xticks_ts)
+        # ax.xaxis.set_ticklabels(xtick_labels_ts)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        if i < 1:
+            ax.tick_params(labelbottom=False)  
+            
+    f.savefig('./figures/pop_frac_birthyear_strj.png',dpi=300)
+
 
 #%% ----------------------------------------------------------------
 # plotting pop frac
