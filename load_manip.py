@@ -187,7 +187,7 @@ def load_GMT(
         index=year_range,
     )
 
-    return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj
+    return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC
 
 #%% ----------------------------------------------------------------
 # Load SSP population totals

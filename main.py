@@ -30,7 +30,7 @@
 
 #               
 #%%  ----------------------------------------------------------------
-# IMPORT AND PATH 
+# import and path
 # ----------------------------------------------------------------
 
 import xarray as xr
@@ -46,7 +46,7 @@ scriptsdir = os.getcwd()
 
 
 #%% ----------------------------------------------------------------
-# FLAGS
+# flags
 # ----------------------------------------------------------------
 
 # extreme event
@@ -90,7 +90,7 @@ init()
 set_extremes(flags)
 
 #%% ----------------------------------------------------------------
-# LOAD AND MANIPULATE DATA
+# load and manipulate demographic, GMT and ISIMIP data
 # ----------------------------------------------------------------
 
 # TODO: when regions added, make this one function returning dict! 
@@ -100,7 +100,7 @@ from load_manip import *
 # Load global mean temperature projections
 global df_GMT_15, df_GMT_20, df_GMT_NDC
 
-df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj = load_GMT(
+df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC = load_GMT(
     year_start,
     year_end,
 )
@@ -226,7 +226,7 @@ else: # load processed country data
     d_cohort_weights_regions = d_regions['cohort_size']
  
 # --------------------------------------------------------------------
-# Load ISIMIP model data
+# load ISIMIP model data
 global grid_area
 grid_area = xr.open_dataarray('./data/isimip/clm45_area.nc4')
 
@@ -241,7 +241,7 @@ d_isimip_meta,d_pic_meta = load_isimip(
 )
 
 #%% ----------------------------------------------------------------
-# COMPUTE EXPOSURE PER LIFETIME
+# compute exposure per lifetime
 # ------------------------------------------------------------------
 
 from exposure import *
@@ -445,7 +445,7 @@ ds_exposure = xr.merge([
 ])
 
 #%% ----------------------------------------------------------------
-# COMPUTE EMERGENCE PER LIFETIME
+# compute lifetime emergence
 # ------------------------------------------------------------------
 
 from emergence import *
@@ -454,6 +454,32 @@ from emergence import *
 # process emergence of cumulative exposures, mask cohort exposures for time steps of emergence
 
 if flags['emergence']:
+    
+    # cohort conversion to data array (again)
+    da_cohort_size = xr.DataArray(
+        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
+        coords={
+            'country': ('country', list(df_countries['name'])),
+            'time': ('time', year_range),
+            'ages': ('ages', np.arange(104,-1,-1)),
+        },
+        dims=[
+            'country',
+            'time',
+            'ages',
+        ]
+    )
+    
+    # need new cohort dataset that has total population per birth year (using life expectancy info; each country has a different end point)
+    da_cohort_aligned = calc_birthyear_align(
+        da_cohort_size,
+        df_life_expectancy_5,
+        year_start,
+        year_end,
+        year_ref,
+    )
+    
+    ds_cohorts = ds_cohort_align(da_cohort_aligned)      
 
     da_age_emergence_RCP, ds_pop_frac_RCP = all_emergence(
         da_exposure_peryear_perage_percountry_RCP,
@@ -463,7 +489,7 @@ if flags['emergence']:
         year_end,
         year_ref,
         ds_exposure_pic,
-        d_all_cohorts,
+        ds_cohorts,
         year_range,
         df_countries,
         flags['extr'],
@@ -478,7 +504,7 @@ if flags['emergence']:
         year_end,
         year_ref,
         ds_exposure_pic,
-        d_all_cohorts,
+        ds_cohorts,
         year_range,
         df_countries,
         flags['extr'],
@@ -493,7 +519,7 @@ if flags['emergence']:
         year_end,
         year_ref,
         ds_exposure_pic,
-        d_all_cohorts,
+        ds_cohorts,
         year_range,
         df_countries,
         flags['extr'],
@@ -508,7 +534,7 @@ if flags['emergence']:
         year_end,
         year_ref,
         ds_exposure_pic,
-        d_all_cohorts,
+        ds_cohorts,
         year_range,
         df_countries,
         flags['extr'],
@@ -523,7 +549,7 @@ if flags['emergence']:
         year_end,
         year_ref,
         ds_exposure_pic,
-        d_all_cohorts,
+        ds_cohorts,
         year_range,
         df_countries,
         flags['extr'],
@@ -540,7 +566,9 @@ else: # load pickles
     with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'20'), 'rb') as f:
         ds_pop_frac_20 = pk.load(f)
     with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
-        ds_pop_frac_NDC = pk.load(f)          
+        ds_pop_frac_NDC = pk.load(f)    
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'strj'), 'rb') as f:
+        ds_pop_frac_strj = pk.load(f)                
     
     # age emergence
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
@@ -550,7 +578,15 @@ else: # load pickles
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'20'), 'rb') as f:
         da_age_emergence_20 = pk.load(f)
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
-        da_age_emergence_NDC = pk.load(f)                        
+        da_age_emergence_NDC = pk.load(f)                    
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'strj'), 'rb') as f:
+        da_age_emergence_strj = pk.load(f)         
+        
+#%% ----------------------------------------------------------------
+# plot emergence stuff
+# ------------------------------------------------------------------
+
+from plot import *               
         
 # plot pop frac
 plot_pop_frac_birth_year(
@@ -560,18 +596,33 @@ plot_pop_frac_birth_year(
     year_range,
 )
 
-# plot pop frac across stylized trajectories
+# plot pop frac
 plot_pop_frac_birth_year_strj(
     ds_pop_frac_strj,
     df_GMT_strj,
     year_range,
 )
 
-# plot age of emergence
+# plot pop frac across GMT for stylized trajectories
+plot_pop_frac_birth_year_GMT_strj(
+    ds_pop_frac_strj,
+    da_age_emergence_strj,
+    df_GMT_strj,
+    year_range,
+)
+
+# plot age of emergence global means vs birth year
 plot_age_emergence(
     da_age_emergence_NDC,
     da_age_emergence_15,
     da_age_emergence_20,
+    year_range,
+)
+
+# plot age of emergence global means of stylized trajectories vs birth year
+plot_age_emergence_strj(
+    da_age_emergence_strj,
+    df_GMT_strj,
     year_range,
 )
 
@@ -591,7 +642,31 @@ gdf_exposure_emergence_birth_year = calc_exposure_emergence(
     gdf_country_borders,
 )
 
-# plot birth year emergence
+# country-scale spatial plot of birth and year emergence
 emergence_plot(
     gdf_exposure_emergence_birth_year,
 )
+
+# plot stylized trajectories (GMT only)
+plot_stylized_trajectories(
+    df_GMT_strj,
+    d_isimip_meta,
+    year_range,
+)
+
+# plot pop frac across GMT for stylized trajectories; add points for 1.5, 2.0 and NDC from original analysis as test
+plot_pop_frac_birth_year_GMT_strj_points(
+    ds_pop_frac_strj,
+    da_age_emergence_strj,
+    df_GMT_strj,
+    ds_age_emergence,
+    ds_pop_frac_15,
+    ds_pop_frac_20,
+    ds_pop_frac_NDC,
+    ind_15,
+    ind_20,
+    ind_NDC,
+    year_range,
+)
+
+# %%
