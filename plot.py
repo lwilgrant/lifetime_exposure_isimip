@@ -1060,8 +1060,9 @@ def plot_pop_frac_birth_year_strj(
 # plotting pop frac
 def plot_pop_frac_birth_year_GMT_strj(
     ds_pop_frac_strj,
-    da_age_emergence_strj,
+    ds_age_emergence_strj,
     df_GMT_strj,
+    ds_cohorts,
     year_range,
 ):
     
@@ -1141,7 +1142,10 @@ def plot_pop_frac_birth_year_GMT_strj(
         
         ax2.plot(
             df_GMT_strj.loc[2100,:].values,
-            da_age_emergence_strj.sel(birth_year=by).mean(dim=('country','runs')).values,
+            ds_age_emergence_strj['age_emergence'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        mean(dim=('country','runs')).values,
             lw=lw_mean,
             color=col_NDC,
             zorder=1,
@@ -1149,8 +1153,14 @@ def plot_pop_frac_birth_year_GMT_strj(
         
         ax2.annotate(
             text=str(by), 
-            xy=(df_GMT_strj.loc[2100,:].values[-1], da_age_emergence_strj.sel(birth_year=by).mean(dim=('country','runs')).values[-1]),
-            xytext=((df_GMT_strj.loc[2100,:].values[-1], da_age_emergence_strj.sel(birth_year=by).mean(dim=('country','runs')).values[-1])),
+            xy=(df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        mean(dim=('country','runs')).values[-1]),
+            xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        mean(dim=('country','runs')).values[-1])),
             color='k',
             fontsize=impactyr_font,
             # zorder=5
@@ -1199,13 +1209,13 @@ def plot_pop_frac_birth_year_GMT_strj(
 # plotting pop frac
 def plot_pop_frac_birth_year_GMT_strj_points(
     ds_pop_frac_strj,
-    da_age_emergence_strj,
+    ds_age_emergence_strj,
     df_GMT_strj,
+    ds_cohorts,
     ds_age_emergence,
     ds_pop_frac_15,
     ds_pop_frac_20,
     ds_pop_frac_NDC,
-    ds_cohorts,
     ind_15,
     ind_20,
     ind_NDC,    
@@ -1266,9 +1276,6 @@ def plot_pop_frac_birth_year_GMT_strj_points(
         ncols=1,
         figsize=(x,y),
     )
-    
-    test = ds_pop_frac_strj['unprec'].where(ds_pop_frac_strj['unprec']!=0).mean(dim='runs')
-    test = test / ds_cohorts['population'].sum(dim=['country'])
 
     # --------------------------------------------------------------------
     # plot unprecedented frac of total pop, ax1 for mean +/- std
@@ -1279,23 +1286,18 @@ def plot_pop_frac_birth_year_GMT_strj_points(
         ax1.plot(
             df_GMT_strj.loc[2100,:].values,
             ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values,
-            # test.sel(birth_year=by).values,
             lw=lw_mean,
             color=col_NDC,
-            # label='Population unprecedented',
             zorder=1,
         )
         ax1.annotate(
             text=str(by), 
             xy=(df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1]),
-            xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1])),
-            # xy=(df_GMT_strj.loc[2100,:].values[-1], test.sel(birth_year=by).values[-1]),
-            # xytext=((df_GMT_strj.loc[2100,:].values[-1], test.sel(birth_year=by).values[-1])),            
+            xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1])),          
             color='k',
             fontsize=impactyr_font,
             # zorder=5
         )
-        # ax5.plot(it_iy['rcp60_x2030'], it_iy['rcp60_y2030'], color=col_rcp60mean,zorder=4,marker=markerstyle,markersize=markersize)
         i = 0
         for ds,col in zip([ds_pop_frac_15,ds_pop_frac_20,ds_pop_frac_NDC],[col_15,col_20,col_NDC]):
             ax1.plot(
@@ -1309,7 +1311,10 @@ def plot_pop_frac_birth_year_GMT_strj_points(
         
         ax2.plot(
             df_GMT_strj.loc[2100,:].values,
-            da_age_emergence_strj.sel(birth_year=by).mean(dim=('country','runs')).values,
+            ds_age_emergence_strj['age_emergence'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        mean(dim=('country','runs')).values,
             lw=lw_mean,
             color=col_NDC,
             zorder=1,
@@ -1317,18 +1322,25 @@ def plot_pop_frac_birth_year_GMT_strj_points(
         
         ax2.annotate(
             text=str(by), 
-            xy=(df_GMT_strj.loc[2100,:].values[-1], da_age_emergence_strj.sel(birth_year=by).mean(dim=('country','runs')).values[-1]),
-            xytext=((df_GMT_strj.loc[2100,:].values[-1], da_age_emergence_strj.sel(birth_year=by).mean(dim=('country','runs')).values[-1])),
+            xy=(df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        mean(dim=('country','runs')).values[-1]),
+            xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].sel(birth_year=by).\
+                weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                    mean(dim=('country','runs')).values[-1])),
             color='k',
             fontsize=impactyr_font,
-            # zorder=5
         )
         
         i = 0
         for scen,col in zip(['15','20','NDC'],[col_15,col_20,col_NDC]):
             ax2.plot(
                 df_GMT_strj.loc[2100,gmt_indices[i]],
-                ds_age_emergence['age_{}'.format(scen)].sel(birth_year=by).mean(dim=('country','runs')),
+                ds_age_emergence['age_emergence_{}'.format(scen)].\
+                    sel(birth_year=by).\
+                        weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                            mean(dim=('country','runs')),
                 color=col,
                 marker=markerstyle,
                 markersize=markersize,
@@ -1371,6 +1383,31 @@ def plot_pop_frac_birth_year_GMT_strj_points(
         ax.set_axisbelow(True) 
         if i < 1:
             ax.tick_params(labelbottom=False)  
+            
+    # legend
+    handles = [Line2D([0],[0],marker='o',color='w',markerfacecolor=col_NDC),\
+               Line2D([0],[0],marker='o',color='w',markerfacecolor=col_20),\
+               Line2D([0],[0],marker='o',color='w',markerfacecolor=col_15)]
+    labels= [
+        'NDC',
+        '2.0 °C',
+        '1.5 °C',
+    ]   
+        
+    ax1.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )               
             
     f.savefig('./figures/pop_frac_birthyear_GMT_strj_points.png',dpi=300)
 
@@ -2088,6 +2125,7 @@ def plot_stylized_trajectories(
 def plot_age_emergence_strj(
     da_age_emergence_strj,
     df_GMT_strj,
+    ds_cohorts,
     year_range,
 ):
     
@@ -2155,7 +2193,10 @@ def plot_age_emergence_strj(
         
         ax1.plot(
             time,
-            da_age_emergence_strj.sel(GMT=step,birth_year=time).mean(dim=('country','runs')).values,
+            da_age_emergence_strj['age_emergence'].\
+                sel(GMT=step,birth_year=time).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=time)).\
+                        mean(dim=('country','runs')).values,
             lw=lw_mean,
             color=colors[floater(df_GMT_strj.loc[2100,step])],
             # label='Population unprecedented',
@@ -2163,7 +2204,10 @@ def plot_age_emergence_strj(
         )
         ax1.annotate(
             text=str(round(df_GMT_strj.loc[2100,step],2)), 
-            xy=(time[-1], da_age_emergence_strj.sel(GMT=step,birth_year=time).mean(dim=('country','runs')).values[-1]),
+            xy=(time[-1], da_age_emergence_strj['age_emergence'].\
+                sel(GMT=step,birth_year=time).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=time)).\
+                        mean(dim=('country','runs')).values[-1]),
             # xytext=((time, ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1])),
             color='k',
             fontsize=impactyr_font,
@@ -2192,20 +2236,14 @@ def plot_age_emergence_strj(
         
             ax2.plot(
                 time,
-                da_age_emergence_strj.sel(runs=run,GMT=step,birth_year=time).mean(dim=('country')).values,
+                da_age_emergence_strj['age_emergence'].\
+                    sel(runs=run,GMT=step,birth_year=time).\
+                        weighted(ds_cohorts['weights'].sel(birth_year=time)).\
+                            mean(dim=('country')).values,
                 lw=lw_mean,
                 color=colors[floater(df_GMT_strj.loc[2100,step])],
-                # label='Population unprecedented',
                 zorder=1,
-            )
-            # ax2.annotate(
-            #     text=str(round(df_GMT_strj.loc[2100,step],2)), 
-            #     xy=(time[-1], ds_pop_frac_strj['frac_all_unprec'].sel(runs=run,GMT=step,birth_year=time).values[-1]),
-            #     # xytext=((time, ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1])),
-            #     color='k',
-            #     fontsize=impactyr_font,
-            #     # zorder=5
-            # )            
+            )      
 
     ax2.set_ylabel(
         ax2_ylab, 
