@@ -234,6 +234,8 @@ def ds_cohort_align(
             'birth_year': ('birth_year',da.birth_year.data),
         },
     )
+    
+    ds_cohort_sizes['weights'] = (ds_cohort_sizes['population'] / ds_cohort_sizes['population'].sum(dim='country')) # add cohort weights to dataset    
      
     return ds_cohort_sizes
 
@@ -249,12 +251,25 @@ def exposure_pic_masking(
     da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
     da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
     
+    # convert da_age_emergence to dataset and add variable for cohort weighted age emergence
+    ds_age_emergence = xr.Dataset(
+        data_vars={
+            'age_emergence': (da_age_emergence.dims,da_age_emergence.data),
+        },
+        coords={
+            'country': ('country',da_age_emergence.country.data),
+            'birth_year': ('birth_year',da_age_emergence.birth_year.data),
+            'runs': ('runs',da_age_emergence.runs.data),
+        },
+    )
+    # ds_age_emergence['age_emergence_weighted'] = da_age_emergence.weighted(ds_cohorts['weights'])
+    
     # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
     da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
     da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure']>0,1,0).where(da_birthyear_exposure_mask==1) # 
     da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0)
     
-    return da_exposure_mask,da_age_emergence
+    return da_exposure_mask,ds_age_emergence
 
 #%% ----------------------------------------------------------------
 # function to find number of people with unprecedented exposure 
@@ -263,12 +278,6 @@ def calc_unprec_exposure(
     ds_exposure_cohort,
     da_exposure_mask,
     ds_cohorts,
-    year_range,
-    df_countries,
-    df_life_expectancy,
-    year_start,
-    year_end,
-    year_ref,
     traject,
 ):
 
@@ -301,6 +310,8 @@ def calc_unprec_exposure(
     # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
     unprec = ds_exposure_cohort['exposure'].where(da_exposure_mask == 1)
     unprec = unprec.sum(dim=['time','country'])
+    
+    # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
     if traject == 'strj':
         unprec = unprec.where(unprec!= 0)
     
@@ -368,8 +379,6 @@ def all_emergence(
     year_ref,
     ds_exposure_pic,
     ds_cohorts,
-    year_range,
-    df_countries,
     flag,
     traject,
 ):
@@ -391,7 +400,7 @@ def all_emergence(
     )    
     
     # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
-    da_exposure_mask,da_age_emergence = exposure_pic_masking(
+    da_exposure_mask,ds_age_emergence = exposure_pic_masking(
         ds_exposure_aligned,
         ds_exposure_pic,
     )
@@ -416,12 +425,6 @@ def all_emergence(
         ds_exposure_cohort_aligned,
         da_exposure_mask,
         ds_cohorts,
-        year_range,
-        df_countries,
-        df_life_expectancy_5,
-        year_start,
-        year_end,
-        year_ref,
         traject,
     )
     
@@ -436,9 +439,9 @@ def all_emergence(
         
     # pickle age emergence
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flag,traject), 'wb') as f:
-        pk.dump(da_age_emergence,f)        
+        pk.dump(ds_age_emergence,f)        
 
-    return da_age_emergence, ds_pop_frac
+    return ds_age_emergence, ds_pop_frac
 
 #%% ----------------------------------------------------------------
 def strj_emergence(
@@ -450,8 +453,6 @@ def strj_emergence(
     year_ref,
     ds_exposure_pic,
     ds_cohorts,
-    year_range,
-    df_countries,
     flag,
     traject,
 ):
@@ -479,7 +480,7 @@ def strj_emergence(
         )
         
         # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
-        da_exposure_mask,da_age_emergence = exposure_pic_masking(
+        da_exposure_mask,ds_age_emergence = exposure_pic_masking(
             ds_exposure_aligned,
             ds_exposure_pic,
         )
@@ -504,22 +505,15 @@ def strj_emergence(
             ds_exposure_cohort_aligned,
             da_exposure_mask,
             ds_cohorts,
-            year_range,
-            df_countries,
-            df_life_expectancy_5,
-            year_start,
-            year_end,
-            year_ref,
             traject,
         )
         
-        
-        exposure_ages.append(da_age_emergence)
+        exposure_ages.append(ds_age_emergence)
         pop_fracs.append(ds_pop_frac)
         
     # testing concat on datasets while loop is small (3)
     ds_pop_frac = xr.concat(pop_fracs,dim='GMT').assign_coords({'GMT':da_exposure_peryear_perage_percountry.GMT.values})
-    da_age_emergence = xr.concat(exposure_ages,dim='GMT').assign_coords({'GMT':da_exposure_peryear_perage_percountry.GMT.values})
+    ds_age_emergence = xr.concat(exposure_ages,dim='GMT').assign_coords({'GMT':da_exposure_peryear_perage_percountry.GMT.values})
     
     print("--- {} minutes ---".format(
         np.floor((time.time() - start_time) / 60),
@@ -532,7 +526,7 @@ def strj_emergence(
         
     # pickle age emergence
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flag,traject), 'wb') as f:
-        pk.dump(da_age_emergence,f)        
+        pk.dump(ds_age_emergence,f)        
 
-    return da_age_emergence, ds_pop_frac
+    return ds_age_emergence, ds_pop_frac
 

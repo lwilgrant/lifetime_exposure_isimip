@@ -78,7 +78,7 @@ flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort em
 
 
 #%% ----------------------------------------------------------------
-# INITIALISE
+# initialize
 # ----------------------------------------------------------------
 from settings import *
 
@@ -479,9 +479,14 @@ if flags['emergence']:
         year_ref,
     )
     
-    ds_cohorts = ds_cohort_align(da_cohort_aligned)      
+    # convert to dataset and add weights
+    ds_cohorts = ds_cohort_align(da_cohort_aligned)
+    
+    # pickle birth year aligned cohort sizes
+    with open('./data/pickles/cohort_per_birthyear.pkl', 'wb') as f:
+        pk.dump(ds_cohorts,f)    
 
-    da_age_emergence_RCP, ds_pop_frac_RCP = all_emergence(
+    ds_age_emergence_RCP, ds_pop_frac_RCP = all_emergence(
         da_exposure_peryear_perage_percountry_RCP,
         da_exposure_cohort_RCP,
         df_life_expectancy_5,
@@ -490,13 +495,11 @@ if flags['emergence']:
         year_ref,
         ds_exposure_pic,
         ds_cohorts,
-        year_range,
-        df_countries,
         flags['extr'],
         'RCP',
     )
 
-    da_age_emergence_15, ds_pop_frac_15 = all_emergence(
+    ds_age_emergence_15, ds_pop_frac_15 = all_emergence(
         da_exposure_peryear_perage_percountry_15,
         da_exposure_cohort_15,
         df_life_expectancy_5,
@@ -505,13 +508,11 @@ if flags['emergence']:
         year_ref,
         ds_exposure_pic,
         ds_cohorts,
-        year_range,
-        df_countries,
         flags['extr'],
         '15',
     )
 
-    da_age_emergence_20, ds_pop_frac_20 = all_emergence(
+    ds_age_emergence_20, ds_pop_frac_20 = all_emergence(
         da_exposure_peryear_perage_percountry_20,
         da_exposure_cohort_20,
         df_life_expectancy_5,
@@ -520,13 +521,11 @@ if flags['emergence']:
         year_ref,
         ds_exposure_pic,
         ds_cohorts,
-        year_range,
-        df_countries,
         flags['extr'],
         '20',
     )
 
-    da_age_emergence_NDC, ds_pop_frac_NDC = all_emergence(
+    ds_age_emergence_NDC, ds_pop_frac_NDC = all_emergence(
         da_exposure_peryear_perage_percountry_NDC,
         da_exposure_cohort_NDC,
         df_life_expectancy_5,
@@ -535,13 +534,11 @@ if flags['emergence']:
         year_ref,
         ds_exposure_pic,
         ds_cohorts,
-        year_range,
-        df_countries,
         flags['extr'],
         'NDC',
     )
     
-    da_age_emergence_strj, ds_pop_frac_strj = strj_emergence(
+    ds_age_emergence_strj, ds_pop_frac_strj = strj_emergence(
         da_exposure_peryear_perage_percountry_strj,
         da_exposure_cohort_strj,
         df_life_expectancy_5,
@@ -550,13 +547,15 @@ if flags['emergence']:
         year_ref,
         ds_exposure_pic,
         ds_cohorts,
-        year_range,
-        df_countries,
         flags['extr'],
         'strj',
     )
         
 else: # load pickles
+    
+    # birth year aligned population
+    with open('./data/pickles/cohort_per_birthyear.pkl', 'rb') as f:
+        ds_cohorts = pk.load(f)
     
     # pop frac
     with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
@@ -572,21 +571,29 @@ else: # load pickles
     
     # age emergence
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
-        da_age_emergence_RCP = pk.load(f)
+        ds_age_emergence_RCP = pk.load(f)
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'15'), 'rb') as f:
-        da_age_emergence_15 = pk.load(f)
+        ds_age_emergence_15 = pk.load(f)
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'20'), 'rb') as f:
-        da_age_emergence_20 = pk.load(f)
+        ds_age_emergence_20 = pk.load(f)
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
-        da_age_emergence_NDC = pk.load(f)                    
+        ds_age_emergence_NDC = pk.load(f)                    
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'strj'), 'rb') as f:
-        da_age_emergence_strj = pk.load(f)         
+        ds_age_emergence_strj = pk.load(f)         
         
 #%% ----------------------------------------------------------------
 # plot emergence stuff
 # ------------------------------------------------------------------
 
-from plot import *               
+from plot import *   
+
+# collect all data arrays for age of emergence into dataset for finding age per birth year
+ds_age_emergence = xr.merge([
+    ds_age_emergence_RCP.rename({'age_emergence':'age_emergence_RCP'}).drop('age_emergence_weighted'),
+    ds_age_emergence_15.rename({'age_emergence':'age_emergence_15'}).drop('age_emergence_weighted'),
+    ds_age_emergence_20.rename({'age_emergence':'age_emergence_20'}).drop('age_emergence_weighted'),
+    ds_age_emergence_NDC.rename({'age_emergence':'age_emergence_NDC'}).drop('age_emergence_weighted'),
+])
         
 # plot pop frac
 plot_pop_frac_birth_year(
@@ -603,36 +610,30 @@ plot_pop_frac_birth_year_strj(
     year_range,
 )
 
-# plot pop frac across GMT for stylized trajectories
+# plot pop frac and age emergence across GMT for stylized trajectories
 plot_pop_frac_birth_year_GMT_strj(
     ds_pop_frac_strj,
-    da_age_emergence_strj,
+    ds_age_emergence_strj,
     df_GMT_strj,
+    ds_cohorts,
     year_range,
 )
 
 # plot age of emergence global means vs birth year
 plot_age_emergence(
-    da_age_emergence_NDC,
-    da_age_emergence_15,
-    da_age_emergence_20,
+    ds_age_emergence_NDC,
+    ds_age_emergence_15,
+    ds_age_emergence_20,
     year_range,
 )
 
 # plot age of emergence global means of stylized trajectories vs birth year
 plot_age_emergence_strj(
-    da_age_emergence_strj,
+    ds_age_emergence_strj,
     df_GMT_strj,
+    ds_cohorts,
     year_range,
 )
-
-# collect all data arrays for age of emergence into dataset for finding age per birth year
-ds_age_emergence = xr.merge([
-    da_age_emergence_RCP.to_dataset(name='age_RCP'),
-    da_age_emergence_15.to_dataset(name='age_15'),
-    da_age_emergence_20.to_dataset(name='age_20'),
-    da_age_emergence_NDC.to_dataset(name='age_NDC'),
-])
 
 # calculate birth year emergence in simple approach
 gdf_exposure_emergence_birth_year = calc_exposure_emergence(
@@ -657,8 +658,9 @@ plot_stylized_trajectories(
 # plot pop frac across GMT for stylized trajectories; add points for 1.5, 2.0 and NDC from original analysis as test
 plot_pop_frac_birth_year_GMT_strj_points(
     ds_pop_frac_strj,
-    da_age_emergence_strj,
+    ds_age_emergence_strj,
     df_GMT_strj,
+    ds_cohorts,
     ds_age_emergence,
     ds_pop_frac_15,
     ds_pop_frac_20,

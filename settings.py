@@ -9,7 +9,7 @@ import numpy as np
 def init(): 
 
     # initialise age and associated time period of interest
-    global ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range
+    global ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc
     ages        = np.arange(60,-1,-1)
     age_young   = 0
     age_ref     = np.nanmax(ages)
@@ -74,17 +74,19 @@ def init():
             'WaterGAP2'],
         'floodedarea' : ['CLM45'],#testing , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
         'heatwavedarea' : [
-            'HWMId-humidex', 
-            'HWMId99-humidex40', 
-            'HWMId97p5-humidex40', 
-            'HWMId99-tasmax35', 
-            'HWMId97p5-tasmax35', 
-            'HWMId99', 'HWMId97p5', 
-            'humidex40d3', 
-            'humidex40d5', 
-            'humidex45d3', 
-            'humidex45d5', 
-            'CWMId99'],
+            'HWMId99'],        
+        # 'heatwavedarea' : [
+        #     'HWMId-humidex', 
+        #     'HWMId99-humidex40', 
+        #     'HWMId97p5-humidex40', 
+        #     'HWMId99-tasmax35', 
+        #     'HWMId97p5-tasmax35', 
+        #     'HWMId99', 'HWMId97p5', 
+        #     'humidex40d3', 
+        #     'humidex40d5', 
+        #     'humidex45d3', 
+        #     'humidex45d5', 
+        #     'CWMId99'],
         'tropicalcyclonedarea' : ['KE-TG-meanfield']
     }
 
@@ -97,7 +99,10 @@ def init():
     # take 0.2 to have more data in BE scenarios and hence smooth EMF curves in BE plot
     global RCP2GMT_maxdiff_threshold
     RCP2GMT_maxdiff_threshold = 0.2 # [K]
-
+    
+    # set GMT info for stylized trajectories
+    GMT_max = 3.5
+    GMT_inc = 0.1
 
     # set kernel x-values
     global kernel_x
