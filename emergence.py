@@ -183,38 +183,38 @@ def ds_exposure_align(
     traject,
 ):
 
-    if traject != 'strj':
+    # if traject != 'strj':
         
-        da_cumsum = da.cumsum(dim='time').where(da>0)
-        ds_exposure_cohort = xr.Dataset(
-            data_vars={
-                'exposure': (da.dims,da.data),
-                'exposure_cumulative': (da_cumsum.dims,da_cumsum.data)
-            },
-            coords={
-                'country': ('country',da.country.data),
-                'birth_year': ('birth_year',da.birth_year.data),
-                'runs': ('runs',da.runs.data),
-                'time': ('time',da.time.data),
-            },
-        )
+    da_cumsum = da.cumsum(dim='time').where(da>0)
+    ds_exposure_cohort = xr.Dataset(
+        data_vars={
+            'exposure': (da.dims,da.data),
+            'exposure_cumulative': (da_cumsum.dims,da_cumsum.data)
+        },
+        coords={
+            'country': ('country',da.country.data),
+            'birth_year': ('birth_year',da.birth_year.data),
+            'runs': ('runs',da.runs.data),
+            'time': ('time',da.time.data),
+        },
+    )
         
-    else:
+    # else:
         
-        da_cumsum = da.cumsum(dim='time').where(da>0)
-        ds_exposure_cohort = xr.Dataset(
-            data_vars={
-                'exposure': (da.dims,da.data),
-                'exposure_cumulative': (da_cumsum.dims,da_cumsum.data)
-            },
-            coords={
-                'country': ('country',da.country.data),
-                'birth_year': ('birth_year',da.birth_year.data),
-                'runs': ('runs',da.runs.data),
-                # 'GMT': ('GMT',da.GMT.data),
-                'time': ('time',da.time.data),
-            },
-        )        
+    #     da_cumsum = da.cumsum(dim='time').where(da>0)
+    #     ds_exposure_cohort = xr.Dataset(
+    #         data_vars={
+    #             'exposure': (da.dims,da.data),
+    #             'exposure_cumulative': (da_cumsum.dims,da_cumsum.data)
+    #         },
+    #         coords={
+    #             'country': ('country',da.country.data),
+    #             'birth_year': ('birth_year',da.birth_year.data),
+    #             'runs': ('runs',da.runs.data),
+    #             # 'GMT': ('GMT',da.GMT.data),
+    #             'time': ('time',da.time.data),
+    #         },
+    #     )        
      
     return ds_exposure_cohort
 
@@ -266,8 +266,8 @@ def exposure_pic_masking(
     
     # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
     da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
-    da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure']>0,1,0).where(da_birthyear_exposure_mask==1) # 
-    da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0)
+    da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure'].notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s where lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
+    da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0) # turn missing values to 0
     
     return da_exposure_mask,ds_age_emergence
 
@@ -282,52 +282,66 @@ def calc_unprec_exposure(
 ):
 
     # new empty dataset with variables for population experiencing unprecedented exposure
-    if traject != 'strj':
+    # if traject != 'strj':
         
-        ds_pop_frac = xr.Dataset(
-            data_vars={
-                'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
-            },
-            coords={
-                'runs': ('runs',ds_exposure_cohort.runs.data),
-                'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
-            }
-        )
-        
-    else:
-        
-        ds_pop_frac = xr.Dataset(
-            data_vars={
-                'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
-            },
-            coords={
-                'runs': ('runs',ds_exposure_cohort.runs.data),
-                'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
-                # 'GMT': ('GMT',ds_exposure_cohort.GMT.data),
-            }
-        )
+    ds_pop_frac = xr.Dataset(
+        data_vars={
+            'unprec_exposed': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
+        },
+        coords={
+            'runs': ('runs',ds_exposure_cohort.runs.data),
+            'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
+        }
+    )
     
-    # keep only timesteps/values where cumulative exposure exceeds pic defined extreme
-    unprec = ds_exposure_cohort['exposure'].where(da_exposure_mask == 1)
-    unprec = unprec.sum(dim=['time','country'])
+    # else:
+        
+    #     ds_pop_frac = xr.Dataset(
+    #         data_vars={
+    #             'unprec': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
+    #         },
+    #         coords={
+    #             'runs': ('runs',ds_exposure_cohort.runs.data),
+    #             'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
+    #             # 'GMT': ('GMT',ds_exposure_cohort.GMT.data),
+    #         }
+    #     )
+    
+    # keep people exposed during birth year's timesteps if cumulative exposure exceeds pic defined extreme
+    unprec_exposed = ds_exposure_cohort['exposure'].where(da_exposure_mask==1)
+    unprec_exposed = unprec_exposed.sum(dim=['time','country'])
+    
+    # keep all people/members of birth year cohort if birth year's timesteps cum exposure exceeds pic extreme
+    da_birthyear_exposure_mask = xr.where(da_exposure_mask.sum(dim='time')>0,1,0)
+    unprec_all = ds_cohorts['population'].where(da_birthyear_exposure_mask==1)
+    unprec_all = unprec_all.sum(dim='country')
     
     # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
     if traject == 'strj':
-        unprec = unprec.where(unprec!= 0)
+        unprec_exposed = unprec_exposed.where(unprec_exposed!=0)
+        unprec_all = unprec_all.where(unprec_all!=0)
     
-    # assign aggregated unprecedented/normal exposure to ds_pop_frac
-    ds_pop_frac['unprec'] = unprec
+    # assign aggregated unprecedented exposure to ds_pop_frac
+    ds_pop_frac['unprec_exposed'] = unprec_exposed
+    ds_pop_frac['unprec_all'] = unprec_all
     
     # stats on exposure types
-    ds_pop_frac['mean_unprec'] = ds_pop_frac['unprec'].mean(dim='runs')
-    ds_pop_frac['max_unprec'] = ds_pop_frac['unprec'].max(dim='runs')
-    ds_pop_frac['min_unprec'] = ds_pop_frac['unprec'].min(dim='runs')
-    ds_pop_frac['std_unprec'] = ds_pop_frac['unprec'].std(dim='runs')
+    ds_pop_frac['mean_unprec_exposed'] = ds_pop_frac['unprec_exposed'].mean(dim='runs')
+    ds_pop_frac['max_unprec_exposed'] = ds_pop_frac['unprec_exposed'].max(dim='runs')
+    ds_pop_frac['min_unprec_exposed'] = ds_pop_frac['unprec_exposed'].min(dim='runs')
+    ds_pop_frac['std_unprec_exposed'] = ds_pop_frac['unprec_exposed'].std(dim='runs')
+    ds_pop_frac['mean_unprec_all'] = ds_pop_frac['unprec_all'].mean(dim='runs')
+    ds_pop_frac['max_unprec_all'] = ds_pop_frac['unprec_all'].max(dim='runs')
+    ds_pop_frac['min_unprec_all'] = ds_pop_frac['unprec_all'].min(dim='runs')
+    ds_pop_frac['std_unprec_all'] = ds_pop_frac['unprec_all'].std(dim='runs')
     
     # unprecedented exposure as fraction of total population estimate
-    ds_pop_frac['frac_all_unprec'] = ds_pop_frac['unprec'] / ds_cohorts['population'].sum(dim=['country'])
-    ds_pop_frac['mean_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].mean(dim='runs')
-    ds_pop_frac['std_frac_all_unprec'] = ds_pop_frac['frac_all_unprec'].std(dim='runs')
+    ds_pop_frac['frac_unprec_exposed'] = ds_pop_frac['unprec_exposed'] / ds_cohorts['population'].sum(dim=['country'])
+    ds_pop_frac['mean_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].mean(dim='runs')
+    ds_pop_frac['std_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].std(dim='runs')
+    ds_pop_frac['frac_unprec_all'] = ds_pop_frac['unprec_all'] / ds_cohorts['population'].sum(dim=['country'])
+    ds_pop_frac['mean_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].mean(dim='runs')
+    ds_pop_frac['std_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].std(dim='runs')    
      
     return ds_pop_frac
 

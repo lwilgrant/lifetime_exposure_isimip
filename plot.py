@@ -709,178 +709,180 @@ def plot_pop_frac_birth_year(
     ax2_ylab = 'Fraction unprecedented'
     ax2_xlab = 'Birth year'
 
-    f,(ax1,ax2) = plt.subplots(
-        nrows=2,
-        ncols=1,
-        figsize=(x,y),
-    )
+    for cohort_type in ['exposed','all']:
 
-    # --------------------------------------------------------------------
-    # plot unprecedented frac of total pop, ax1 for mean +/- std
+        f,(ax1,ax2) = plt.subplots(
+            nrows=2,
+            ncols=1,
+            figsize=(x,y),
+        )
 
-    # NDC
-    ax1.plot(
-        time,
-        ds_pop_frac_NDC['mean_frac_all_unprec'].values,
-        lw=lw_mean,
-        color=col_NDC,
-        # label='Population unprecedented',
-        zorder=1,
-    )
-    ax1.fill_between(
-        time,
-        ds_pop_frac_NDC['mean_frac_all_unprec'].values + ds_pop_frac_NDC['std_frac_all_unprec'].values,
-        ds_pop_frac_NDC['mean_frac_all_unprec'].values - ds_pop_frac_NDC['std_frac_all_unprec'].values,
-        lw=lw_fill,
-        alpha=ub_alpha,
-        color=col_NDC_fill,
-        zorder=1,
-    )
+        # --------------------------------------------------------------------
+        # plot mean unprecedented frac of pop, ax1 for mean +/- std
 
-    # 2.0 degrees
-    ax1.plot(
-        time,
-        ds_pop_frac_20['mean_frac_all_unprec'].values,
-        lw=lw_mean,
-        color=col_20,
-        # label='Population unprecedented',
-        zorder=2,
-    )
-    ax1.fill_between(
-        time,
-        ds_pop_frac_20['mean_frac_all_unprec'].values + ds_pop_frac_20['std_frac_all_unprec'].values,
-        ds_pop_frac_20['mean_frac_all_unprec'].values - ds_pop_frac_20['std_frac_all_unprec'].values,
-        lw=lw_fill,
-        alpha=ub_alpha,
-        color=col_20_fill,
-        zorder=2,
-    )
-
-    # 1.5 degrees
-    ax1.plot(
-        time,
-        ds_pop_frac_15['mean_frac_all_unprec'].values,
-        lw=lw_mean,
-        color=col_15,
-        # label='Population unprecedented',
-        zorder=3,
-    )
-    ax1.fill_between(
-        time,
-        ds_pop_frac_15['mean_frac_all_unprec'].values + ds_pop_frac_15['std_frac_all_unprec'].values,
-        ds_pop_frac_15['mean_frac_all_unprec'].values - ds_pop_frac_15['std_frac_all_unprec'].values,
-        lw=lw_fill,
-        alpha=ub_alpha,
-        color=col_15_fill,
-        zorder=3,
-    )
-
-    ax1.set_ylabel(
-        ax2_ylab, 
-        va='center', 
-        rotation='vertical', 
-        fontsize=axis_font, 
-        labelpad=10,
-    )
-
-    # --------------------------------------------------------------------
-    # plot unprecedented frac of exposed pop, all runs
-
-    # NDC
-    for run in ds_pop_frac_NDC.runs:
-        
-        ax2.plot(
+        # NDC
+        ax1.plot(
             time,
-            ds_pop_frac_NDC['frac_all_unprec'].sel(runs=run).values,
+            ds_pop_frac_NDC['mean_frac_unprec_{}'.format(cohort_type)].values,
             lw=lw_mean,
             color=col_NDC,
             # label='Population unprecedented',
             zorder=1,
         )
-    # 2.0 degrees
-    for run in ds_pop_frac_20.runs:
-        
-        ax2.plot(
+        ax1.fill_between(
             time,
-            ds_pop_frac_20['frac_all_unprec'].sel(runs=run).values,
+            ds_pop_frac_NDC['mean_frac_unprec_{}'.format(cohort_type)].values + ds_pop_frac_NDC['std_frac_unprec_{}'.format(cohort_type)].values,
+            ds_pop_frac_NDC['mean_frac_unprec_{}'.format(cohort_type)].values - ds_pop_frac_NDC['std_frac_unprec_{}'.format(cohort_type)].values,
+            lw=lw_fill,
+            alpha=ub_alpha,
+            color=col_NDC_fill,
+            zorder=1,
+        )
+
+        # 2.0 degrees
+        ax1.plot(
+            time,
+            ds_pop_frac_20['mean_frac_unprec_{}'.format(cohort_type)].values,
             lw=lw_mean,
             color=col_20,
             # label='Population unprecedented',
             zorder=2,
         )
-    # 1.5 degrees
-    for run in ds_pop_frac_15.runs:
-
-        ax2.plot(
+        ax1.fill_between(
             time,
-            ds_pop_frac_15['frac_all_unprec'].sel(runs=run).values,
+            ds_pop_frac_20['mean_frac_unprec_{}'.format(cohort_type)].values + ds_pop_frac_20['std_frac_unprec_{}'.format(cohort_type)].values,
+            ds_pop_frac_20['mean_frac_unprec_{}'.format(cohort_type)].values - ds_pop_frac_20['std_frac_unprec_{}'.format(cohort_type)].values,
+            lw=lw_fill,
+            alpha=ub_alpha,
+            color=col_20_fill,
+            zorder=2,
+        )
+
+        # 1.5 degrees
+        ax1.plot(
+            time,
+            ds_pop_frac_15['mean_frac_unprec_{}'.format(cohort_type)].values,
             lw=lw_mean,
             color=col_15,
             # label='Population unprecedented',
             zorder=3,
         )
+        ax1.fill_between(
+            time,
+            ds_pop_frac_15['mean_frac_unprec_{}'.format(cohort_type)].values + ds_pop_frac_15['std_frac_unprec_{}'.format(cohort_type)].values,
+            ds_pop_frac_15['mean_frac_unprec_{}'.format(cohort_type)].values - ds_pop_frac_15['std_frac_unprec_{}'.format(cohort_type)].values,
+            lw=lw_fill,
+            alpha=ub_alpha,
+            color=col_15_fill,
+            zorder=3,
+        )
 
-    ax2.set_ylabel(
-        ax2_ylab, 
-        va='center', 
-        rotation='vertical', 
-        fontsize=axis_font, 
-        labelpad=10,
-    )
-    ax2.set_xlabel(
-        ax2_xlab, 
-        va='center', 
-        rotation='horizontal', 
-        fontsize=axis_font, 
-        labelpad=10,
-    )    
+        ax1.set_ylabel(
+            ax2_ylab, 
+            va='center', 
+            rotation='vertical', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )
 
-    for i,ax in enumerate([ax1,ax2]):
-        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
-        ax.set_xlim(xmin,xmax)
-        # ax.xaxis.set_ticks(xticks_ts)
-        # ax.xaxis.set_ticklabels(xtick_labels_ts)
-        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
-        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
-        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
-        ax.set_axisbelow(True) 
-        if i < 1:
-            ax.tick_params(labelbottom=False)
+        # --------------------------------------------------------------------
+        # plot unprecedented frac of pop, all runs
+
+        # NDC
+        for run in ds_pop_frac_NDC.runs:
             
-    # legend
-    legendcols = [
-        col_NDC,
-        col_20,
-        col_15,
-    ]
-    handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
-               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
-               Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2])]
-    labels= [
-        'NDC',
-        '2.0 °C',
-        '1.5 °C',
-    ]
-    
-    ax1.legend(
-        handles, 
-        labels, 
-        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
-        loc=3,
-        ncol=1,
-        fontsize=legend_font, 
-        mode="expand", 
-        borderaxespad=0.,
-        frameon=False, 
-        columnspacing=0.05, 
-        handlelength=legend_entrylen, 
-        handletextpad=legend_entrypad,
-    )            
+            ax2.plot(
+                time,
+                ds_pop_frac_NDC['frac_unprec_{}'.format(cohort_type)].sel(runs=run).values,
+                lw=lw_mean,
+                color=col_NDC,
+                # label='Population unprecedented',
+                zorder=1,
+            )
+        # 2.0 degrees
+        for run in ds_pop_frac_20.runs:
             
-    f.savefig('./figures/pop_frac_birthyear.png',dpi=300)
+            ax2.plot(
+                time,
+                ds_pop_frac_20['frac_unprec_{}'.format(cohort_type)].sel(runs=run).values,
+                lw=lw_mean,
+                color=col_20,
+                # label='Population unprecedented',
+                zorder=2,
+            )
+        # 1.5 degrees
+        for run in ds_pop_frac_15.runs:
+
+            ax2.plot(
+                time,
+                ds_pop_frac_15['frac_unprec_{}'.format(cohort_type)].sel(runs=run).values,
+                lw=lw_mean,
+                color=col_15,
+                # label='Population unprecedented',
+                zorder=3,
+            )
+
+        ax2.set_ylabel(
+            ax2_ylab, 
+            va='center', 
+            rotation='vertical', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )
+        ax2.set_xlabel(
+            ax2_xlab, 
+            va='center', 
+            rotation='horizontal', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )    
+
+        for i,ax in enumerate([ax1,ax2]):
+            ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+            ax.set_xlim(xmin,xmax)
+            # ax.xaxis.set_ticks(xticks_ts)
+            # ax.xaxis.set_ticklabels(xtick_labels_ts)
+            ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+            ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+            ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+            ax.set_axisbelow(True) 
+            if i < 1:
+                ax.tick_params(labelbottom=False)
+                
+        # legend
+        legendcols = [
+            col_NDC,
+            col_20,
+            col_15,
+        ]
+        handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
+                Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
+                Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2])]
+        labels= [
+            'NDC',
+            '2.0 °C',
+            '1.5 °C',
+        ]
+        
+        ax1.legend(
+            handles, 
+            labels, 
+            bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+            loc=3,
+            ncol=1,
+            fontsize=legend_font, 
+            mode="expand", 
+            borderaxespad=0.,
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad,
+        )            
+                
+        f.savefig('./figures/pop_frac_birthyear_{}.png'.format(cohort_type),dpi=300)
 #%% ----------------------------------------------------------------
 # plotting pop frac
 def plot_pop_frac_birth_year_strj(
