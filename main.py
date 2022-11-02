@@ -643,7 +643,7 @@ gdf_exposure_emergence_birth_year = calc_exposure_emergence(
 )
 
 # country-scale spatial plot of birth and year emergence
-emergence_plot(
+spatial_emergence_plot(
     gdf_exposure_emergence_birth_year,
 )
 

@@ -50,7 +50,7 @@ def floater(f):
     
 #%% ----------------------------------------------------------------
 # plot timing and EMF of exceedence of pic-defined extreme
-def emergence_plot(
+def spatial_emergence_plot(
     gdf_exposure_emergence_birth_year,
 ):
     
@@ -1091,10 +1091,80 @@ def plot_pop_frac_birth_year_GMT_strj(
     # xmax = np.max(time)
     xmin = 0.85
     xmax = 3.5
+    
+    # placment birth year cbar
+    cb_by_x0 = 0.975
+    cb_by_y0 = 0.125
+    cb_by_xlen = 0.025
+    cb_by_ylen = 0.75
+
+    # placment emf cbar
+    cb_emf_x0 = 0.60
+    cb_emf_y0 = 0.05
+    cb_emf_xlen = 0.225
+    cb_emf_ylen = 0.015
+
+    # identify colors for birth years
+    cmap_by = plt.cm.get_cmap('viridis')
+    cmap55 = cmap_by(0.01)
+    cmap50 = cmap_by(0.05)   #light
+    cmap45 = cmap_by(0.1)
+    cmap40 = cmap_by(0.15)
+    cmap35 = cmap_by(0.2)
+    cmap30 = cmap_by(0.25)
+    cmap25 = cmap_by(0.3)
+    cmap20 = cmap_by(0.325)
+    cmap10 = cmap_by(0.4)
+    cmap5 = cmap_by(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_by(0.525)
+    cmap_10 = cmap_by(0.6)
+    cmap_20 = cmap_by(0.625)
+    cmap_25 = cmap_by(0.7)
+    cmap_30 = cmap_by(0.75)
+    cmap_35 = cmap_by(0.8)
+    cmap_40 = cmap_by(0.85)
+    cmap_45 = cmap_by(0.9)
+    cmap_50 = cmap_by(0.95)  #dark
+    cmap_55 = cmap_by(0.99)
+
+    # colors_by = [
+    #     cmap55,cmap45,cmap35,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1990
+    #     cmap_5,cmap_10,cmap_25,cmap_35,cmap_45,cmap_55, # 6 light colors for 1990-2020
+    # ]
+    colors_by = [
+        cmap45,cmap35,cmap30,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1965
+        cmap_5,cmap_10,cmap_25,cmap_30,cmap_35,cmap_45, # 6 light colors for 1966-1970
+    ]    
+    # line_colors = cp(colors_by)
+    # for i in range((2020-1970)):
+    #     line_colors.append(colors_by[-1])
+    
+    line_colors = []
+    for c in colors_by:
+        for repeat in range(5):
+            line_colors.append(c)
+    line_colors.append(colors_by[-1])
+
+    # declare list of colors for discrete colormap of colorbar for birth years
+    cmap_list_by = mpl.colors.ListedColormap(colors_by,N=len(colors_by))
+    cmap_list_by.set_under(cmap55)
+    cmap_list_by.set_over(cmap_45)
+
+    # colorbar args for birth years
+    values_by = [1960,1965,1970,1975,1980,1985,1990,1995,2000,2005,2010,2015,2020]
+    # values_by = [1959.5,1960.5,1961.5,1962.5,1963.5,1964.5,1965.5,1966.5,1967.5,1968.5,1969.5,1970.5]
+    tick_locs_by = [1960,1970,1980,1990,2000,2010,2020]
+    # tick_locs_by = [1960,1961,1962,1963,1964,1965,1966,1967,1968,1969,1970]
+    tick_labels_by = list(str(n) for n in tick_locs_by)
+    # tick_labels_by[-1] = r'$\geq 1970$'
+    # tick_labels_by[-1] = '≥1970'
+    tick_labels_by[-1] = '≥2020'
+    norm_by = mpl.colors.BoundaryNorm(values_by,cmap_list_by.N)    
 
     ax1_ylab = 'Fraction unprecedented'
     ax2_ylab = 'Age emergence'
-    ax2_xlab = 'GMT at 2100'
+    ax2_xlab = 'GMT anomaly at 2100 [°C]'
 
     for cohort_type in ['exposed','all']:
         
@@ -1103,28 +1173,36 @@ def plot_pop_frac_birth_year_GMT_strj(
             ncols=1,
             figsize=(x,y),
         )
+        
+        # colorbar axes
+        cbax_by = f.add_axes([
+            cb_by_x0, 
+            cb_by_y0, 
+            cb_by_xlen, 
+            cb_by_ylen
+        ])         
 
         # --------------------------------------------------------------------
         # plot unprecedented frac of total pop, ax1 for mean +/- std
 
         # strj
-        for by in np.arange(1960,2021,10):
+        for i,by in enumerate(np.arange(1960,2021,1)):
             
             ax1.plot(
                 df_GMT_strj.loc[2100,:].values,
                 ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values,
                 lw=lw_mean,
-                color=col_NDC,
+                color=line_colors[i],
                 zorder=1,
             )
-            ax1.annotate(
-                text=str(by), 
-                xy=(df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1]),
-                xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1])),
-                color='k',
-                fontsize=impactyr_font,
-                # zorder=5
-            )
+            # ax1.annotate(
+            #     text=str(by), 
+            #     xy=(df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1]),
+            #     xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1])),
+            #     color='k',
+            #     fontsize=impactyr_font,
+            #     # zorder=5
+            # )
             
             ax2.plot(
                 df_GMT_strj.loc[2100,:].values,
@@ -1133,23 +1211,23 @@ def plot_pop_frac_birth_year_GMT_strj(
                         weighted(ds_cohorts['weights'].sel(birth_year=by)).\
                             mean(dim=('country','runs')).values,
                 lw=lw_mean,
-                color=col_NDC,
+                color=line_colors[i],
                 zorder=1,
             )
             
-            ax2.annotate(
-                text=str(by), 
-                xy=(df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
-                    sel(birth_year=by).\
-                        weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-                            mean(dim=('country','runs')).values[-1]),
-                xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
-                    sel(birth_year=by).\
-                        weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-                            mean(dim=('country','runs')).values[-1])),
-                color='k',
-                fontsize=impactyr_font,
-            )        
+            # ax2.annotate(
+            #     text=str(by), 
+            #     xy=(df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
+            #         sel(birth_year=by).\
+            #             weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+            #                 mean(dim=('country','runs')).values[-1]),
+            #     xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
+            #         sel(birth_year=by).\
+            #             weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+            #                 mean(dim=('country','runs')).values[-1])),
+            #     color='k',
+            #     fontsize=impactyr_font,
+            # )        
 
         ax1.set_ylabel(
             ax1_ylab, 
@@ -1188,7 +1266,43 @@ def plot_pop_frac_birth_year_GMT_strj(
             if i < 1:
                 ax.tick_params(labelbottom=False)  
                 
-        f.savefig('./figures/pop_frac_birthyear_GMT_strj_{}.png'.format(cohort_type),dpi=300)
+        # birth year colorbar
+        cb_by = mpl.colorbar.ColorbarBase(
+            ax=cbax_by, 
+            cmap=cmap_list_by,
+            norm=norm_by,
+            spacing='uniform',
+            orientation='vertical',
+            extend='max',
+            ticks=tick_locs_by,
+            drawedges=False,
+        )
+        cb_by.set_label(
+            'Birth year',
+            size=16,
+        )
+        cb_by.ax.xaxis.set_label_position('bottom')
+        cb_by.ax.tick_params(
+            labelcolor='0',
+            labelsize=16,
+            color='0.5',
+            length=3.5,
+            width=0.4,
+            # direction='right',
+        ) 
+        cb_by.ax.set_yticklabels(
+            tick_labels_by,
+            fontsize=10
+            # rotation=45,
+        )
+        cb_by.outline.set_edgecolor('0.9')
+        cb_by.outline.set_linewidth(0)                  
+                
+        f.savefig(
+            './figures/pop_frac_birthyear_GMT_strj_annual_{}.png'.format(cohort_type),
+            bbox_inches = "tight",
+            dpi=300,
+        )
 
 #%% ----------------------------------------------------------------
 # plotting pop frac
@@ -1256,23 +1370,23 @@ def plot_pop_frac_birth_year_GMT_strj_points(
     ax2_ylab = 'Age emergence'
     ax2_xlab = 'GMT at 2100'
 
-    f,(ax1,ax2) = plt.subplots(
-        nrows=2,
-        ncols=1,
-        figsize=(x,y),
-    )
-
     # --------------------------------------------------------------------
     # plot unprecedented frac of total pop, ax1 for mean +/- std
 
     # strj
     for cohort_type in ['exposed','all']:
         
+        f,(ax1,ax2) = plt.subplots(
+            nrows=2,
+            ncols=1,
+            figsize=(x,y),
+        )
+        
         for by in np.arange(1960,2021,10):
             
             ax1.plot(
                 df_GMT_strj.loc[2100,:].values,
-                ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values,
+                ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values,
                 lw=lw_mean,
                 color=col_NDC,
                 zorder=1,
