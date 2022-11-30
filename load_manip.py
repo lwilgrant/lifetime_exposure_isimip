@@ -167,6 +167,14 @@ def load_GMT(
 
     # add historical values to additional scenarios
     df_GMT_c1_c7 = pd.concat([df_hist,df_GMT_c1_c7.loc[2010:,:]],axis=0)
+    if np.nanmax(df_GMT_c1_c7.index) < year_end: 
+        # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
+        GMT_last_10ymean = df_GMT_c1_c7.iloc[-10:,:].mean()
+        for year in range(np.nanmax(df_GMT_c1_c7.index),year_end+1): 
+            df_GMT_c1_c7 = pd.concat([df_GMT_c1_c7, pd.DataFrame(GMT_last_10ymean).transpose().rename(index={0:year})]) 
+            
+    # drop dups
+    df_GMT_c1_c7 = df_GMT_c1_c7[~df_GMT_c1_c7.index.duplicated(keep='first')]
 
     # make selections based on GMT_max
     df_maxes = df_GMT_c1_c7.loc[:,df_GMT_c1_c7.loc[2100]>GMT_max]

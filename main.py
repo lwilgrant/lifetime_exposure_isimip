@@ -310,6 +310,7 @@ if flags['exposure_cohort']:
     
     # calculate exposure per country and per cohort
     exposure_cohort = calc_cohort_exposure(
+        flags['gmt'],
         d_isimip_meta,
         df_countries,
         countries_regions,
@@ -347,7 +348,7 @@ else:  # load processed cohort exposure data
         da_exposure_cohort_20 = pk.load(f)
     with open('./data/pickles/exposure_cohort_NDC_{}.pkl'.format(flags['extr']), 'rb') as f:
         da_exposure_cohort_NDC = pk.load(f)
-    with open('./data/pickles/exposure_cohort_strj_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_cohort_strj_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_cohort_strj = pk.load(f)        
         
     # pickle exposure peryear perage percountry
@@ -359,7 +360,7 @@ else:  # load processed cohort exposure data
         da_exposure_peryear_perage_percountry_20 = pk.load(f)
     with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}.pkl'.format(flags['extr']), 'rb') as f:
         da_exposure_peryear_perage_percountry_NDC = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_peryear_perage_percountry_strj = pk.load(f)
 
 # --------------------------------------------------------------------
