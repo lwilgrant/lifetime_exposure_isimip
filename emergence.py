@@ -355,7 +355,7 @@ def calc_exposure_emergence(
 ):
 
     mmm_subset = [
-        'mmm_RCP',
+        # 'mmm_RCP',
         'mmm_15',
         'mmm_20',
         'mmm_NDC',
@@ -366,7 +366,7 @@ def calc_exposure_emergence(
     ds_exposure_emergence_birth_year = ds_exposure_emergence.birth_year.where(ds_exposure_emergence.notnull()).min(dim='birth_year',skipna=True)#.astype('int')
     
     scen_subset = [
-        'RCP',
+        # 'RCP',
         '15',
         '20',
         'NDC',
@@ -374,8 +374,8 @@ def calc_exposure_emergence(
     
     for scen in scen_subset:
         
-        ds_exposure_emergence_birth_year['birth_year_age_{}'.format(scen)] = ds_age_emergence['age_{}'.format(scen)].where(
-            ds_age_emergence['age_{}'.format(scen)].birth_year==ds_exposure_emergence_birth_year['mmm_{}'.format(scen)]
+        ds_exposure_emergence_birth_year['birth_year_age_{}'.format(scen)] = ds_age_emergence['age_emergence_{}'.format(scen)].where(
+            ds_age_emergence['age_emergence_{}'.format(scen)].birth_year==ds_exposure_emergence_birth_year['mmm_{}'.format(scen)]
         ).mean(dim='runs').min(dim='birth_year',skipna=True)    
     
     # move emergene birth years and EMFs to gdf for plotting

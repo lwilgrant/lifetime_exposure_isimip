@@ -61,7 +61,10 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['gmt'] = 'original'           # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
+                                    # 4deg: substitute the linear max wth the highest IASA c7 scenario (increasing to 4.0)
+                                    # 4deg3deg: substitute both linear max & NDC to avoid 1.5 and 2.0 degree over-arching
+flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
@@ -71,7 +74,7 @@ flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute ex
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 
 # TODO: add rest of flags
@@ -103,6 +106,7 @@ global df_GMT_15, df_GMT_20, df_GMT_NDC
 df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC = load_GMT(
     year_start,
     year_end,
+    flags['gmt']
 )
 
 # --------------------------------------------------------------------

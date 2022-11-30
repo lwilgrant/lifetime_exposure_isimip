@@ -121,6 +121,7 @@ def load_wcde_data():
 def load_GMT(
     year_start,
     year_end,
+    flag_gmt,
 ):
 
     # Load global mean temperature projections from SR15
@@ -139,53 +140,183 @@ def load_GMT(
             df_GMT_SR15 = pd.concat([df_GMT_SR15, pd.DataFrame(GMT_last_10ymean).transpose().rename(index={0:year})])
 
     # cut to analysis years
-    df_GMT_15     = df_GMT_SR15.loc[year_start:year_end,'IPCCSR15_MESSAGEix-GLOBIOM 1.0_LowEnergyDemand_GAS']
-    df_GMT_20     = df_GMT_SR15.loc[year_start:year_end,'IPCCSR15_IMAGE 3.0.1_SSP1-26_GAS']
-    df_GMT_NDC    = df_GMT_SR15.loc[year_start:year_end,'IPCCSR15_MESSAGE-GLOBIOM 1.0_ADVANCE_INDC_GAS']
+    df_GMT_15 = df_GMT_SR15.loc[year_start:year_end,'IPCCSR15_MESSAGEix-GLOBIOM 1.0_LowEnergyDemand_GAS']
+    df_GMT_20 = df_GMT_SR15.loc[year_start:year_end,'IPCCSR15_IMAGE 3.0.1_SSP1-26_GAS']
+    df_GMT_NDC = df_GMT_SR15.loc[year_start:year_end,'IPCCSR15_MESSAGE-GLOBIOM 1.0_ADVANCE_INDC_GAS']
 
     # check and drop duplicate years
-    df_GMT_15   = df_GMT_15[~df_GMT_15.index.duplicated(keep='first')]
-    df_GMT_20   = df_GMT_20[~df_GMT_20.index.duplicated(keep='first')]
-    df_GMT_NDC   = df_GMT_NDC[~df_GMT_NDC.index.duplicated(keep='first')]
+    df_GMT_15 = df_GMT_15[~df_GMT_15.index.duplicated(keep='first')]
+    df_GMT_20 = df_GMT_20[~df_GMT_20.index.duplicated(keep='first')]
+    df_GMT_NDC = df_GMT_NDC[~df_GMT_NDC.index.duplicated(keep='first')]
     df_GMT_SR15 = df_GMT_SR15[~df_GMT_SR15.index.duplicated(keep='first')]
     
+    # for alternative gmt mapping approaches, collect new scens from IASA explorer
+    df_GMT_c1_c7 = pd.read_csv('./data/temperature_trajectories_SR15/ar6_C1_C7.csv',header=0)
+    df_GMT_c1_c7.loc[:,'Model'] = df_GMT_c1_c7.loc[:,'Model']+'_'+df_GMT_c1_c7.loc[:,'Scenario']
+    df_GMT_c1_c7 = df_GMT_c1_c7.drop(columns=['Scenario','Region','Variable','Unit']).transpose()
+    df_GMT_c1_c7.columns=df_GMT_c1_c7.loc['Model',:]
+    df_GMT_c1_c7.columns.name = None
+    df_GMT_c1_c7 = df_GMT_c1_c7.drop(df_GMT_c1_c7.index[0])
+    df_GMT_c1_c7 = df_GMT_c1_c7.dropna(axis=1)
+    df_GMT_c1_c7.index = df_GMT_c1_c7.index.astype(int)
+
+    # get historical values from our original scenarios (not using 2000-2009 from the c1-c7 trajects)
+    df_hist = df_GMT_15.loc[1960:2009]
+    df_hist = pd.concat([df_hist for i in range(len(df_GMT_c1_c7.columns))],axis=1)
+    df_hist.columns = df_GMT_c1_c7.columns
+
+    # add historical values to additional scenarios
+    df_GMT_c1_c7 = pd.concat([df_hist,df_GMT_c1_c7.loc[2010:,:]],axis=0)
+
+    # make selections based on GMT_max
+    df_maxes = df_GMT_c1_c7.loc[:,df_GMT_c1_c7.loc[2100]>GMT_max]
+
+    # make selections based on original scenarios (get those from iasa that are greater than wim's)
+    max_scens = []
+    for c1 in df_maxes.columns:
+        bools = []
+        for c2 in df_GMT_SR15.columns:
+            bools.append(df_maxes.loc[2010:,c1]>df_GMT_SR15.loc[2010:,c2])
+        dfbools=pd.concat(bools,axis=1)
+        if dfbools.all().all():
+            max_scens.append(df_maxes.loc[:,c1])
+    df_maxes = pd.concat(max_scens,axis=1)   
+    maxcol = df_maxes.columns[df_maxes.loc[2100,:]==df_maxes.iloc[-1,:].max()][0]
+    df_GMT_40 = df_maxes.loc[:,maxcol]          
+    
     # stylized trajectories
-    GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
-    ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
-    GMT_min = df_GMT_15.loc[GMT_fut_strtyr-1]
-    GMT_steps = np.arange(0,GMT_max+0.1,GMT_inc)
-    GMT_steps = np.insert(GMT_steps[np.where(GMT_steps>GMT_min)],0,GMT_min)
-    n_steps = len(GMT_steps)
-    ind_15 = np.argmin(np.abs(GMT_steps-df_GMT_15.iloc[-1]))
-    ind_20 = np.argmin(np.abs(GMT_steps-df_GMT_20.iloc[-1]))
-    ind_NDC = np.argmin(np.abs(GMT_steps-df_GMT_NDC.iloc[-1]))
-    n_years = len(year_range)
-    trj = np.empty((n_years,n_steps))
-    trj.fill(np.nan)
-    trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
-    trj[ind_fut_strtyr:,0] = GMT_min
-    trj[ind_fut_strtyr:,-1] = np.interp(
-        x=year_range[ind_fut_strtyr:],
-        xp=[GMT_fut_strtyr,year_end],
-        fp=[GMT_min,GMT_max],
-    )
-    trj[:,ind_15] = df_GMT_15.values
-    trj[:,ind_20] = df_GMT_20.values
-    trj[:,ind_NDC] = df_GMT_NDC.values
-    trj_msk = np.ma.masked_invalid(trj)
-    [xx, yy] = np.meshgrid(range(n_steps),range(n_years))
-    x1 = xx[~trj_msk.mask]
-    y1 = yy[~trj_msk.mask]
-    trj_interpd = interpolate.griddata(
-        (x1,y1), # only include coords with valid data
-        trj[~trj_msk.mask].ravel(), # inputs are valid only, too
-        (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
-    )
-    df_GMT_strj = pd.DataFrame(
-        trj_interpd, 
-        columns=range(n_steps), 
-        index=year_range,
-    )
+    if flag_gmt == 'original':
+    
+        GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+        ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
+        GMT_min = df_GMT_15.loc[GMT_fut_strtyr-1]
+        GMT_steps = np.arange(0,GMT_max+0.1,GMT_inc)
+        GMT_steps = np.insert(GMT_steps[np.where(GMT_steps>GMT_min)],0,GMT_min)
+        n_steps = len(GMT_steps)
+        ind_15 = np.argmin(np.abs(GMT_steps-df_GMT_15.iloc[-1]))
+        ind_20 = np.argmin(np.abs(GMT_steps-df_GMT_20.iloc[-1]))
+        ind_NDC = np.argmin(np.abs(GMT_steps-df_GMT_NDC.iloc[-1]))
+        n_years = len(year_range)
+        trj = np.empty((n_years,n_steps))
+        trj.fill(np.nan)
+        trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
+        trj[ind_fut_strtyr:,0] = GMT_min
+        trj[ind_fut_strtyr:,-1] = np.interp(
+            x=year_range[ind_fut_strtyr:],
+            xp=[GMT_fut_strtyr,year_end],
+            fp=[GMT_min,GMT_max],
+        )
+        trj[:,ind_15] = df_GMT_15.values
+        trj[:,ind_20] = df_GMT_20.values
+        trj[:,ind_NDC] = df_GMT_NDC.values
+        trj_msk = np.ma.masked_invalid(trj)
+        [xx, yy] = np.meshgrid(range(n_steps),range(n_years))
+        x1 = xx[~trj_msk.mask]
+        y1 = yy[~trj_msk.mask]
+        trj_interpd = interpolate.griddata(
+            (x1,y1), # only include coords with valid data
+            trj[~trj_msk.mask].ravel(), # inputs are valid only, too
+            (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
+        )
+        df_GMT_strj = pd.DataFrame(
+            trj_interpd, 
+            columns=range(n_steps), 
+            index=year_range,
+        )
+        
+    elif flag_gmt == '4deg':
+        
+        GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+        ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
+        GMT_min = df_GMT_15.loc[GMT_fut_strtyr-1]
+        GMT_steps = np.arange(0,df_GMT_40.loc[2100]+0.1,GMT_inc)
+        GMT_steps = np.insert(GMT_steps[np.where(GMT_steps>GMT_min)],0,GMT_min)
+        n_steps = len(GMT_steps)
+        ind_15 = np.argmin(np.abs(GMT_steps-df_GMT_15.iloc[-1]))
+        ind_20 = np.argmin(np.abs(GMT_steps-df_GMT_20.iloc[-1]))
+        ind_NDC = np.argmin(np.abs(GMT_steps-df_GMT_NDC.iloc[-1]))
+        ind_40 = np.argmin(np.abs(GMT_steps-df_GMT_40.iloc[-1]))
+        year_range=np.arange(1960,2100+1)
+        n_years = len(year_range)
+        trj = np.empty((n_years,n_steps))
+        trj.fill(np.nan)
+        trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
+        trj[ind_fut_strtyr:,0] = GMT_min
+        trj[ind_fut_strtyr:,-1] = np.interp(
+            x=year_range[ind_fut_strtyr:],
+            xp=[GMT_fut_strtyr,year_end],
+            fp=[GMT_min,df_GMT_40.loc[2100]],
+        )
+        trj[:,ind_15] = df_GMT_15.values
+        trj[:,ind_20] = df_GMT_20.values
+        trj[:,ind_NDC] = df_GMT_NDC.values
+        trj[:,ind_40] = df_GMT_40.values
+        trj_msk = np.ma.masked_invalid(trj)
+        [xx, yy] = np.meshgrid(range(n_steps),range(n_years))
+        x1 = xx[~trj_msk.mask]
+        y1 = yy[~trj_msk.mask]
+        trj_interpd = interpolate.griddata(
+            (x1,y1), # only include coords with valid data
+            trj[~trj_msk.mask].ravel(), # inputs are valid only, too
+            (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
+        )
+        df_GMT_strj = pd.DataFrame(
+            trj_interpd, 
+            columns=range(n_steps), 
+            index=year_range,
+        )
+        
+    elif flag_gmt == '4deg3deg':
+
+        df_GMT_30 = df_GMT_c1_c7[df_GMT_c1_c7.columns[(df_GMT_c1_c7.max(axis=0)<3.0)&(df_GMT_c1_c7.max(axis=0)>2.9)]]
+        bools = []
+        for c in df_GMT_30.columns:
+            bools.append(df_GMT_30.loc[2010:,c]<=df_GMT_40.loc[2010:])
+        dfbools=pd.concat(bools,axis=1)
+        df_GMT_30 = df_GMT_30[df_GMT_30.columns[dfbools.all()]].iloc[:,0]
+
+        # recomp stylized trajects
+        # stylized trajectories
+        GMT_max = df_GMT_40.loc[2100]
+        GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+        ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
+        GMT_min = df_GMT_15.loc[GMT_fut_strtyr-1]
+        GMT_steps = np.arange(0,GMT_max+0.1,GMT_inc)
+        GMT_steps = np.insert(GMT_steps[np.where(GMT_steps>GMT_min)],0,GMT_min)
+        n_steps = len(GMT_steps)
+        ind_15 = np.argmin(np.abs(GMT_steps-df_GMT_15.iloc[-1]))
+        ind_20 = np.argmin(np.abs(GMT_steps-df_GMT_20.iloc[-1]))
+        ind_30 = np.argmin(np.abs(GMT_steps-df_GMT_30.iloc[-1]))
+        ind_40 = np.argmin(np.abs(GMT_steps-df_GMT_40.iloc[-1]))
+        year_range=np.arange(1960,2100+1)
+        n_years = len(year_range)
+        trj = np.empty((n_years,n_steps))
+        trj.fill(np.nan)
+        trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
+        trj[ind_fut_strtyr:,0] = GMT_min
+        trj[ind_fut_strtyr:,-1] = np.interp(
+            x=year_range[ind_fut_strtyr:],
+            xp=[GMT_fut_strtyr,year_end],
+            fp=[GMT_min,GMT_max],
+        )
+        trj[:,ind_15] = df_GMT_15.values
+        trj[:,ind_20] = df_GMT_20.values
+        trj[:,ind_30] = df_GMT_30.values
+        trj[:,ind_40] = df_GMT_40.values
+        trj_msk = np.ma.masked_invalid(trj)
+        [xx, yy] = np.meshgrid(range(n_steps),range(n_years))
+        x1 = xx[~trj_msk.mask]
+        y1 = yy[~trj_msk.mask]
+        trj_interpd = interpolate.griddata(
+            (x1,y1), # only include coords with valid data
+            trj[~trj_msk.mask].ravel(), # inputs are valid only, too
+            (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
+        )
+        df_GMT_strj = pd.DataFrame(
+            trj_interpd, 
+            columns=range(n_steps), 
+            index=year_range,
+        )         
 
     return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC
 

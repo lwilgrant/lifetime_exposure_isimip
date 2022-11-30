@@ -163,7 +163,7 @@ def spatial_emergence_plot(
     cmap_list_emf = mpl.colors.ListedColormap(colors_emf,N=len(colors_emf))
 
     data = np.empty(1)
-    for trj in ['RCP','15','20','NDC']:
+    for trj in ['15','20','NDC']:
         data = np.append(data,gdf_exposure_emergence_birth_year.loc[:,'birth_year_age_{}'.format(trj)].values)        
     data = data[~np.isnan(data)]
     q_samples = []
@@ -1159,7 +1159,7 @@ def plot_pop_frac_birth_year_GMT_strj(
     tick_labels_by = list(str(n) for n in tick_locs_by)
     # tick_labels_by[-1] = r'$\geq 1970$'
     # tick_labels_by[-1] = '≥1970'
-    tick_labels_by[-1] = '≥2020'
+    # tick_labels_by[-1] = '≥2020'
     norm_by = mpl.colors.BoundaryNorm(values_by,cmap_list_by.N)    
 
     ax1_ylab = 'Fraction unprecedented'
@@ -1273,7 +1273,7 @@ def plot_pop_frac_birth_year_GMT_strj(
             norm=norm_by,
             spacing='uniform',
             orientation='vertical',
-            extend='max',
+            extend='neither',
             ticks=tick_locs_by,
             drawedges=False,
         )
