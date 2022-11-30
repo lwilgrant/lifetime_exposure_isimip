@@ -25,6 +25,8 @@ import pandas as pd
 import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
+from settings import *
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref = init()
 
 #%% --------------------------------------------------------------------
 # test colors for plotting
@@ -468,7 +470,7 @@ def strj_emergence(
     ds_exposure_pic,
     ds_cohorts,
     flags_ext,
-    flags_gmt
+    flags_gmt,
     traject,
 ):
     start_time = time.time()

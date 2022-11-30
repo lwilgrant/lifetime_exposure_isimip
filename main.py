@@ -21,7 +21,6 @@
 #     sf_     : shapefile
 #     ...dir  : directory
 
-# TODO
 # - not yet masked for small countries
 # - how to handle South-Sudan and Palestina? Now manually filtered out in load
 # - south sudan and palestine not dealt with (we only have 176 countries instead of 178 from matlab, these are missing in end mmm values)
@@ -68,35 +67,33 @@ flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pick
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 
 # TODO: add rest of flags
 
 
 #%% ----------------------------------------------------------------
-# initialize
+# settings
 # ----------------------------------------------------------------
+
 from settings import *
-
-# set global variables
-init()
-
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
+# settings.set_extremes(flags)
 set_extremes(flags)
 
 #%% ----------------------------------------------------------------
 # load and manipulate demographic, GMT and ISIMIP data
 # ----------------------------------------------------------------
 
-# TODO: when regions added, make this one function returning dict! 
 from load_manip import *
 
 # --------------------------------------------------------------------
@@ -106,6 +103,7 @@ global df_GMT_15, df_GMT_20, df_GMT_NDC
 df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC = load_GMT(
     year_start,
     year_end,
+    year_range,
     flags['gmt']
 )
 

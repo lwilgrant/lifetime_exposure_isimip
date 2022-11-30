@@ -12,7 +12,7 @@ import regionmask
 import glob
 
 from settings import *
-init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref = init()
 
 # ---------------------------------------------------------------
 # 1. Functions to load (see ms_load.m)
@@ -121,6 +121,7 @@ def load_wcde_data():
 def load_GMT(
     year_start,
     year_end,
+    year_range,
     flag_gmt,
 ):
 
@@ -189,7 +190,7 @@ def load_GMT(
         if dfbools.all().all():
             max_scens.append(df_maxes.loc[:,c1])
     df_maxes = pd.concat(max_scens,axis=1)   
-    maxcol = df_maxes.columns[df_maxes.loc[2100,:]==df_maxes.iloc[-1,:].max()][0]
+    maxcol = df_maxes.columns[df_maxes.loc[2100,:]==df_maxes.loc[2100,:].max()][0]
     df_GMT_40 = df_maxes.loc[:,maxcol]          
     
     # stylized trajectories

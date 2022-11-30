@@ -107,6 +107,8 @@ def init():
     # set kernel x-values
     global kernel_x
     kernel_x = np.arange(1,50.5,0.5)
+    
+    return ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref
 
 #%% ----------------------------------------------------------------
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
