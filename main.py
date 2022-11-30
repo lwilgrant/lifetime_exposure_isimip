@@ -236,7 +236,7 @@ grid_area = xr.open_dataarray('./data/isimip/clm45_area.nc4')
 
 d_isimip_meta,d_pic_meta = load_isimip(
     flags['runs'],
-    flags['gmt']
+    flags['gmt'],
     extremes, 
     model_names,
     df_GMT_15,
@@ -554,6 +554,7 @@ if flags['emergence']:
         ds_exposure_pic,
         ds_cohorts,
         flags['extr'],
+        flags['gmt'],
         'strj',
     )
         
@@ -572,7 +573,7 @@ else: # load pickles
         ds_pop_frac_20 = pk.load(f)
     with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
         ds_pop_frac_NDC = pk.load(f)    
-    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'strj'), 'rb') as f:
+    with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
         ds_pop_frac_strj = pk.load(f)                
     
     # age emergence
@@ -584,7 +585,7 @@ else: # load pickles
         ds_age_emergence_20 = pk.load(f)
     with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
         ds_age_emergence_NDC = pk.load(f)                    
-    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'strj'), 'rb') as f:
+    with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
         ds_age_emergence_strj = pk.load(f)         
         
 #%% ----------------------------------------------------------------

@@ -431,6 +431,7 @@ def calc_exposure(
 # convert Area Fraction Affected (AFA) to 
 # per-cohort number of extremes affecting one individual across life span
 def calc_cohort_exposure(
+    flags_gmt,
     d_isimip_meta,
     df_countries,
     countries_regions,
@@ -683,7 +684,7 @@ def calc_cohort_exposure(
             pk.dump(da_exposure_cohort_20,f)
         with open('./data/pickles/exposure_cohort_NDC_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
             pk.dump(da_exposure_cohort_NDC,f)
-        with open('./data/pickles/exposure_cohort_strj_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+        with open('./data/pickles/exposure_cohort_strj_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
             pk.dump(da_exposure_cohort_strj,f)            
             
         # pickle exposure peryear perage percountry
@@ -695,7 +696,7 @@ def calc_cohort_exposure(
             pk.dump(da_exposure_peryear_perage_percountry_20,f)
         with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
             pk.dump(da_exposure_peryear_perage_percountry_NDC,f)
-        with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
+        with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
             pk.dump(da_exposure_peryear_perage_percountry_strj,f)
             
         exposure_cohort = (
