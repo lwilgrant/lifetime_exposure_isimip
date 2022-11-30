@@ -235,7 +235,8 @@ global grid_area
 grid_area = xr.open_dataarray('./data/isimip/clm45_area.nc4')
 
 d_isimip_meta,d_pic_meta = load_isimip(
-    flags['runs'], 
+    flags['runs'],
+    flags['gmt']
     extremes, 
     model_names,
     df_GMT_15,

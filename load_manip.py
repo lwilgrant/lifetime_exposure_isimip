@@ -274,14 +274,10 @@ def load_GMT(
             bools.append(df_GMT_30.loc[2010:,c]<=df_GMT_40.loc[2010:])
         dfbools=pd.concat(bools,axis=1)
         df_GMT_30 = df_GMT_30[df_GMT_30.columns[dfbools.all()]].iloc[:,0]
-
-        # recomp stylized trajects
-        # stylized trajectories
-        GMT_max = df_GMT_40.loc[2100]
         GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
         ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
         GMT_min = df_GMT_15.loc[GMT_fut_strtyr-1]
-        GMT_steps = np.arange(0,GMT_max+0.1,GMT_inc)
+        GMT_steps = np.arange(0,df_GMT_40.loc[2100]+0.1,GMT_inc)
         GMT_steps = np.insert(GMT_steps[np.where(GMT_steps>GMT_min)],0,GMT_min)
         n_steps = len(GMT_steps)
         ind_15 = np.argmin(np.abs(GMT_steps-df_GMT_15.iloc[-1]))
@@ -297,7 +293,7 @@ def load_GMT(
         trj[ind_fut_strtyr:,-1] = np.interp(
             x=year_range[ind_fut_strtyr:],
             xp=[GMT_fut_strtyr,year_end],
-            fp=[GMT_min,GMT_max],
+            fp=[GMT_min,df_GMT_40.loc[2100]],
         )
         trj[:,ind_15] = df_GMT_15.values
         trj[:,ind_20] = df_GMT_20.values
@@ -353,6 +349,7 @@ def load_population(
 # Load ISIMIP model data
 def load_isimip(
     flags_run, 
+    flags_gmt,
     extremes, 
     model_names,
     df_GMT_15,
@@ -530,7 +527,7 @@ def load_isimip(
         
             # save metadata dictionary as a pickle
             print('Saving metadata')
-            with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'wb') as f:
+            with open('./data/pickles/isimip_metadata_{}_{}.pkl'.format(extreme,flags_gmt), 'wb') as f:
                 pk.dump(d_isimip_meta,f)
             with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'wb') as f:
                 pk.dump(d_pic_meta,f)
@@ -542,7 +539,7 @@ def load_isimip(
         # loac pickled metadata for isimip and isimip-pic simulations
         extreme = extremes[0]
 
-        with open('./data/pickles/isimip_metadata_{}.pkl'.format(extreme), 'rb') as f:
+        with open('./data/pickles/isimip_metadata_{}_{}.pkl'.format(extreme,flags_gmt), 'rb') as f:
             d_isimip_meta = pk.load(f)
         with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'rb') as f:
             d_pic_meta = pk.load(f)                
