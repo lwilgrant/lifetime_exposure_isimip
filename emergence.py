@@ -395,7 +395,8 @@ def all_emergence(
     year_ref,
     ds_exposure_pic,
     ds_cohorts,
-    flag,
+    flag_ext,
+    flag_gmt,
     traject,
 ):
     start_time = time.time()
@@ -450,11 +451,11 @@ def all_emergence(
           )        
     
     # pickle pop frac
-    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flag,traject), 'wb') as f:
+    with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flag_ext,flag_gmt,traject), 'wb') as f:
         pk.dump(ds_pop_frac,f)
         
     # pickle age emergence
-    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flag,traject), 'wb') as f:
+    with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flag_ext,flag_gmt,traject), 'wb') as f:
         pk.dump(ds_age_emergence,f)        
 
     return ds_age_emergence, ds_pop_frac

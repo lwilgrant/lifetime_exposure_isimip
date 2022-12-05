@@ -62,7 +62,7 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
@@ -267,6 +267,7 @@ if flags['exposure']:
         countries_mask, 
         da_population, 
         df_life_expectancy_5,
+        flags['gmt'],
     )
     
     d_exposure_perrun_RCP,\
@@ -285,7 +286,7 @@ else: # load processed exposure data
     print('Loading processed exposures')
 
     # load country pickle
-    with open('./data/pickles/exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         d_exposure = pk.load(f)
 
     # unpack country information
@@ -339,11 +340,11 @@ else:  # load processed cohort exposure data
     # pickle cohort exposures
     with open('./data/pickles/exposure_cohort_RCP_{}.pkl'.format(flags['extr']), 'rb') as f:
         da_exposure_cohort_RCP = pk.load(f)
-    with open('./data/pickles/exposure_cohort_15_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_cohort_15_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_cohort_15 = pk.load(f)
-    with open('./data/pickles/exposure_cohort_20_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_cohort_20_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_cohort_20 = pk.load(f)
-    with open('./data/pickles/exposure_cohort_NDC_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_cohort_NDC_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_cohort_NDC = pk.load(f)
     with open('./data/pickles/exposure_cohort_strj_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_cohort_strj = pk.load(f)        
@@ -351,11 +352,11 @@ else:  # load processed cohort exposure data
     # pickle exposure peryear perage percountry
     with open('./data/pickles/exposure_peryear_perage_percountry_RCP_{}.pkl'.format(flags['extr']), 'rb') as f:
         da_exposure_peryear_perage_percountry_RCP = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_15_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_peryear_perage_percountry_15_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_peryear_perage_percountry_15 = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_20_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_peryear_perage_percountry_20_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_peryear_perage_percountry_20 = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}.pkl'.format(flags['extr']), 'rb') as f:
+    with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_peryear_perage_percountry_NDC = pk.load(f)
     with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         da_exposure_peryear_perage_percountry_strj = pk.load(f)
@@ -458,36 +459,44 @@ from emergence import *
 
 if flags['emergence']:
     
-    # cohort conversion to data array (again)
-    da_cohort_size = xr.DataArray(
-        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
-        coords={
-            'country': ('country', list(df_countries['name'])),
-            'time': ('time', year_range),
-            'ages': ('ages', np.arange(104,-1,-1)),
-        },
-        dims=[
-            'country',
-            'time',
-            'ages',
-        ]
-    )
+    if not os.path.isfile('./data/pickles/cohort_per_birthyear.pkl'):
+        
+        # cohort conversion to data array (again)
+        da_cohort_size = xr.DataArray(
+            np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
+            coords={
+                'country': ('country', list(df_countries['name'])),
+                'time': ('time', year_range),
+                'ages': ('ages', np.arange(104,-1,-1)),
+            },
+            dims=[
+                'country',
+                'time',
+                'ages',
+            ]
+        )
+        
+        # need new cohort dataset that has total population per birth year (using life expectancy info; each country has a different end point)
+        da_cohort_aligned = calc_birthyear_align(
+            da_cohort_size,
+            df_life_expectancy_5,
+            year_start,
+            year_end,
+            year_ref,
+        )
+        
+        # convert to dataset and add weights
+        ds_cohorts = ds_cohort_align(da_cohort_aligned)
+        
+        # pickle birth year aligned cohort sizes
+        with open('./data/pickles/cohort_per_birthyear.pkl', 'wb') as f:
+            pk.dump(ds_cohorts,f)  
     
-    # need new cohort dataset that has total population per birth year (using life expectancy info; each country has a different end point)
-    da_cohort_aligned = calc_birthyear_align(
-        da_cohort_size,
-        df_life_expectancy_5,
-        year_start,
-        year_end,
-        year_ref,
-    )
-    
-    # convert to dataset and add weights
-    ds_cohorts = ds_cohort_align(da_cohort_aligned)
-    
-    # pickle birth year aligned cohort sizes
-    with open('./data/pickles/cohort_per_birthyear.pkl', 'wb') as f:
-        pk.dump(ds_cohorts,f)    
+    else:
+        
+        # pickle birth year aligned cohort sizes
+        with open('./data/pickles/cohort_per_birthyear.pkl', 'rb') as f:
+            ds_cohorts = pk.load(f)          
 
     # ds_age_emergence_RCP, ds_pop_frac_RCP = all_emergence(
     #     da_exposure_peryear_perage_percountry_RCP,
@@ -512,6 +521,7 @@ if flags['emergence']:
         ds_exposure_pic,
         ds_cohorts,
         flags['extr'],
+        flags['gmt'],
         '15',
     )
 
@@ -525,6 +535,7 @@ if flags['emergence']:
         ds_exposure_pic,
         ds_cohorts,
         flags['extr'],
+        flags['gmt'],
         '20',
     )
 
@@ -538,6 +549,7 @@ if flags['emergence']:
         ds_exposure_pic,
         ds_cohorts,
         flags['extr'],
+        flags['gmt'],
         'NDC',
     )
     
@@ -564,11 +576,11 @@ else: # load pickles
     # pop frac
     # with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
     #     ds_pop_frac_RCP = pk.load(f)
-    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'15'), 'rb') as f:
+    with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'15'), 'rb') as f:
         ds_pop_frac_15 = pk.load(f)
-    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'20'), 'rb') as f:
+    with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'20'), 'rb') as f:
         ds_pop_frac_20 = pk.load(f)
-    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
+    with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'NDC'), 'rb') as f:
         ds_pop_frac_NDC = pk.load(f)    
     with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
         ds_pop_frac_strj = pk.load(f)                
@@ -576,11 +588,11 @@ else: # load pickles
     # age emergence
     # with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
     #     ds_age_emergence_RCP = pk.load(f)
-    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'15'), 'rb') as f:
+    with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'15'), 'rb') as f:
         ds_age_emergence_15 = pk.load(f)
-    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'20'), 'rb') as f:
+    with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'20'), 'rb') as f:
         ds_age_emergence_20 = pk.load(f)
-    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'NDC'), 'rb') as f:
+    with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'NDC'), 'rb') as f:
         ds_age_emergence_NDC = pk.load(f)                    
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
         ds_age_emergence_strj = pk.load(f)         
