@@ -101,14 +101,20 @@ def init():
     RCP2GMT_maxdiff_threshold = 0.2 # [K]
     
     # set GMT info for stylized trajectories
-    GMT_max = 3.5
+    GMT_max = 3.5 # this gets overwritten by the end of GMT_40
     GMT_inc = 0.1
+    scen_thresholds = {
+        '3.0': [2.9,3.0],
+        'NDC': [2.65,2.8],
+        '2.0': [1.95,2.0],
+        '1.5': [1.45, 1.5],
+    }    
 
     # set kernel x-values
     global kernel_x
     kernel_x = np.arange(1,50.5,0.5)
     
-    return ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref
+    return ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds
 
 #%% ----------------------------------------------------------------
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)

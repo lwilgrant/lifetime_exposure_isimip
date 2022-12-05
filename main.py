@@ -60,9 +60,8 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 5: heatwavedarea
                                     # 6: tropicalcyclonedarea
                                     # 7: waterscarcity
-flags['gmt'] = 'original'           # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
-                                    # 4deg: substitute the linear max wth the highest IASA c7 scenario (increasing to 4.0)
-                                    # 4deg3deg: substitute both linear max & NDC to avoid 1.5 and 2.0 degree over-arching
+flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
+                            # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
 flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
@@ -84,7 +83,7 @@ flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort em
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 # settings.set_extremes(flags)
