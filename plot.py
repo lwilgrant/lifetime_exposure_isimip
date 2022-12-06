@@ -1049,6 +1049,7 @@ def plot_pop_frac_birth_year_GMT_strj(
     df_GMT_strj,
     ds_cohorts,
     year_range,
+    flag_gmt,
 ):
     
     # --------------------------------------------------------------------
@@ -1089,8 +1090,8 @@ def plot_pop_frac_birth_year_GMT_strj(
     time = year_range
     # xmin = np.min(time)
     # xmax = np.max(time)
-    xmin = 0.85
-    xmax = 3.5
+    xmin = 1.0
+    xmax = 4.0
     
     # placment birth year cbar
     cb_by_x0 = 0.975
@@ -1128,17 +1129,10 @@ def plot_pop_frac_birth_year_GMT_strj(
     cmap_50 = cmap_by(0.95)  #dark
     cmap_55 = cmap_by(0.99)
 
-    # colors_by = [
-    #     cmap55,cmap45,cmap35,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1990
-    #     cmap_5,cmap_10,cmap_25,cmap_35,cmap_45,cmap_55, # 6 light colors for 1990-2020
-    # ]
     colors_by = [
         cmap45,cmap35,cmap30,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1965
         cmap_5,cmap_10,cmap_25,cmap_30,cmap_35,cmap_45, # 6 light colors for 1966-1970
     ]    
-    # line_colors = cp(colors_by)
-    # for i in range((2020-1970)):
-    #     line_colors.append(colors_by[-1])
     
     line_colors = []
     for c in colors_by:
@@ -1153,14 +1147,12 @@ def plot_pop_frac_birth_year_GMT_strj(
 
     # colorbar args for birth years
     values_by = [1960,1965,1970,1975,1980,1985,1990,1995,2000,2005,2010,2015,2020]
-    # values_by = [1959.5,1960.5,1961.5,1962.5,1963.5,1964.5,1965.5,1966.5,1967.5,1968.5,1969.5,1970.5]
     tick_locs_by = [1960,1970,1980,1990,2000,2010,2020]
-    # tick_locs_by = [1960,1961,1962,1963,1964,1965,1966,1967,1968,1969,1970]
     tick_labels_by = list(str(n) for n in tick_locs_by)
-    # tick_labels_by[-1] = r'$\geq 1970$'
-    # tick_labels_by[-1] = '≥1970'
-    # tick_labels_by[-1] = '≥2020'
     norm_by = mpl.colors.BoundaryNorm(values_by,cmap_list_by.N)    
+
+    xticks = np.arange(1,4.1,0.5)
+    xticklabels = [1.0, None, 2.0, None, 3.0, None, 4.0]
 
     ax1_ylab = 'Fraction unprecedented'
     ax2_ylab = 'Age emergence'
@@ -1183,7 +1175,7 @@ def plot_pop_frac_birth_year_GMT_strj(
         ])         
 
         # --------------------------------------------------------------------
-        # plot unprecedented frac of total pop, ax1 for mean +/- std
+        # plot unprecedented frac of total pop and age emergence
 
         # strj
         for i,by in enumerate(np.arange(1960,2021,1)):
@@ -1195,14 +1187,6 @@ def plot_pop_frac_birth_year_GMT_strj(
                 color=line_colors[i],
                 zorder=1,
             )
-            # ax1.annotate(
-            #     text=str(by), 
-            #     xy=(df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1]),
-            #     xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1])),
-            #     color='k',
-            #     fontsize=impactyr_font,
-            #     # zorder=5
-            # )
             
             ax2.plot(
                 df_GMT_strj.loc[2100,:].values,
@@ -1214,6 +1198,17 @@ def plot_pop_frac_birth_year_GMT_strj(
                 color=line_colors[i],
                 zorder=1,
             )
+            
+        # for 
+        
+        #     ax1.annotate(
+        #         text=str(by), 
+        #         xy=(df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1]),
+        #         xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1])),
+        #         color='k',
+        #         fontsize=impactyr_font,
+        #         # zorder=5
+        #     )        
             
             # ax2.annotate(
             #     text=str(by), 
@@ -1254,7 +1249,10 @@ def plot_pop_frac_birth_year_GMT_strj(
         for i,ax in enumerate([ax1,ax2]):
             ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
             ax.set_xlim(xmin,xmax)
-            # ax.xaxis.set_ticks(xticks_ts)
+            ax.set_xticks(
+                xticks,
+                labels=xticklabels
+            )            
             # ax.xaxis.set_ticklabels(xtick_labels_ts)
             ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
             ax.tick_params(labelsize=tick_font,axis="y",direction="in")
@@ -1299,7 +1297,7 @@ def plot_pop_frac_birth_year_GMT_strj(
         cb_by.outline.set_linewidth(0)                  
                 
         f.savefig(
-            './figures/pop_frac_birthyear_GMT_strj_annual_{}.png'.format(cohort_type),
+            './figures/pop_frac_birthyear_GMT_strj_annual_{}_{}.png'.format(cohort_type,flag_gmt),
             bbox_inches = "tight",
             dpi=300,
         )

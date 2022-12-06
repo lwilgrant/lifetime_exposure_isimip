@@ -62,7 +62,7 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                     # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
@@ -601,7 +601,7 @@ else: # load pickles
 # plot emergence stuff
 # ------------------------------------------------------------------
 
-from plot import *   
+from plot import *
 
 # collect all data arrays for age of emergence into dataset for finding age per birth year
 ds_age_emergence = xr.merge([
@@ -626,12 +626,16 @@ plot_pop_frac_birth_year_strj(
 )
 
 # plot pop frac and age emergence across GMT for stylized trajectories
+# top panel; (y: frac unprecedented, x: GMT anomaly @ 2100)
+# bottom panel; (y: age emergence, x: GMT anomaly @ 2100)
+# plots both approaches to frac unprecedented; exposed vs full cohorts
 plot_pop_frac_birth_year_GMT_strj(
     ds_pop_frac_strj,
     ds_age_emergence_strj,
     df_GMT_strj,
     ds_cohorts,
     year_range,
+    flags['gmt'],
 )
 
 # plot country mean age of emergence of 3 main GMT mapped scenarios across birth year

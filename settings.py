@@ -105,10 +105,10 @@ def init():
     GMT_inc = 0.1
     scen_thresholds = {
         '3.0': [2.9,3.0],
-        'NDC': [2.65,2.8],
+        'NDC': [2.35,2.4],
         '2.0': [1.95,2.0],
         '1.5': [1.45, 1.5],
-    }    
+    } 
 
     # set kernel x-values
     global kernel_x
