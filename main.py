@@ -666,6 +666,7 @@ gdf_exposure_emergence_birth_year = calc_exposure_emergence(
 # country-scale spatial plot of birth and year emergence
 spatial_emergence_plot(
     gdf_exposure_emergence_birth_year,
+    flags['extr'],
 )
 
 # # plot stylized trajectories (GMT only)

@@ -52,6 +52,7 @@ def floater(f):
 # plot timing and EMF of exceedence of pic-defined extreme
 def spatial_emergence_plot(
     gdf_exposure_emergence_birth_year,
+    flag_ext,
 ):
     
     # plot
@@ -339,7 +340,7 @@ def spatial_emergence_plot(
     cb_emf.outline.set_edgecolor('0.9')
     cb_emf.outline.set_linewidth(0)
     
-    f.savefig('./figures/birth_year_emergence.png',dpi=300)
+    f.savefig('./figures/birth_year_emergence_{}.png'.format(flag_ext),dpi=300)
 
 
 #%% ----------------------------------------------------------------
