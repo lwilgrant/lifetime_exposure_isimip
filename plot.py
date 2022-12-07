@@ -1049,6 +1049,7 @@ def plot_pop_frac_birth_year_GMT_strj(
     df_GMT_strj,
     ds_cohorts,
     year_range,
+    flag_ext,
     flag_gmt,
 ):
     
@@ -1297,7 +1298,7 @@ def plot_pop_frac_birth_year_GMT_strj(
         cb_by.outline.set_linewidth(0)                  
                 
         f.savefig(
-            './figures/pop_frac_birthyear_GMT_strj_annual_{}_{}.png'.format(cohort_type,flag_gmt),
+            './figures/pop_frac_birthyear_GMT_strj_annual_{}_{}_{}.png'.format(flag_ext,cohort_type,flag_gmt),
             bbox_inches = "tight",
             dpi=300,
         )

@@ -64,6 +64,15 @@ def init():
             'LPJmL',
             'PEPIC'],
         'driedarea' : [
+            'CLM45',
+            'H08', 
+            'LPJmL', 
+            'JULES-W1', 
+            'MPI-HM', 
+            'ORCHIDEE', 
+            'PCR-GLOBWB', 
+            'WaterGAP2'],
+        'floodedarea' : [
             'CLM45', 
             'H08', 
             'LPJmL', 
@@ -72,7 +81,6 @@ def init():
             'ORCHIDEE', 
             'PCR-GLOBWB', 
             'WaterGAP2'],
-        'floodedarea' : ['CLM45'],#testing , 'H08'      , 'LPJmL', 'JULES-W1', 'MPI-HM', 'ORCHIDEE', 'PCR-GLOBWB', 'WaterGAP2'],
         'heatwavedarea' : [
             'HWMId99'],        
         # 'heatwavedarea' : [

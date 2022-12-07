@@ -52,14 +52,14 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'heatwavedarea'     # 0: all
-                                    # 1: burntarea
-                                    # 2: cropfailedarea
-                                    # 3: driedarea
-                                    # 4: floodedarea
-                                    # 5: heatwavedarea
-                                    # 6: tropicalcyclonedarea
-                                    # 7: waterscarcity
+flags['extr'] = 'driedarea'     # 0: all
+                                # 1: burntarea
+                                # 2: cropfailedarea
+                                # 3: driedarea
+                                # 4: floodedarea
+                                # 5: heatwavedarea
+                                # 6: tropicalcyclonedarea
+                                # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
 flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
@@ -70,7 +70,7 @@ flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure 
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
 flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
@@ -611,19 +611,19 @@ ds_age_emergence = xr.merge([
     ds_age_emergence_NDC.rename({'age_emergence':'age_emergence_NDC'}),
 ])
         
-# plot pop frac of 3 main GMT mapped scenarios across birth years
-plot_pop_frac_birth_year(
-    ds_pop_frac_NDC,
-    ds_pop_frac_15,
-    ds_pop_frac_20,
-    year_range,
-)
+# # plot pop frac of 3 main GMT mapped scenarios across birth years
+# plot_pop_frac_birth_year(
+#     ds_pop_frac_NDC,
+#     ds_pop_frac_15,
+#     ds_pop_frac_20,
+#     year_range,
+# )
 
-# plot pop frac for 0.8-3.5 degree stylized trajectories across birth years
-plot_pop_frac_birth_year_strj(
-    ds_pop_frac_strj,
-    df_GMT_strj,
-)
+# # plot pop frac for 0.8-3.5 degree stylized trajectories across birth years
+# plot_pop_frac_birth_year_strj(
+#     ds_pop_frac_strj,
+#     df_GMT_strj,
+# )
 
 # plot pop frac and age emergence across GMT for stylized trajectories
 # top panel; (y: frac unprecedented, x: GMT anomaly @ 2100)
@@ -635,24 +635,25 @@ plot_pop_frac_birth_year_GMT_strj(
     df_GMT_strj,
     ds_cohorts,
     year_range,
+    flags['extr'],
     flags['gmt'],
 )
 
-# plot country mean age of emergence of 3 main GMT mapped scenarios across birth year
-plot_age_emergence(
-    ds_age_emergence_NDC,
-    ds_age_emergence_15,
-    ds_age_emergence_20,
-    year_range,
-)
+# # plot country mean age of emergence of 3 main GMT mapped scenarios across birth year
+# plot_age_emergence(
+#     ds_age_emergence_NDC,
+#     ds_age_emergence_15,
+#     ds_age_emergence_20,
+#     year_range,
+# )
 
-# plot country mean age of emergence of stylized trajectories across birth years
-plot_age_emergence_strj(
-    ds_age_emergence_strj,
-    df_GMT_strj,
-    ds_cohorts,
-    year_range,
-)
+# # plot country mean age of emergence of stylized trajectories across birth years
+# plot_age_emergence_strj(
+#     ds_age_emergence_strj,
+#     df_GMT_strj,
+#     ds_cohorts,
+#     year_range,
+# )
 
 # calculate birth year emergence in simple approach
 gdf_exposure_emergence_birth_year = calc_exposure_emergence(
@@ -667,27 +668,27 @@ spatial_emergence_plot(
     gdf_exposure_emergence_birth_year,
 )
 
-# plot stylized trajectories (GMT only)
-plot_stylized_trajectories(
-    df_GMT_strj,
-    d_isimip_meta,
-    year_range,
-)
+# # plot stylized trajectories (GMT only)
+# plot_stylized_trajectories(
+#     df_GMT_strj,
+#     d_isimip_meta,
+#     year_range,
+# )
 
-# plot pop frac across GMT for stylized trajectories; add points for 1.5, 2.0 and NDC from original analysis as test
-plot_pop_frac_birth_year_GMT_strj_points(
-    ds_pop_frac_strj,
-    ds_age_emergence_strj,
-    df_GMT_strj,
-    ds_cohorts,
-    ds_age_emergence,
-    ds_pop_frac_15,
-    ds_pop_frac_20,
-    ds_pop_frac_NDC,
-    ind_15,
-    ind_20,
-    ind_NDC,
-    year_range,
-)
+# # plot pop frac across GMT for stylized trajectories; add points for 1.5, 2.0 and NDC from original analysis as test
+# plot_pop_frac_birth_year_GMT_strj_points(
+#     ds_pop_frac_strj,
+#     ds_age_emergence_strj,
+#     df_GMT_strj,
+#     ds_cohorts,
+#     ds_age_emergence,
+#     ds_pop_frac_15,
+#     ds_pop_frac_20,
+#     ds_pop_frac_NDC,
+#     ind_15,
+#     ind_20,
+#     ind_NDC,
+#     year_range,
+# )
 
 # %%
