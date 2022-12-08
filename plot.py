@@ -53,6 +53,7 @@ def floater(f):
 def spatial_emergence_plot(
     gdf_exposure_emergence_birth_year,
     flag_ext,
+    flag_gmt,
 ):
     
     # plot
@@ -340,7 +341,7 @@ def spatial_emergence_plot(
     cb_emf.outline.set_edgecolor('0.9')
     cb_emf.outline.set_linewidth(0)
     
-    f.savefig('./figures/birth_year_emergence_{}.png'.format(flag_ext),dpi=300)
+    f.savefig('./figures/birth_year_emergence_{}_{}.png'.format(flag_ext,flag_gmt),dpi=300)
 
 
 #%% ----------------------------------------------------------------
@@ -1190,7 +1191,7 @@ def plot_pop_frac_birth_year_GMT_strj(
                 zorder=1,
             )
             
-            ax2.plot(
+            ax2.plot( # note that here we weight the age emergence for aggregation
                 df_GMT_strj.loc[2100,:].values,
                 ds_age_emergence_strj['age_emergence'].\
                     sel(birth_year=by).\

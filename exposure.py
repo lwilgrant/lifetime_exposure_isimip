@@ -556,7 +556,9 @@ def calc_cohort_exposure(
                     
                     # assign data to data array based on step in stylized trajectories
                     da_exposure_cohort_strj.loc[
-                        {'country':da_exposure_cohort_strj.country,'time':da_exposure_cohort_strj.time,'GMT':step}
+                        {'country':da_exposure_cohort_strj.country,
+                         'time':da_exposure_cohort_strj.time,
+                         'GMT':step}
                         ] = da_exposure_peryear_percountry.reindex(
                             {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                         ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
@@ -607,7 +609,9 @@ def calc_cohort_exposure(
                     
                     # assign data to data array based on step in stylized trajectories
                     da_exposure_peryear_perage_percountry_strj.loc[
-                        {'country':da_exposure_peryear_perage_percountry_strj.country,'time':da_exposure_peryear_perage_percountry_strj.time,'GMT':step}
+                        {'country':da_exposure_peryear_perage_percountry_strj.country,
+                         'time':da_exposure_peryear_perage_percountry_strj.time,
+                         'GMT':step}
                         ] = da_exposure_peryear_percountry.reindex(
                             {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                         ).assign_coords({'time':np.arange(year_start,year_end+1)}) * xr.full_like(da_cohort_size,1)

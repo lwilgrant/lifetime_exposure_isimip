@@ -247,29 +247,50 @@ def exposure_pic_masking(
     ds_exposure_mask,
     ds_exposure_pic,
 ):
-    # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
-    ds_exposure_pic['ext'] = ds_exposure_pic['ext'].where(ds_exposure_pic['ext']>0)
-    da_age_exposure_mask = xr.where(ds_exposure_mask['exposure_cumulative'] >= ds_exposure_pic['ext'],1,0)
-    da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
-    da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
     
-    # convert da_age_emergence to dataset and add variable for cohort weighted age emergence
+    age_emergence_list = []
+    exposure_mask_list = []
+    ds_exposure_pic['ext'] = ds_exposure_pic['ext'].where(ds_exposure_pic['ext']>0)
+    
+    for c in ds_exposure_mask.country.data:
+        
+        # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
+        da_age_exposure_mask = xr.where(
+            ds_exposure_mask['exposure_cumulative'].sel(country=c) >= ds_exposure_pic['ext'].sel(country=c),
+            1,
+            0,
+        )
+        da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
+        da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
+        age_emergence_list.append(da_age_emergence)
+            
+        # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
+        da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
+        da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure'].sel(country=c).notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s where lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
+        da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0) # turn missing values to 0
+        exposure_mask_list.append(da_exposure_mask)
+        
+    # concat across countries
+    da_age_emergence = xr.concat(
+        age_emergence_list,
+        dim='country',
+    )
+    da_exposure_mask = xr.concat(
+        exposure_mask_list,
+        dim='country',
+    )    
+    
+    # turn age emergence into dataset
     ds_age_emergence = xr.Dataset(
         data_vars={
-            'age_emergence': (da_age_emergence.dims,da_age_emergence.data),
+            'age_emergence': (da_age_emergence.dims,da_age_emergence.data)
         },
         coords={
             'country': ('country',da_age_emergence.country.data),
             'birth_year': ('birth_year',da_age_emergence.birth_year.data),
             'runs': ('runs',da_age_emergence.runs.data),
-        },
-    )
-    # ds_age_emergence['age_emergence_weighted'] = da_age_emergence.weighted(ds_cohorts['weights'])
-    
-    # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
-    da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
-    da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure'].notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s where lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
-    da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0) # turn missing values to 0
+        },        
+    )        
     
     return da_exposure_mask,ds_age_emergence
 
@@ -380,7 +401,7 @@ def calc_exposure_emergence(
             ds_age_emergence['age_emergence_{}'.format(scen)].birth_year==ds_exposure_emergence_birth_year['mmm_{}'.format(scen)]
         ).mean(dim='runs').min(dim='birth_year',skipna=True)    
     
-    # move emergene birth years and EMFs to gdf for plotting
+    # move emergence birth years and EMFs to gdf for plotting
     gdf_exposure_emergence_birth_year = gpd.GeoDataFrame(ds_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders))
     
     return gdf_exposure_emergence_birth_year
@@ -483,6 +504,7 @@ def strj_emergence(
         print('Processing GMT step {} of {}'.format(step,len(da_exposure_peryear_perage_percountry.GMT.values)))
     
         # align age + time selections of annual mean exposure along birthyears + time per country, birth cohort, run to act as mask for birthyears when pic threshold is passed
+        start_time = time.time()
         da_exposure_aligned = calc_birthyear_align(
             da_exposure_peryear_perage_percountry.sel(GMT=step),
             df_life_expectancy_5,
@@ -490,11 +512,20 @@ def strj_emergence(
             year_end,
             year_ref,
         )
+        print("--- {} minutes ---".format(
+            np.floor((time.time() - start_time) / 60),
+            )
+        )
         
         # dataset of birthyear aligned exposure, add cumulative exposure 
+        start_time = time.time()
         ds_exposure_aligned = ds_exposure_align(
             da_exposure_aligned,
             traject,
+        )
+        print("--- {} minutes ---".format(
+            np.floor((time.time() - start_time) / 60),
+            )
         )
         
         # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
