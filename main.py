@@ -68,7 +68,7 @@ flags['mask'] = 0           # 0: do not process country data (i.e. load masks pi
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
@@ -477,8 +477,7 @@ if flags['emergence']:
     # )
 
     ds_age_emergence_15, ds_pop_frac_15 = all_emergence(
-        da_exposure_peryear_perage_percountry_15,
-        da_exposure_cohort_15,
+        d_isimip_meta,
         df_life_expectancy_5,
         year_start,
         year_end,
@@ -491,8 +490,7 @@ if flags['emergence']:
     )
 
     ds_age_emergence_20, ds_pop_frac_20 = all_emergence(
-        da_exposure_peryear_perage_percountry_20,
-        da_exposure_cohort_20,
+        d_isimip_meta,
         df_life_expectancy_5,
         year_start,
         year_end,
@@ -505,8 +503,7 @@ if flags['emergence']:
     )
 
     ds_age_emergence_NDC, ds_pop_frac_NDC = all_emergence(
-        da_exposure_peryear_perage_percountry_NDC,
-        da_exposure_cohort_NDC,
+        d_isimip_meta,
         df_life_expectancy_5,
         year_start,
         year_end,
@@ -519,8 +516,7 @@ if flags['emergence']:
     )
     
     ds_age_emergence_strj, ds_pop_frac_strj = strj_emergence(
-        da_exposure_peryear_perage_percountry_strj,
-        da_exposure_cohort_strj,
+        d_isimip_meta,
         df_life_expectancy_5,
         year_start,
         year_end,
