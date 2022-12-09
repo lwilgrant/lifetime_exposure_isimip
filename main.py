@@ -307,7 +307,7 @@ if flags['exposure_cohort']:
     start_time = time.time()
     
     # calculate exposure per country and per cohort
-    exposure_cohort = calc_cohort_exposure(
+    calc_cohort_exposure(
         flags['gmt'],
         d_isimip_meta,
         df_countries,
@@ -317,17 +317,6 @@ if flags['exposure_cohort']:
         d_all_cohorts,
     )
     
-    da_exposure_cohort_RCP,\
-    da_exposure_cohort_15,\
-    da_exposure_cohort_20,\
-    da_exposure_cohort_NDC,\
-    da_exposure_cohort_strj,\
-    da_exposure_peryear_perage_percountry_RCP,\
-    da_exposure_peryear_perage_percountry_15,\
-    da_exposure_peryear_perage_percountry_20,\
-    da_exposure_peryear_perage_percountry_NDC,\
-    da_exposure_peryear_perage_percountry_strj = exposure_cohort   
-    
     print("--- {} minutes ---".format(
         np.floor((time.time() - start_time) / 60),
         )
@@ -335,31 +324,7 @@ if flags['exposure_cohort']:
     
 else:  # load processed cohort exposure data
     
-    print('Loading processed exposures')
-
-    # pickle cohort exposures
-    with open('./data/pickles/exposure_cohort_RCP_{}.pkl'.format(flags['extr']), 'rb') as f:
-        da_exposure_cohort_RCP = pk.load(f)
-    with open('./data/pickles/exposure_cohort_15_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_cohort_15 = pk.load(f)
-    with open('./data/pickles/exposure_cohort_20_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_cohort_20 = pk.load(f)
-    with open('./data/pickles/exposure_cohort_NDC_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_cohort_NDC = pk.load(f)
-    with open('./data/pickles/exposure_cohort_strj_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_cohort_strj = pk.load(f)        
-        
-    # pickle exposure peryear perage percountry
-    with open('./data/pickles/exposure_peryear_perage_percountry_RCP_{}.pkl'.format(flags['extr']), 'rb') as f:
-        da_exposure_peryear_perage_percountry_RCP = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_15_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_peryear_perage_percountry_15 = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_20_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_peryear_perage_percountry_20 = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_peryear_perage_percountry_NDC = pk.load(f)
-    with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        da_exposure_peryear_perage_percountry_strj = pk.load(f)
+    print('Processed exposures will be loaded in emergence calculation')
 
 # --------------------------------------------------------------------
 # process picontrol data

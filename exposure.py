@@ -513,26 +513,39 @@ def calc_cohort_exposure(
             )
 
             # multiply average exposure peryear by cohort sizes
-            d_cohort_exposure_RCP[i]= da_exposure_peryear_percountry * da_cohort_size
+            # d_cohort_exposure_RCP[i]= da_exposure_peryear_percountry * da_cohort_size
+            pickle = da_exposure_peryear_percountry * da_cohort_size
+            
+            with open('./data/pickles/exposure_cohort_RCP_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],i), 'wb') as f:
+                pk.dump(pickle,f)
             
             # if max diff criteria met, run GMT mapping before scaling against cohort exposure
             if d_isimip_meta[i]['GMT_15_valid']:
                 
-                d_cohort_exposure_15[i]= da_exposure_peryear_percountry.reindex(
+                pickle = da_exposure_peryear_percountry.reindex(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_15']]}
                     ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
                 
+                with open('./data/pickles/exposure_cohort_15_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                    pk.dump(pickle,f)
+                
             if d_isimip_meta[i]['GMT_20_valid']:
                 
-                d_cohort_exposure_20[i]= da_exposure_peryear_percountry.reindex(
+                pickle = da_exposure_peryear_percountry.reindex(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_20']]}
                     ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
                 
+                with open('./data/pickles/exposure_cohort_20_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                    pk.dump(pickle,f)
+                
             if d_isimip_meta[i]['GMT_NDC_valid']:
                 
-                d_cohort_exposure_NDC[i]= da_exposure_peryear_percountry.reindex(
+                pickle= da_exposure_peryear_percountry.reindex(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_NDC']]}
                     ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
+                
+                with open('./data/pickles/exposure_cohort_NDC_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                    pk.dump(pickle,f)
                 
             # GMT mapping for cohort exposure for stylized trajectories
             da_exposure_cohort_strj = xr.DataArray(
@@ -563,29 +576,42 @@ def calc_cohort_exposure(
                             {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                         ).assign_coords({'time':np.arange(year_start,year_end+1)}) * da_cohort_size
                         
-            d_cohort_exposure_strj[i] = da_exposure_cohort_strj
+            with open('./data/pickles/exposure_cohort_strj_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                pk.dump(da_exposure_cohort_strj,f)
                 
             # expand dimension of da_exposure_peryear_percountry for eventual comparison against pic['ext']
-            d_exposure_peryear_perage_percountry_RCP[i] = da_exposure_peryear_percountry * xr.full_like(da_cohort_size,1)
+            pickle = da_exposure_peryear_percountry * xr.full_like(da_cohort_size,1)
+            
+            with open('./data/pickles/exposure_peryear_perage_percountry_RCP_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],i), 'wb') as f:
+                pk.dump(pickle,f)
             
             # dimension expansion for GMT mapping
             if d_isimip_meta[i]['GMT_15_valid']:
                 
-                d_exposure_peryear_perage_percountry_15[i]= da_exposure_peryear_percountry.reindex(
+                pickle = da_exposure_peryear_percountry.reindex(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_15']]}
                     ).assign_coords({'time':np.arange(year_start,year_end+1)}) * xr.full_like(da_cohort_size,1)
                 
+                with open('./data/pickles/exposure_peryear_perage_percountry_15_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                    pk.dump(pickle,f)
+                
             if d_isimip_meta[i]['GMT_20_valid']:
                 
-                d_exposure_peryear_perage_percountry_20[i]= da_exposure_peryear_percountry.reindex(
+                pickle = da_exposure_peryear_percountry.reindex(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_20']]}
                     ).assign_coords({'time':np.arange(year_start,year_end+1)}) * xr.full_like(da_cohort_size,1)
                 
+                with open('./data/pickles/exposure_peryear_perage_percountry_20_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                    pk.dump(pickle,f)
+                
             if d_isimip_meta[i]['GMT_NDC_valid']:
                 
-                d_exposure_peryear_perage_percountry_NDC[i]= da_exposure_peryear_percountry.reindex(
+                pickle  = da_exposure_peryear_percountry.reindex(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_NDC']]}
                     ).assign_coords({'time':np.arange(year_start,year_end+1)}) * xr.full_like(da_cohort_size,1)
+                
+                with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                    pk.dump(pickle,f)
                 
             # GMT mapping for stylized trajectories in dimension expansion of da_exposure_peryear_percountry
             da_exposure_peryear_perage_percountry_strj = xr.DataArray(
@@ -615,109 +641,9 @@ def calc_cohort_exposure(
                         ] = da_exposure_peryear_percountry.reindex(
                             {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                         ).assign_coords({'time':np.arange(year_start,year_end+1)}) * xr.full_like(da_cohort_size,1)
-                        
-            d_exposure_peryear_perage_percountry_strj[i] = da_exposure_peryear_perage_percountry_strj
-        
-        # convert cohort exposure from dictionaries to data arrays    
-        da_exposure_cohort_RCP = xr.concat(
-            [v for v in d_cohort_exposure_RCP.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_cohort_exposure_RCP.keys())})
-        
-        da_exposure_cohort_15 = xr.concat(
-            [v for v in d_cohort_exposure_15.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_cohort_exposure_15.keys())})
-        
-        da_exposure_cohort_20 = xr.concat(
-            [v for v in d_cohort_exposure_20.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_cohort_exposure_20.keys())})
-        
-        da_exposure_cohort_NDC = xr.concat(
-            [v for v in d_cohort_exposure_NDC.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_cohort_exposure_NDC.keys())})  
-        
-        # concat all runs for exposure in strj     
-        da_exposure_cohort_strj = xr.concat(
-            [v for v in d_cohort_exposure_strj.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_cohort_exposure_strj.keys())})
-        
-        # convert exposure peryear perage from dict to data array
-        da_exposure_peryear_perage_percountry_RCP = xr.concat(
-            [v for v in d_exposure_peryear_perage_percountry_RCP.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_exposure_peryear_perage_percountry_RCP.keys())})
-        
-        da_exposure_peryear_perage_percountry_15 = xr.concat(
-            [v for v in d_exposure_peryear_perage_percountry_15.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_exposure_peryear_perage_percountry_15.keys())})
-        
-        da_exposure_peryear_perage_percountry_20 = xr.concat(
-            [v for v in d_exposure_peryear_perage_percountry_20.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_exposure_peryear_perage_percountry_20.keys())})
-        
-        da_exposure_peryear_perage_percountry_NDC = xr.concat(
-            [v for v in d_exposure_peryear_perage_percountry_NDC.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_exposure_peryear_perage_percountry_NDC.keys())})      
-        
-        # concat all runs for exposure in strj
-        da_exposure_peryear_perage_percountry_strj = xr.concat(
-            [v for v in d_exposure_peryear_perage_percountry_strj.values()],
-            dim='runs',
-        ).assign_coords({'runs':list(d_exposure_peryear_perage_percountry_strj.keys())})              
-
-        # --------------------------------------------------------------------
-        # save workspave in pickles
-        #  
-
-        # save pickles
-        print()
-        print('Saving processed exposures')
-
-        # pickle cohort exposures
-        with open('./data/pickles/exposure_cohort_RCP_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
-            pk.dump(da_exposure_cohort_RCP,f)
-        with open('./data/pickles/exposure_cohort_15_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_cohort_15,f)
-        with open('./data/pickles/exposure_cohort_20_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_cohort_20,f)
-        with open('./data/pickles/exposure_cohort_NDC_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_cohort_NDC,f)
-        with open('./data/pickles/exposure_cohort_strj_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_cohort_strj,f)            
             
-        # pickle exposure peryear perage percountry
-        with open('./data/pickles/exposure_peryear_perage_percountry_RCP_{}.pkl'.format(d_isimip_meta[i]['extreme']), 'wb') as f:
-            pk.dump(da_exposure_peryear_perage_percountry_RCP,f)
-        with open('./data/pickles/exposure_peryear_perage_percountry_15_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_peryear_perage_percountry_15,f)
-        with open('./data/pickles/exposure_peryear_perage_percountry_20_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_peryear_perage_percountry_20,f)
-        with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_peryear_perage_percountry_NDC,f)
-        with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt), 'wb') as f:
-            pk.dump(da_exposure_peryear_perage_percountry_strj,f)
-            
-        exposure_cohort = (
-            da_exposure_cohort_RCP, 
-            da_exposure_cohort_15, 
-            da_exposure_cohort_20, 
-            da_exposure_cohort_NDC,
-            da_exposure_cohort_strj,
-            da_exposure_peryear_perage_percountry_RCP,
-            da_exposure_peryear_perage_percountry_15,
-            da_exposure_peryear_perage_percountry_20,
-            da_exposure_peryear_perage_percountry_NDC,
-            da_exposure_peryear_perage_percountry_strj,
-        )
-        
-        return exposure_cohort
+            with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags_gmt,i), 'wb') as f:
+                pk.dump(da_exposure_peryear_perage_percountry_strj,f)                     
         
         
 #%% ----------------------------------------------------------------
