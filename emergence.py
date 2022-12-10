@@ -288,7 +288,7 @@ def exposure_pic_masking(
         coords={
             'country': ('country',da_age_emergence.country.data),
             'birth_year': ('birth_year',da_age_emergence.birth_year.data),
-            'runs': ('runs',da_age_emergence.runs.data),
+            # 'runs': ('runs',da_age_emergence.runs.data),
         },        
     )        
     
@@ -304,15 +304,23 @@ def calc_unprec_exposure(
 ):
 
     # new empty dataset with variables for population experiencing unprecedented exposure
+    # ds_pop_frac = xr.Dataset(
+    #     data_vars={
+    #         'unprec_exposed': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
+    #     },
+    #     coords={
+    #         'runs': ('runs',ds_exposure_cohort.runs.data),
+    #         'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
+    #     }
+    # )
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprec_exposed': (['runs','birth_year'], np.empty((len(ds_exposure_cohort.runs.data),len(ds_exposure_cohort.birth_year.data)))),
+            'unprec_exposed': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
         },
         coords={
-            'runs': ('runs',ds_exposure_cohort.runs.data),
             'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
         }
-    )
+    )    
     
     # keep people exposed during birth year's timesteps if cumulative exposure exceeds pic defined extreme
     unprec_exposed = ds_exposure_cohort['exposure'].where(da_exposure_mask==1)
@@ -342,22 +350,22 @@ def pop_frac_stats(
 ):
     
     # stats on exposure types
-    ds_pop_frac['mean_unprec_exposed'] = ds_pop_frac['unprec_exposed'].mean(dim='runs')
-    ds_pop_frac['max_unprec_exposed'] = ds_pop_frac['unprec_exposed'].max(dim='runs')
-    ds_pop_frac['min_unprec_exposed'] = ds_pop_frac['unprec_exposed'].min(dim='runs')
-    ds_pop_frac['std_unprec_exposed'] = ds_pop_frac['unprec_exposed'].std(dim='runs')
-    ds_pop_frac['mean_unprec_all'] = ds_pop_frac['unprec_all'].mean(dim='runs')
-    ds_pop_frac['max_unprec_all'] = ds_pop_frac['unprec_all'].max(dim='runs')
-    ds_pop_frac['min_unprec_all'] = ds_pop_frac['unprec_all'].min(dim='runs')
-    ds_pop_frac['std_unprec_all'] = ds_pop_frac['unprec_all'].std(dim='runs')
+    ds_pop_frac['mean_unprec_exposed'] = ds_pop_frac['unprec_exposed'].mean(dim='run')
+    ds_pop_frac['max_unprec_exposed'] = ds_pop_frac['unprec_exposed'].max(dim='run')
+    ds_pop_frac['min_unprec_exposed'] = ds_pop_frac['unprec_exposed'].min(dim='run')
+    ds_pop_frac['std_unprec_exposed'] = ds_pop_frac['unprec_exposed'].std(dim='run')
+    ds_pop_frac['mean_unprec_all'] = ds_pop_frac['unprec_all'].mean(dim='run')
+    ds_pop_frac['max_unprec_all'] = ds_pop_frac['unprec_all'].max(dim='run')
+    ds_pop_frac['min_unprec_all'] = ds_pop_frac['unprec_all'].min(dim='run')
+    ds_pop_frac['std_unprec_all'] = ds_pop_frac['unprec_all'].std(dim='run')
     
     # unprecedented exposure as fraction of total population estimate
     ds_pop_frac['frac_unprec_exposed'] = ds_pop_frac['unprec_exposed'] / ds_cohorts['population'].sum(dim=['country'])
-    ds_pop_frac['mean_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].mean(dim='runs')
-    ds_pop_frac['std_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].std(dim='runs')
+    ds_pop_frac['mean_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].mean(dim='run')
+    ds_pop_frac['std_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].std(dim='run')
     ds_pop_frac['frac_unprec_all'] = ds_pop_frac['unprec_all'] / ds_cohorts['population'].sum(dim=['country'])
-    ds_pop_frac['mean_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].mean(dim='runs')
-    ds_pop_frac['std_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].std(dim='runs')    
+    ds_pop_frac['mean_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].mean(dim='run')
+    ds_pop_frac['std_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].std(dim='run')    
     
     return ds_pop_frac
 
@@ -438,7 +446,7 @@ def all_emergence(
             ds_exposure_aligned = ds_exposure_align(
                 da_exposure_aligned,
                 traject,
-            )    
+            )
             
             # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
             da_exposure_mask,ds_age_emergence = exposure_pic_masking(
@@ -469,18 +477,31 @@ def all_emergence(
                 ds_cohorts,
                 traject,
             )    
-            pop_fracs.append(ds_pop_frac)
-        
-    # concat pop fracs and age emergences across runs
-    ds_pop_frac = xr.concat(
-        pop_fracs,
-        dim='runs',
-    ).assign_coords({'runs':np.arange(len(pop_fracs))})
+            pop_fracs.append(ds_pop_frac)         
     
+    # instead of concat'ing, make assignments for each run
+    ds_pop_frac = xr.Dataset(
+        data_vars={
+            'unprec_exposed': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_exposure_cohort_aligned.birth_year.data)))),
+            'unprec_all': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_exposure_cohort_aligned.birth_year.data)))),
+        },
+        coords={
+            'run': ('run',list(d_isimip_meta.keys())),
+            'birth_year': ('birth_year',ds_exposure_cohort_aligned.birth_year.data),
+        }
+    )
+    
+    for i,r in enumerate(pop_fracs):
+        ds_pop_frac.loc[{
+            'run':i+1,
+            'birth_year': r.birth_year,
+        }] = r.assign_coords({'run':i+1})
+    
+    # do same with age emeregnce as pop frac above
     ds_age_emergence = xr.concat(
         exposure_ages,
-        dim='runs',
-    ).assign_coords({'runs':np.arange(len(exposure_ages))})
+        dim='run',
+    ).assign_coords({'run':list(d_isimip_meta.keys())})
     
     # run ensemble stats across runs
     ds_pop_frac = pop_frac_stats(
@@ -590,13 +611,13 @@ def strj_emergence(
     # concat pop fracs and age emergences across runs
     ds_pop_frac = xr.concat(
         pop_fracs,
-        dim='runs',
-    )
+        dim='run',
+    ).assign_coords({'run':list(d_isimip_meta.keys())})
     
     ds_age_emergence = xr.concat(
         exposure_ages,
-        dim='runs',
-    )  
+        dim='run',
+    ).assign_coords({'run':list(d_isimip_meta.keys())})
     
     # run ensemble stats across runs
     ds_pop_frac = pop_frac_stats(
