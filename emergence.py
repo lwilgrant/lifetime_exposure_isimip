@@ -190,14 +190,14 @@ def ds_exposure_align(
     da_cumsum = da.cumsum(dim='time').where(da>0)
     ds_exposure_cohort = xr.Dataset(
         data_vars={
-            'exposure': (da.dims,da.data),
-            'exposure_cumulative': (da_cumsum.dims,da_cumsum.data)
+            'exposure': (da.dims, da.data),
+            'exposure_cumulative': (da_cumsum.dims, da_cumsum.data)
         },
         coords={
-            'country': ('country',da.country.data),
-            'birth_year': ('birth_year',da.birth_year.data),
+            'country': ('country', da.country.data),
+            'birth_year': ('birth_year', da.birth_year.data),
             # 'runs': ('runs',da.runs.data),
-            'time': ('time',da.time.data),
+            'time': ('time', da.time.data),
         },
     )
         
@@ -283,11 +283,11 @@ def exposure_pic_masking(
     # turn age emergence into dataset
     ds_age_emergence = xr.Dataset(
         data_vars={
-            'age_emergence': (da_age_emergence.dims,da_age_emergence.data)
+            'age_emergence': (da_age_emergence.dims, da_age_emergence.data)
         },
         coords={
-            'country': ('country',da_age_emergence.country.data),
-            'birth_year': ('birth_year',da_age_emergence.birth_year.data),
+            'country': ('country', da_age_emergence.country.data),
+            'birth_year': ('birth_year', da_age_emergence.birth_year.data),
             # 'runs': ('runs',da_age_emergence.runs.data),
         },        
     )        
@@ -318,9 +318,9 @@ def calc_unprec_exposure(
             'unprec_exposed': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
         },
         coords={
-            'birth_year': ('birth_year',ds_exposure_cohort.birth_year.data),
+            'birth_year': ('birth_year' ,ds_exposure_cohort.birth_year.data),
         }
-    )    
+    )
     
     # keep people exposed during birth year's timesteps if cumulative exposure exceeds pic defined extreme
     unprec_exposed = ds_exposure_cohort['exposure'].where(da_exposure_mask==1)
@@ -449,11 +449,11 @@ def all_emergence(
             )
             
             # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
-            da_exposure_mask,ds_age_emergence = exposure_pic_masking(
+            da_exposure_mask,ds_age_emergence_i = exposure_pic_masking(
                 ds_exposure_aligned,
                 ds_exposure_pic,
             )
-            exposure_ages.append(ds_age_emergence)
+            exposure_ages.append(ds_age_emergence_i)
             
             # aligned cohort exposure age+time selections
             da_exposure_cohort_aligned = calc_birthyear_align(
@@ -471,37 +471,59 @@ def all_emergence(
             )
             
             # population experiencing normal vs unprecedented exposure
-            ds_pop_frac = calc_unprec_exposure(
+            ds_pop_frac_i = calc_unprec_exposure(
                 ds_exposure_cohort_aligned,
                 da_exposure_mask,
                 ds_cohorts,
                 traject,
             )    
-            pop_fracs.append(ds_pop_frac)         
+            pop_fracs.append(ds_pop_frac_i)         
     
-    # instead of concat'ing, make assignments for each run
+    # create new template datasets for pop_frac and age_emergence, make assignments for each run
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprec_exposed': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_exposure_cohort_aligned.birth_year.data)))),
-            'unprec_all': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_exposure_cohort_aligned.birth_year.data)))),
+            'unprec_exposed': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_pop_frac_i.birth_year.data)))),
+            'unprec_all': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_pop_frac_i.birth_year.data)))),
         },
         coords={
-            'run': ('run',list(d_isimip_meta.keys())),
-            'birth_year': ('birth_year',ds_exposure_cohort_aligned.birth_year.data),
+            'run': ('run', list(d_isimip_meta.keys())),
+            'birth_year': ('birth_year', ds_pop_frac_i.birth_year.data),
         }
     )
+    # STILL NEED TO TAKE CARE OF 0S FOR SOME RUNS IN THESE DATASETS, AS WELL NEED TO MAKE SURE MEANS DON'T INCLUDE 0S BUT AVOID NANS
+    # MAYBE INITIATE THE FINAL DATASETS WITH NP.NANS INSTEAD OF EMPTY
+    # CHECK PLOTS VS EARLIER PLOTS 
+    ds_age_emergence = xr.Dataset(
+        data_vars={
+            'age_emergence': (['country','birth_year','run'], np.empty((len(ds_age_emergence_i.country.data),len(ds_age_emergence_i.birth_year.data),len(list(d_isimip_meta.keys()))))),
+        },
+        coords={
+            'country': ('country', ds_age_emergence_i.country.data),
+            'birth_year': ('birth_year', ds_age_emergence_i.birth_year.data),
+            'run': ('run', list(d_isimip_meta.keys())),
+        },        
+    )
     
+    # assignments pop_frac
     for i,r in enumerate(pop_fracs):
         ds_pop_frac.loc[{
             'run':i+1,
             'birth_year': r.birth_year,
         }] = r.assign_coords({'run':i+1})
     
-    # do same with age emeregnce as pop frac above
-    ds_age_emergence = xr.concat(
-        exposure_ages,
-        dim='run',
-    ).assign_coords({'run':list(d_isimip_meta.keys())})
+    # assignments age_emergence
+    for i,r in enumerate(exposure_ages):
+        ds_age_emergence.loc[{
+            'country': r.country,
+            'birth_year': r.birth_year,
+            'run':i+1,
+        }] = r.assign_coords({'run':i+1})        
+    
+    # # do same with age emeregnce as pop frac above
+    # ds_age_emergence = xr.concat(
+    #     exposure_ages,
+    #     dim='run',
+    # ).assign_coords({'run':list(d_isimip_meta.keys())})
     
     # run ensemble stats across runs
     ds_pop_frac = pop_frac_stats(
@@ -573,7 +595,7 @@ def strj_emergence(
                 )
                 
                 # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
-                da_exposure_mask,ds_age_emergence = exposure_pic_masking(
+                da_exposure_mask,ds_age_emergence_i = exposure_pic_masking(
                     ds_exposure_aligned,
                     ds_exposure_pic,
                 )
@@ -594,19 +616,64 @@ def strj_emergence(
                 )
                 
                 # population experiencing normal vs unprecedented exposure
-                ds_pop_frac = calc_unprec_exposure(
+                ds_pop_frac_i = calc_unprec_exposure(
                     ds_exposure_cohort_aligned,
                     da_exposure_mask,
                     ds_cohorts,
                     traject,
                 )
                 
-                exposure_ages_gmt.append(ds_age_emergence)
-                pop_fracs_gmt.append(ds_pop_frac)
+                exposure_ages_gmt.append(ds_age_emergence_i)
+                pop_fracs_gmt.append(ds_pop_frac_i)
                 
             # concat across gmts
             pop_fracs.append(xr.concat(pop_fracs_gmt,dim='GMT').assign_coords({'GMT':da_exposure_peryear_perage_percountry.GMT.values}))
             exposure_ages.append(ds_age_emergence = xr.concat(exposure_ages_gmt,dim='GMT').assign_coords({'GMT':da_exposure_peryear_perage_percountry.GMT.values}))
+            
+    # create new template datasets for pop_frac and age_emergence, make assignments for each run
+    ds_pop_frac = xr.Dataset(
+        data_vars={
+            'unprec_exposed': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_pop_frac_i.birth_year.data)))),
+            'unprec_all': (['run','birth_year'], np.empty((len(list(d_isimip_meta.keys())),len(ds_pop_frac_i.birth_year.data)))),
+        },
+        coords={
+            'run': ('run', list(d_isimip_meta.keys())),
+            'birth_year': ('birth_year', ds_pop_frac_i.birth_year.data),
+            'GMT':
+        }
+    )
+    
+    ds_age_emergence = xr.Dataset(
+        data_vars={
+            'age_emergence': (['country','birth_year','run'], np.empty((len(ds_age_emergence_i.country.data),len(ds_age_emergence_i.birth_year.data),len(list(d_isimip_meta.keys()))))),
+        },
+        coords={
+            'country': ('country', ds_age_emergence_i.country.data),
+            'birth_year': ('birth_year', ds_age_emergence_i.birth_year.data),
+            'run': ('run', list(d_isimip_meta.keys())),
+        },        
+    )        
+    
+    # assignments pop_frac
+    for i,r in enumerate(pop_fracs):
+        ds_pop_frac.loc[{
+            'run':i+1,
+            'birth_year': r.birth_year,
+        }] = r.assign_coords({'run':i+1})
+    
+    # assignments age_emergence
+    for i,r in enumerate(exposure_ages):
+        ds_age_emergence.loc[{
+            'country': r.country,
+            'birth_year': r.birth_year,
+            'run':i+1,
+        }] = r.assign_coords({'run':i+1})        
+    
+    # # do same with age emeregnce as pop frac above
+    # ds_age_emergence = xr.concat(
+    #     exposure_ages,
+    #     dim='run',
+    # ).assign_coords({'run':list(d_isimip_meta.keys())})            
     
     # concat pop fracs and age emergences across runs
     ds_pop_frac = xr.concat(
