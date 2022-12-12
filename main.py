@@ -62,17 +62,17 @@ flags['extr'] = 'heatwavedarea'     # 0: all
                                 # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 
 # TODO: add rest of flags
@@ -83,7 +83,7 @@ flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort em
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 # settings.set_extremes(flags)
@@ -97,7 +97,7 @@ from load_manip import *
 
 # --------------------------------------------------------------------
 # Load global mean temperature projections
-global df_GMT_15, df_GMT_20, df_GMT_NDC
+global df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj
 
 df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC = load_GMT(
     year_start,
@@ -463,19 +463,6 @@ if flags['emergence']:
         with open('./data/pickles/cohort_per_birthyear.pkl', 'rb') as f:
             ds_cohorts = pk.load(f)          
 
-    # ds_age_emergence_RCP, ds_pop_frac_RCP = all_emergence(
-    #     da_exposure_peryear_perage_percountry_RCP,
-    #     da_exposure_cohort_RCP,
-    #     df_life_expectancy_5,
-    #     year_start,
-    #     year_end,
-    #     year_ref,
-    #     ds_exposure_pic,
-    #     ds_cohorts,
-    #     flags['extr'],
-    #     'RCP',
-    # )
-
     ds_age_emergence_15, ds_pop_frac_15 = all_emergence(
         d_isimip_meta,
         df_life_expectancy_5,
@@ -535,8 +522,6 @@ else: # load pickles
         ds_cohorts = pk.load(f)
     
     # pop frac
-    # with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
-    #     ds_pop_frac_RCP = pk.load(f)
     with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'15'), 'rb') as f:
         ds_pop_frac_15 = pk.load(f)
     with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'20'), 'rb') as f:
@@ -547,8 +532,6 @@ else: # load pickles
         ds_pop_frac_strj = pk.load(f)                
     
     # age emergence
-    # with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flags['extr'],'RCP'), 'rb') as f:
-    #     ds_age_emergence_RCP = pk.load(f)
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'15'), 'rb') as f:
         ds_age_emergence_15 = pk.load(f)
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'20'), 'rb') as f:
