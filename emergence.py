@@ -368,7 +368,7 @@ def calc_exposure_emergence(
         
         ds_exposure_emergence_birth_year['birth_year_age_{}'.format(scen)] = ds_age_emergence['age_emergence_{}'.format(scen)].where(
             ds_age_emergence['age_emergence_{}'.format(scen)].birth_year==ds_exposure_emergence_birth_year['mmm_{}'.format(scen)]
-        ).mean(dim='runs').min(dim='birth_year',skipna=True)    
+        ).mean(dim='run').min(dim='birth_year',skipna=True)    
     
     # move emergence birth years and EMFs to gdf for plotting
     gdf_exposure_emergence_birth_year = gpd.GeoDataFrame(ds_exposure_emergence_birth_year.to_dataframe().join(gdf_country_borders))

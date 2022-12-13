@@ -52,7 +52,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'heatwavedarea'     # 0: all
+flags['extr'] = 'driedarea'     # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -86,7 +86,6 @@ from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
-# settings.set_extremes(flags)
 set_extremes(flags)
 
 #%% ----------------------------------------------------------------

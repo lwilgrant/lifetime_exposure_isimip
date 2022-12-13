@@ -410,7 +410,6 @@ def plot_pop_frac(
     # NDC
     ax1.plot(
         time,
-        # ds_pop_frac['mean_unprec'].values * 1000,
         ds_pop_frac_NDC['mean_unprec'].values / 1e6,
         lw=lw_mean,
         color=col_NDC,
@@ -419,9 +418,7 @@ def plot_pop_frac(
     )
     ax1.fill_between(
         time,
-        # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
         (ds_pop_frac_NDC['mean_unprec'].values / 1e6) + (ds_pop_frac_NDC['std_unprec'].values / 1e6),
-        # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
         (ds_pop_frac_NDC['mean_unprec'].values / 1e6) - (ds_pop_frac_NDC['std_unprec'].values / 1e6),
         lw=lw_fill,
         alpha=ub_alpha,
@@ -432,7 +429,6 @@ def plot_pop_frac(
     # 2.0 degrees
     ax1.plot(
         time,
-        # ds_pop_frac['mean_unprec'].values * 1000,
         ds_pop_frac_20['mean_unprec'].values / 1e6,
         lw=lw_mean,
         color=col_20,
@@ -441,9 +437,7 @@ def plot_pop_frac(
     )
     ax1.fill_between(
         time,
-        # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
         (ds_pop_frac_20['mean_unprec'].values / 1e6) + (ds_pop_frac_20['std_unprec'].values / 1e6),
-        # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
         (ds_pop_frac_20['mean_unprec'].values / 1e6) - (ds_pop_frac_20['std_unprec'].values / 1e6),
         lw=lw_fill,
         alpha=ub_alpha,
@@ -454,7 +448,6 @@ def plot_pop_frac(
     # 1.5 degrees
     ax1.plot(
         time,
-        # ds_pop_frac['mean_unprec'].values * 1000,
         ds_pop_frac_15['mean_unprec'].values / 1e6,
         lw=lw_mean,
         color=col_15,
@@ -463,9 +456,7 @@ def plot_pop_frac(
     )
     ax1.fill_between(
         time,
-        # (ds_pop_frac['mean_unprec'].values * 1000) + (ds_pop_frac['std_unprec'].values * 1000),
         (ds_pop_frac_15['mean_unprec'].values / 1e6) + (ds_pop_frac_15['std_unprec'].values / 1e6),
-        # (ds_pop_frac['mean_unprec'].values * 1000) - (ds_pop_frac['std_unprec'].values * 1000),
         (ds_pop_frac_15['mean_unprec'].values / 1e6) - (ds_pop_frac_15['std_unprec'].values / 1e6),
         lw=lw_fill,
         alpha=ub_alpha,
@@ -786,34 +777,34 @@ def plot_pop_frac_birth_year(
         )
 
         # --------------------------------------------------------------------
-        # plot unprecedented frac of pop, all runs
+        # plot unprecedented frac of pop, all run
 
         # NDC
-        for run in ds_pop_frac_NDC.runs:
+        for run in ds_pop_frac_NDC.run:
             
             ax2.plot(
                 time,
-                ds_pop_frac_NDC['frac_unprec_{}'.format(cohort_type)].sel(runs=run).values,
+                ds_pop_frac_NDC['frac_unprec_{}'.format(cohort_type)].sel(run=run).values,
                 lw=lw_mean,
                 color=col_NDC,
                 zorder=1,
             )
         # 2.0 degrees
-        for run in ds_pop_frac_20.runs:
+        for run in ds_pop_frac_20.run:
             
             ax2.plot(
                 time,
-                ds_pop_frac_20['frac_unprec_{}'.format(cohort_type)].sel(runs=run).values,
+                ds_pop_frac_20['frac_unprec_{}'.format(cohort_type)].sel(run=run).values,
                 lw=lw_mean,
                 color=col_20,
                 zorder=2,
             )
         # 1.5 degrees
-        for run in ds_pop_frac_15.runs:
+        for run in ds_pop_frac_15.run:
 
             ax2.plot(
                 time,
-                ds_pop_frac_15['frac_unprec_{}'.format(cohort_type)].sel(runs=run).values,
+                ds_pop_frac_15['frac_unprec_{}'.format(cohort_type)].sel(run=run).values,
                 lw=lw_mean,
                 color=col_15,
                 zorder=3,
@@ -972,15 +963,15 @@ def plot_pop_frac_birth_year_strj(
         )
 
         # --------------------------------------------------------------------
-        # plot unprecedented frac of total pop, all runs
+        # plot unprecedented frac of total pop, all run
 
-        for run in ds_pop_frac_strj.runs:
+        for run in ds_pop_frac_strj.run:
             
             for step in ds_pop_frac_strj.GMT.values:
             
                 ax2.plot(
                     time,
-                    ds_pop_frac_strj['frac_unprec_{}'.format(cohort_type)].sel(runs=run,GMT=step,birth_year=time).values,
+                    ds_pop_frac_strj['frac_unprec_{}'.format(cohort_type)].sel(run=run,GMT=step,birth_year=time).values,
                     lw=lw_mean,
                     color=colors[floater(df_GMT_strj.loc[2100,step])],
                     zorder=1,
@@ -1196,36 +1187,11 @@ def plot_pop_frac_birth_year_GMT_strj(
                 ds_age_emergence_strj['age_emergence'].\
                     sel(birth_year=by).\
                         weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-                            mean(dim=('country','runs')).values,
+                            mean(dim=('country','run')).values,
                 lw=lw_mean,
                 color=line_colors[i],
                 zorder=1,
             )
-            
-        # for 
-        
-        #     ax1.annotate(
-        #         text=str(by), 
-        #         xy=(df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1]),
-        #         xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values[-1])),
-        #         color='k',
-        #         fontsize=impactyr_font,
-        #         # zorder=5
-        #     )        
-            
-            # ax2.annotate(
-            #     text=str(by), 
-            #     xy=(df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
-            #         sel(birth_year=by).\
-            #             weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-            #                 mean(dim=('country','runs')).values[-1]),
-            #     xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
-            #         sel(birth_year=by).\
-            #             weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-            #                 mean(dim=('country','runs')).values[-1])),
-            #     color='k',
-            #     fontsize=impactyr_font,
-            # )        
 
         ax1.set_ylabel(
             ax1_ylab, 
@@ -1255,8 +1221,7 @@ def plot_pop_frac_birth_year_GMT_strj(
             ax.set_xticks(
                 xticks,
                 labels=xticklabels
-            )            
-            # ax.xaxis.set_ticklabels(xtick_labels_ts)
+            )
             ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
             ax.tick_params(labelsize=tick_font,axis="y",direction="in")
             ax.spines['right'].set_visible(False)
@@ -1416,7 +1381,7 @@ def plot_pop_frac_birth_year_GMT_strj_points(
                 ds_age_emergence_strj['age_emergence'].\
                     sel(birth_year=by).\
                         weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-                            mean(dim=('country','runs')).values,
+                            mean(dim=('country','run')).values,
                 lw=lw_mean,
                 color=col_NDC,
                 zorder=1,
@@ -1427,10 +1392,10 @@ def plot_pop_frac_birth_year_GMT_strj_points(
                 xy=(df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].\
                     sel(birth_year=by).\
                         weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-                            mean(dim=('country','runs')).values[-1]),
+                            mean(dim=('country','run')).values[-1]),
                 xytext=((df_GMT_strj.loc[2100,:].values[-1], ds_age_emergence_strj['age_emergence'].sel(birth_year=by).\
                     weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-                        mean(dim=('country','runs')).values[-1])),
+                        mean(dim=('country','run')).values[-1])),
                 color='k',
                 fontsize=impactyr_font,
             )
@@ -1442,7 +1407,7 @@ def plot_pop_frac_birth_year_GMT_strj_points(
                     ds_age_emergence['age_emergence_{}'.format(scen)].\
                         sel(birth_year=by).\
                             weighted(ds_cohorts['weights'].sel(birth_year=by)).\
-                                mean(dim=('country','runs')),
+                                mean(dim=('country','run')),
                     color=col,
                     marker=markerstyle,
                     markersize=markersize,
@@ -1474,8 +1439,6 @@ def plot_pop_frac_birth_year_GMT_strj_points(
         for i,ax in enumerate([ax1,ax2]):
             ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
             ax.set_xlim(xmin,xmax)
-            # ax.xaxis.set_ticks(xticks_ts)
-            # ax.xaxis.set_ticklabels(xtick_labels_ts)
             ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
             ax.tick_params(labelsize=tick_font,axis="y",direction="in")
             ax.spines['right'].set_visible(False)
@@ -1521,7 +1484,7 @@ def plot_pop_frac_birth_year_gcms(
     ds_pop_frac_NDC,
     ds_pop_frac_15,
     ds_pop_frac_20,
-    runs,
+    run,
     year_range,
 ):
     
@@ -1577,17 +1540,17 @@ def plot_pop_frac_birth_year_gcms(
     )
 
     # --------------------------------------------------------------------
-    # plot unprecedented frac of total pop, all runs
-    for ax,gcm in zip((ax1,ax2,ax3,ax4),list(runs.keys())):
+    # plot unprecedented frac of total pop, all run
+    for ax,gcm in zip((ax1,ax2,ax3,ax4),list(run.keys())):
         
-        for run in runs[gcm]:
+        for run in run[gcm]:
             
             # NDC
-            if run in ds_pop_frac_NDC['frac_all_unprec'].runs.values:
+            if run in ds_pop_frac_NDC['frac_all_unprec'].run.values:
                 
                 ax.plot(
                     time,
-                    ds_pop_frac_NDC['frac_all_unprec'].sel(runs=run).values,
+                    ds_pop_frac_NDC['frac_all_unprec'].sel(run=run).values,
                     lw=lw_mean,
                     color=col_NDC,
                     zorder=1,
@@ -1598,11 +1561,11 @@ def plot_pop_frac_birth_year_gcms(
                 pass
             
             # 2.0 degrees
-            if run in ds_pop_frac_20['frac_all_unprec'].runs.values:
+            if run in ds_pop_frac_20['frac_all_unprec'].run.values:
                 
                 ax.plot(
                     time,
-                    ds_pop_frac_20['frac_all_unprec'].sel(runs=run).values,
+                    ds_pop_frac_20['frac_all_unprec'].sel(run=run).values,
                     lw=lw_mean,
                     color=col_20,
                     zorder=2,
@@ -1613,11 +1576,11 @@ def plot_pop_frac_birth_year_gcms(
                 pass
             
             # 1.5 degrees
-            if run in ds_pop_frac_15['frac_all_unprec'].runs.values:
+            if run in ds_pop_frac_15['frac_all_unprec'].run.values:
                 
                 ax.plot(
                     time,
-                    ds_pop_frac_15['frac_all_unprec'].sel(runs=run).values,
+                    ds_pop_frac_15['frac_all_unprec'].sel(run=run).values,
                     lw=lw_mean,
                     color=col_15,
                     zorder=3,
@@ -1701,7 +1664,7 @@ def plot_pop_frac_birth_year_models(
     ds_pop_frac_NDC,
     ds_pop_frac_15,
     ds_pop_frac_20,
-    runs,
+    run,
     year_range,
 ):
     
@@ -1741,8 +1704,6 @@ def plot_pop_frac_birth_year_models(
     style_bis = '--'     # style bisector
     lw_bis = 1     # lineweight bisector
     time = year_range
-    # xmin = np.min(time)
-    # xmax = np.max(time)
     xmin = 1960
     xmax = 2020
 
@@ -1751,23 +1712,23 @@ def plot_pop_frac_birth_year_models(
     ax2_xlab = 'Birth year'
 
     f,axes = plt.subplots(
-        nrows=len(list(runs.keys())),
+        nrows=len(list(run.keys())),
         ncols=1,
         figsize=(x,y),
     )
 
     # --------------------------------------------------------------------
-    # plot unprecedented frac of total pop, all runs
-    for ax,mod in zip(axes.flatten(),list(runs.keys())):
+    # plot unprecedented frac of total pop, all run
+    for ax,mod in zip(axes.flatten(),list(run.keys())):
         
-        for run in runs[mod]:
+        for run in run[mod]:
             
             # NDC
-            if run in ds_pop_frac_NDC['frac_all_unprec'].runs.values:
+            if run in ds_pop_frac_NDC['frac_all_unprec'].run.values:
                 
                 ax.plot(
                     time,
-                    ds_pop_frac_NDC['frac_all_unprec'].sel(runs=run).values,
+                    ds_pop_frac_NDC['frac_all_unprec'].sel(run=run).values,
                     lw=lw_mean,
                     color=col_NDC,
                     zorder=1,
@@ -1778,11 +1739,11 @@ def plot_pop_frac_birth_year_models(
                 pass
             
             # 2.0 degrees
-            if run in ds_pop_frac_20['frac_all_unprec'].runs.values:
+            if run in ds_pop_frac_20['frac_all_unprec'].run.values:
                 
                 ax.plot(
                     time,
-                    ds_pop_frac_20['frac_all_unprec'].sel(runs=run).values,
+                    ds_pop_frac_20['frac_all_unprec'].sel(run=run).values,
                     lw=lw_mean,
                     color=col_20,
                     zorder=2,
@@ -1793,11 +1754,11 @@ def plot_pop_frac_birth_year_models(
                 pass
             
             # 1.5 degrees
-            if run in ds_pop_frac_15['frac_all_unprec'].runs.values:
+            if run in ds_pop_frac_15['frac_all_unprec'].run.values:
                 
                 ax.plot(
                     time,
-                    ds_pop_frac_15['frac_all_unprec'].sel(runs=run).values,
+                    ds_pop_frac_15['frac_all_unprec'].sel(run=run).values,
                     lw=lw_mean,
                     color=col_15,
                     zorder=3,
@@ -1813,18 +1774,10 @@ def plot_pop_frac_birth_year_models(
             fontweight='bold',
         )
         ax.set_title(
-            len(runs[mod]),
+            len(run[mod]),
             loc='right',
             fontweight='bold',
         )        
-
-        # ax.set_ylabel(
-        #     ax2_ylab, 
-        #     va='center', 
-        #     rotation='vertical', 
-        #     fontsize=axis_font, 
-        #     labelpad=10,
-        # )
         
     # legend
     legendcols = [
@@ -1846,7 +1799,6 @@ def plot_pop_frac_birth_year_models(
         ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
         ax.set_xlim(xmin,xmax)
         ax.yaxis.set_ticks([0,0.25,0.5,0.75,1])
-        # ax.xaxis.set_ticklabels(xtick_labels_ts)
         ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
         ax.tick_params(labelsize=tick_font,axis="y",direction="in")
         ax.spines['right'].set_visible(False)
@@ -1954,15 +1906,15 @@ def plot_age_emergence(
     # NDC
     ax1.plot(
         time,
-        da_age_emergence_NDC.mean(dim=('country','runs')).values,
+        da_age_emergence_NDC.mean(dim=('country','run')).values,
         lw=lw_mean,
         color=col_NDC,
         zorder=1,
     )
     ax1.fill_between(
         time,
-        da_age_emergence_NDC.mean(dim=('country','runs')).values + da_age_emergence_NDC.std(dim=('country','runs')).values,
-        da_age_emergence_NDC.mean(dim=('country','runs')).values - da_age_emergence_NDC.std(dim=('country','runs')).values,
+        da_age_emergence_NDC.mean(dim=('country','run')).values + da_age_emergence_NDC.std(dim=('country','run')).values,
+        da_age_emergence_NDC.mean(dim=('country','run')).values - da_age_emergence_NDC.std(dim=('country','run')).values,
         lw=lw_fill,
         alpha=ub_alpha,
         color=col_NDC_fill,
@@ -1972,15 +1924,15 @@ def plot_age_emergence(
     # 2.0 degrees
     ax1.plot(
         time,
-        da_age_emergence_20.mean(dim=('country','runs')).values,
+        da_age_emergence_20.mean(dim=('country','run')).values,
         lw=lw_mean,
         color=col_20,
         zorder=2,
     )
     ax1.fill_between(
         time,
-        da_age_emergence_20.mean(dim=('country','runs')).values + da_age_emergence_20.std(dim=('country','runs')).values,
-        da_age_emergence_20.mean(dim=('country','runs')).values - da_age_emergence_20.std(dim=('country','runs')).values,
+        da_age_emergence_20.mean(dim=('country','run')).values + da_age_emergence_20.std(dim=('country','run')).values,
+        da_age_emergence_20.mean(dim=('country','run')).values - da_age_emergence_20.std(dim=('country','run')).values,
         lw=lw_fill,
         alpha=ub_alpha,
         color=col_20_fill,
@@ -1990,15 +1942,15 @@ def plot_age_emergence(
     # 1.5 degrees
     ax1.plot(
         time,
-        da_age_emergence_15.mean(dim=('country','runs')).values,
+        da_age_emergence_15.mean(dim=('country','run')).values,
         lw=lw_mean,
         color=col_15,
         zorder=3,
     )
     ax1.fill_between(
         time,
-        da_age_emergence_15.mean(dim=('country','runs')).values + da_age_emergence_15.std(dim=('country','runs')).values,
-        da_age_emergence_15.mean(dim=('country','runs')).values - da_age_emergence_15.std(dim=('country','runs')).values,
+        da_age_emergence_15.mean(dim=('country','run')).values + da_age_emergence_15.std(dim=('country','run')).values,
+        da_age_emergence_15.mean(dim=('country','run')).values - da_age_emergence_15.std(dim=('country','run')).values,
         lw=lw_fill,
         alpha=ub_alpha,
         color=col_15_fill,
@@ -2262,9 +2214,6 @@ def plot_age_emergence_strj(
     col_bis = 'black'     # color bisector
     style_bis = '--'     # style bisector
     lw_bis = 1     # lineweight bisector
-    # time = year_range
-    # xmin = np.min(time)
-    # xmax = np.max(time)
     xmin = 1960
     xmax = 2020
     time = np.arange(xmin,xmax)
@@ -2292,7 +2241,7 @@ def plot_age_emergence_strj(
             da_age_emergence_strj['age_emergence'].\
                 sel(GMT=step,birth_year=time).\
                     weighted(ds_cohorts['weights'].sel(birth_year=time)).\
-                        mean(dim=('country','runs')).values,
+                        mean(dim=('country','run')).values,
             lw=lw_mean,
             color=colors[floater(df_GMT_strj.loc[2100,step])],
             zorder=1,
@@ -2302,8 +2251,7 @@ def plot_age_emergence_strj(
             xy=(time[-1], da_age_emergence_strj['age_emergence'].\
                 sel(GMT=step,birth_year=time).\
                     weighted(ds_cohorts['weights'].sel(birth_year=time)).\
-                        mean(dim=('country','runs')).values[-1]),
-            # xytext=((time, ds_pop_frac_strj['mean_frac_all_unprec'].sel(birth_year=by).values[-1])),
+                        mean(dim=('country','run')).values[-1]),
             color='k',
             fontsize=impactyr_font,
             # zorder=5
@@ -2325,14 +2273,14 @@ def plot_age_emergence_strj(
         labelpad=10,
     )   
     
-    for run in da_age_emergence_strj.runs:
+    for run in da_age_emergence_strj.run:
         
         for step in da_age_emergence_strj.GMT.values:
         
             ax2.plot(
                 time,
                 da_age_emergence_strj['age_emergence'].\
-                    sel(runs=run,GMT=step,birth_year=time).\
+                    sel(run=run,GMT=step,birth_year=time).\
                         weighted(ds_cohorts['weights'].sel(birth_year=time)).\
                             mean(dim=('country')).values,
                 lw=lw_mean,
