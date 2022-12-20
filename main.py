@@ -52,7 +52,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'driedarea'     # 0: all
+flags['extr'] = 'heatwavedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -62,17 +62,17 @@ flags['extr'] = 'driedarea'     # 0: all
                                 # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 
 # TODO: add rest of flags
@@ -255,7 +255,7 @@ if flags['exposure']:
     
     start_time = time.time()
     
-    # calculate exposure per country and per region and save data (takes 23 mins)
+    # calculate exposure per country and per region and save data
     exposures = calc_exposure(
         grid_area,
         d_regions,
@@ -364,6 +364,143 @@ else: # load processed pic data
     d_exposure_perregion_perrun_pic = d_exposure_pic['exposure_perregion_perrun']
     d_landfrac_peryear_perregion_pic = d_exposure_pic['landfrac_peryear_perregion']
     
+#%% ----------------------------------------------------------------
+# compute pixel scale exposure
+# ------------------------------------------------------------------    
+# cohort conversion to data array (again)
+da_cohort_size = xr.DataArray(
+    np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
+    coords={
+        'country': ('country', list(df_countries['name'])),
+        'time': ('time', year_range),
+        'age': ('age', np.arange(104,-1,-1)),
+    },
+    dims=[
+        'country',
+        'time',
+        'age',
+    ]
+)
+# need to convert absolute sizes in da_cohort size to relative sizes, then can simply multiply data arrays to get population in ds_demography
+sample_countries = [
+    'Canada',
+    'United States',
+    'China',
+    'Russian Federation'
+]
+smple_cntry = 'China' # test country
+da_smple_cht = da_cohort_size.sel(country=smple_cntry) # cohort absolute sizes in sample country
+da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='age') # cohort relative sizes in sample country
+da_smple_cntry = xr.where( # grid cells/extent of sample country
+    countries_mask.where(countries_mask==countries_regions.map_keys(smple_cntry),drop=True)==countries_regions.map_keys(smple_cntry),
+    1,
+    0
+)
+da_smple_pop = da_population.where(da_smple_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
+ds_dmg = xr.Dataset( # demography dataset
+    data_vars={
+        'life_expectancy': (
+            ['birth_year'],
+            df_life_expectancy_5[smple_cntry].values
+        ),
+        'death_year': (
+            ['birth_year'],
+            np.floor(df_life_expectancy_5[smple_cntry].values + df_life_expectancy_5[smple_cntry].index).astype('int')
+        ),
+        'population': (
+            ['time','lat','lon','age'],
+            da_smple_pop.data
+        )
+    },
+    coords={
+        'birth_year': ('birth_year', birth_years),
+        'time': ('time', da_population.time.data),
+        'lat': ('lat', da_smple_cntry.lat.data),
+        'lon': ('lon', da_smple_cntry.lon.data),
+        'age': ('age', np.arange(104,-1,-1)),
+    }
+)
+
+ds_dmg['population']
+
+# loop over simulations
+for i in list(d_isimip_meta.keys()): 
+
+    print('simulation '+str(i)+ ' of '+str(len(d_isimip_meta)))
+
+    # load AFA data of that run
+    with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
+        da_AFA = pk.load(f)
+        
+    # mask to sample country
+    da_AFA = da_AFA.where(da_smple_cntry==1,drop=True)
+    
+    # calc life exposure
+        # per birth year, 
+            # sum exposure from birth to death year
+            # add fraction of exposure from fractional last year of life span (living 70.5 years, 70th is death year, need to add 0.5 * exposure)
+    da_le = xr.concat(
+        [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by)+1)}].sum(dim='time') +\
+        (ds_dmg['life_expectancy'].sel(birth_year=by) - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by))) * da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by)+1)).drop('time')\
+        for by in birth_years],
+        dim='birth_year',
+    )
+
+    # cohort exposure
+    da_pop = ds_dmg['population'].where(da_smple_cntry==1,drop=True)
+    da_chrt_exp = da_AFA * da_pop
+    bys = []
+    
+    # per birth year, make (year,age) selections
+    for by in np.arange(year_start,year_end+1):
+        
+        # use life expectancy information where available (until 2020)
+        if by <= year_ref:
+            
+            time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by)),dims='cohort')
+            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+            data = da_chrt_exp.sel(time=time,age=ages) # paired selections
+            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by),dtype='int')})
+            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+            data = data.assign_coords({'birth_year':by}).drop_vars('age')
+            bys.append(data)
+        
+        # after 2020, assume constant life expectancy    
+        elif by > year_ref and by < year_end:
+            
+            # if lifespan not encompassed by 2113, set death to 2113
+            if ds_dmg['death_year'].sel(birth_year=year_ref).item() > year_end:
+                
+                dy = year_end
+                
+            else:
+                
+                dy = ds_dmg['death_year'].sel(birth_year=year_ref).item()
+            
+            time = xr.DataArray(np.arange(by,dy),dims='cohort')
+            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+            data = da_chrt_exp.sel(time=time,age=ages)
+            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,dy,dtype='int')})
+            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+            data = data.assign_coords({'birth_year':by}).drop_vars('age')
+            bys.append(data)
+        
+        # for 2113, use single year of exposure    
+        elif by == year_end:
+            
+            time = xr.DataArray([year_end],dims='cohort')
+            ages = xr.DataArray([0],dims='cohort')
+            data = da_chrt_exp.sel(time=time,age=ages)
+            data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
+            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+            data = data.assign_coords({'birth_year':by}).drop_vars('age')
+            bys.append(data)
+    
+    da_chrt_exp = xr.concat(bys,dim='birth_year')        
+        
+        
+    
+    
 #%% --------------------------------------------------------------------
 # compile hist+RCP and pic for EMF
 
@@ -452,15 +589,27 @@ if flags['emergence']:
         # convert to dataset and add weights
         ds_cohorts = ds_cohort_align(da_cohort_aligned)
         
-        # pickle birth year aligned cohort sizes
+        # global mean life expectancy
+        le_subset = pd.concat([df_life_expectancy_5.loc[:,c] for c in df_countries['name']],axis=1) # get relevant countries' life expectancy
+        da_le_subset = le_subset.to_xarray().to_array().rename({'index':'birth_year','variable':'country'})
+        da_gmle = da_le_subset.weighted(ds_cohorts['weights'].sel(birth_year=da_le_subset.birth_year.data)).mean(dim='country')
+        testdf = da_gmle.to_dataframe(name='gmle') # testing for comp against df_GMT_strj
+        # not sure if there's logic to line limitation
+            # need to ask, what is the common level of warming that 1960 birth year lives to in all trajectories (horizontal line in gmt trajects)
+        
+        # pickle birth year aligned cohort sizes and global mean life expectancy
         with open('./data/pickles/cohort_per_birthyear.pkl', 'wb') as f:
             pk.dump(ds_cohorts,f)  
+        with open('./data/pickles/global_mean_life_expectancy.pkl', 'wb') as f:
+            pk.dump(da_gmle,f)
     
     else:
         
-        # pickle birth year aligned cohort sizes
+        # load pickled birth year aligned cohort sizes and global mean life expectancy
         with open('./data/pickles/cohort_per_birthyear.pkl', 'rb') as f:
             ds_cohorts = pk.load(f)          
+        with open('./data/pickles/global_mean_life_expectancy.pkl', 'rb') as f:
+            da_gmle = pk.load(f)                      
 
     ds_age_emergence_15, ds_pop_frac_15 = all_emergence(
         d_isimip_meta,
@@ -572,6 +721,10 @@ ds_age_emergence = xr.merge([
 # top panel; (y: frac unprecedented, x: GMT anomaly @ 2100)
 # bottom panel; (y: age emergence, x: GMT anomaly @ 2100)
 # plots both approaches to frac unprecedented; exposed vs full cohorts
+# issue in these plots that early birth years for high warming trajectories won't live till 3-4 degree warming, but we misleadingly plot along these points
+    # so, for e.g. 1970 BY, we need to limit the line up to life expectancy
+    # will need cohort weighted mean of life expectancy across countries
+    # 
 plot_pop_frac_birth_year_GMT_strj(
     ds_pop_frac_strj,
     ds_age_emergence_strj,
