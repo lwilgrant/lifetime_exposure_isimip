@@ -266,7 +266,7 @@ def calc_exposure(
         # loop over simulations
         for i in list(d_isimip_meta.keys()): 
 
-            print('simulation '+str(i)+ ' of '+str(len(d_isimip_meta)))
+            print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
             # load AFA data of that run
             with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
@@ -459,7 +459,7 @@ def calc_cohort_exposure(
         # loop over simulations
         for i in list(d_isimip_meta.keys()): 
 
-            print('simulation '+str(i)+ ' of '+str(len(d_isimip_meta)))
+            print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
             # load AFA data of that run
             with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
@@ -714,10 +714,6 @@ def calc_exposure_pic(
             nboots=100 # number of lifetimes to be bootstrapped should go to settings
             resample_dim='time'
             da_exposure_pic = xr.concat([resample(da_exposure_pic,resample_dim,life_extent) for i in range(nboots)],dim='lifetimes')
-            
-            # save pic2 data for checking
-            with open('./data/pickles/da_exposure_pic.pkl', 'wb') as f: # note; 'with' handles file stream closing
-                pk.dump(da_exposure_pic,f)            
             
             # --------------------------------------------------------------------
             # substitute calc_life_exposure because we are only doing the 1960 cohort

@@ -196,7 +196,7 @@ def ds_exposure_align(
             'birth_year': ('birth_year', da.birth_year.data),
             'time': ('time', da.time.data),
         },
-    )    
+    )
      
     return ds_exposure_cohort
 
