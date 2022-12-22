@@ -396,6 +396,8 @@ da_smple_cntry = xr.where( # grid cells/extent of sample country
     1,
     0
 )
+weights = np.cos(np.deg2rad(da_smple_cntry.lat))
+weights.name = "weights"
 da_smple_pop = da_population.where(da_smple_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
 
 # demography dataset
@@ -441,7 +443,7 @@ ds_pic = xr.Dataset(
     }
 )
 
-# exposure dataset
+# lifetime exposure dataset (no information distributed across years/ages, i.e. summed across birthyear cohorts)
 ds_le = xr.Dataset(
     data_vars={
         'lifetime_exposure': (
@@ -460,59 +462,61 @@ ds_le = xr.Dataset(
     }
 )
 
-# exposure dataset distributed across birth_year/time to find age emergence
-ds_le_aligned = xr.Dataset( # exposure dataset
-    data_vars={
-        'exposure': (
-            ['run','birth_year','time','lat','lon'],
-            np.full(
-                (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
-                fill_value=np.nan,
-            ),
-        ),
-        'exposure_cumulative': (
-            ['run','birth_year','time','lat','lon'],
-            np.full(
-                (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
-                fill_value=np.nan,
-            ),
-        ),
-    },
-    coords={
-        'lat': ('lat', da_smple_cntry.lat.data),
-        'lon': ('lon', da_smple_cntry.lon.data),
-        'birth_year': ('birth_year', birth_years),
-        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
-        'time': ('time', year_range)
-    }
-)
+# exposure dataset distributed across birth_year/time to find age emergence (both aligned exposure and cohort exposure)
+# these 2 datasets are already huge (14.6 GB)
+    # could run assignments on HPC maybe, but probably have to run pop frac and age emergence individually and then collect in new dataset along lat/lon/birthyear like in weighted mean
+# ds_le_aligned = xr.Dataset( # exposure dataset
+#     data_vars={
+#         'exposure': (
+#             ['run','birth_year','time','lat','lon'],
+#             np.full(
+#                 (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
+#                 fill_value=np.nan,
+#             ),
+#         ),
+#         'exposure_cumulative': (
+#             ['run','birth_year','time','lat','lon'],
+#             np.full(
+#                 (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
+#                 fill_value=np.nan,
+#             ),
+#         ),
+#     },
+#     coords={
+#         'lat': ('lat', da_smple_cntry.lat.data),
+#         'lon': ('lon', da_smple_cntry.lon.data),
+#         'birth_year': ('birth_year', birth_years),
+#         'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+#         'time': ('time', year_range)
+#     }
+# )
 
-# people per cohort 
-ds_le_cohort = xr.Dataset( # exposure dataset
-    data_vars={
-        'exposure': (
-            ['run','birth_year','time','lat','lon'],
-            np.full(
-                (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
-                fill_value=np.nan,
-            ),
-        ),
-        'exposure_cumulative': (
-            ['run','birth_year','time','lat','lon'],
-            np.full(
-                (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
-                fill_value=np.nan,
-            ),
-        ),
-    },
-    coords={
-        'lat': ('lat', da_smple_cntry.lat.data),
-        'lon': ('lon', da_smple_cntry.lon.data),
-        'birth_year': ('birth_year', birth_years),
-        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
-        'time': ('time', year_range)
-    }
-)
+# # people per cohort (will join with ds_le_aligned after we check that assignments work here)
+# ds_le_cohort = xr.Dataset( # exposure dataset
+#     data_vars={
+#         'exposure': (
+#             ['run','birth_year','time','lat','lon'],
+#             np.full(
+#                 (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
+#                 fill_value=np.nan,
+#             ),
+#         ),
+#         'exposure_cumulative': (
+#             ['run','birth_year','time','lat','lon'],
+#             np.full(
+#                 (len(list(d_isimip_meta.keys())),len(birth_years),len(year_range),len(da_smple_cntry.lat.data),len(da_smple_cntry.lon.data)),
+#                 fill_value=np.nan,
+#             ),
+#         ),
+#     },
+#     coords={
+#         'lat': ('lat', da_smple_cntry.lat.data),
+#         'lon': ('lon', da_smple_cntry.lon.data),
+#         'birth_year': ('birth_year', birth_years),
+#         'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+#         'time': ('time', year_range)
+#     }
+# )
 
 # loop over PIC simulations
 c = 0
@@ -554,7 +558,7 @@ for i in list(d_pic_meta.keys()):
     c += 1
     
 # pic extreme lifetime exposure
-ds_pic['extr'] = ds_pic['lifetime_exposure'].quantile(
+ds_pic['99.99'] = ds_pic['lifetime_exposure'].quantile(
         q=0.9999,
         dim='lifetimes',
     )
@@ -640,10 +644,9 @@ for i in list(d_isimip_meta.keys()):
             data = data.assign_coords({'birth_year':by}).drop_vars('age')
             bys.append(data)
     
-    da_chrt_exp = xr.concat(bys,dim='birth_year')    
+    da_chrt_exp = xr.concat(bys,dim='birth_year')
     
     # exposure per year per age
-    da_pop = ds_dmg['population'].where(da_smple_cntry==1,drop=True)
     da_exp_py_pa = da_AFA * xr.full_like(da_pop,1)
     bys = []    
     
@@ -698,47 +701,29 @@ for i in list(d_isimip_meta.keys()):
     da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time').where(da_exp_py_pa>0)
     
     # to be new func (need country level PIC data too)
-    ds_exposure_pic['ext'] = ds_exposure_pic['ext'].where(ds_exposure_pic['ext']>0)
+    ds_pic['99.99'] = ds_pic['99.99']#.where(ds_pic['99.99']>0) dont need where because pixel scale
         
     # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
     da_age_exposure_mask = xr.where(
-        ds_exposure_mask['exposure_cumulative'].sel(country=c) >= ds_exposure_pic['ext'].sel(country=c),
+        da_exp_py_pa_cumsum >= ds_pic['99.99'],
         1,
         0,
     )
     da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
     da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
-    age_emergence_list.append(da_age_emergence)
+    test_ae_weightedmean = da_age_emergence.weighted(weights).mean(['lat','lon'])
         
     # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
-    da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
-    da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure'].sel(country=c).notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s where lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
+    da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years/pixels crossing threshold
+    da_birthyear_exposure_mask = xr.where(da_exp_py_pa.notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s where lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
     da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0) # turn missing values to 0
-    exposure_mask_list.append(da_exposure_mask)
-        
-    # concat across countries
-    da_age_emergence = xr.concat(
-        age_emergence_list,
-        dim='country',
-    )
-    da_exposure_mask = xr.concat(
-        exposure_mask_list,
-        dim='country',
-    )    
+    
+    da_birthyear_exposure_mask = xr.where(da_exposure_mask.sum(dim='time')>0,1,0)
+    unprec_all = ds_cohorts['population'].where(da_birthyear_exposure_mask==1)
+    unprec_all = unprec_all.sum(dim=['lat','lon'])
     
     # turn age emergence into dataset
-    ds_age_emergence = xr.Dataset(
-        data_vars={
-            'age_emergence': (da_age_emergence.dims, da_age_emergence.data)
-        },
-        coords={
-            'country': ('country', da_age_emergence.country.data),
-            'birth_year': ('birth_year', da_age_emergence.birth_year.data),
-        },        
-    )    
         
-    
-    
 #%% --------------------------------------------------------------------
 # compile hist+RCP and pic for EMF
 
