@@ -246,7 +246,7 @@ def exposure_pic_masking(
             
         # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
         da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
-        da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure'].sel(country=c).notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s where lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
+        da_birthyear_exposure_mask = xr.where(ds_exposure_mask['exposure'].sel(country=c).notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s for timesteps when lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
         da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0) # turn missing values to 0
         exposure_mask_list.append(da_exposure_mask)
         

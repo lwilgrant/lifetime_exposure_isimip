@@ -414,7 +414,11 @@ ds_dmg = xr.Dataset(
         'population': (
             ['time','lat','lon','age'],
             da_smple_pop.data
-        )
+        ),
+        'country_extent': (
+            ['lat','lon'],
+            da_smple_cntry.data
+        ),
     },
     coords={
         'birth_year': ('birth_year', birth_years),
@@ -424,6 +428,56 @@ ds_dmg = xr.Dataset(
         'age': ('age', np.arange(104,-1,-1)),
     }
 )
+
+# get birthyear aligned population for unprecedented calculation
+# to be new func, per birth year, make (year,age) selections
+bys = []
+# for by in np.arange(year_start,year_end+1):
+for by in birth_years:
+    
+    # use life expectancy information where available (until 2020)
+    # if by <= year_ref:
+        
+    time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
+    ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+    data = ds_dmg['population'].sel(time=time,age=ages) # paired selections
+    data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
+    data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+    data = data.assign_coords({'birth_year':by}).drop_vars('age')
+    bys.append(data)
+    
+    # # after 2020, assume constant life expectancy    
+    # elif by > year_ref and by < year_end:
+        
+    #     # if lifespan not encompassed by 2113, set death to 2113
+    #     if ds_dmg['death_year'].sel(birth_year=year_ref).item() > year_end:
+            
+    #         dy = year_end
+            
+    #     else:
+            
+    #         dy = ds_dmg['death_year'].sel(birth_year=year_ref).item()
+        
+    #     time = xr.DataArray(np.arange(by,dy+1),dims='cohort')
+    #     ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+    #     data = ds_dmg['population'].sel(time=time,age=ages)
+    #     data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,dy+1,dtype='int')})
+    #     data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+    #     data = data.assign_coords({'birth_year':by}).drop_vars('age')
+    #     bys.append(data)
+    
+    # # for 2113, use single year of exposure    
+    # elif by == year_end:
+        
+    #     time = xr.DataArray([year_end],dims='cohort')
+    #     ages = xr.DataArray([0],dims='cohort')
+    #     data = ds_dmg['population'].sel(time=time,age=ages)
+    #     data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
+    #     data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+    #     data = data.assign_coords({'birth_year':by}).drop_vars('age')
+    #     bys.append(data)
+
+ds_dmg['population_by'] = xr.concat(bys,dim='birth_year').sum(dim='time').where(ds_dmg['country_extent']==1)
 
 # pic dataset
 ds_pic = xr.Dataset(
@@ -545,7 +599,7 @@ for i in list(d_pic_meta.keys()):
     da_pic_le = da_exposure_pic.loc[
         {'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}
     ].sum(dim='time') +\
-        da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()}].drop('time') *\
+        da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}].drop('time') *\
             (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by).item()))
             
     ds_pic['lifetime_exposure'].loc[
@@ -582,126 +636,135 @@ for i in list(d_isimip_meta.keys()):
             # sum exposure from birth to death year
             # add fraction of exposure from fractional last year of life span (living 70.5 years, 70th is death year, need to add 0.5 * exposure)
     da_le = xr.concat(
-        [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by)+1)}].sum(dim='time') +\
-        (ds_dmg['life_expectancy'].sel(birth_year=by) - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by))) *\
-            da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by)+1)).drop('time')\
+        [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
+        da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
+        (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
         for by in birth_years],
         dim='birth_year',
-    )
+    ).assign_coords({'birth_year':birth_years})
     
     # assign lifetime exposure array to dataset for run i
     ds_le['lifetime_exposure'].loc[
         {'run':i,'birth_year':birth_years,'lat':da_le.lat.data,'lon':da_le.lon.data}
     ] = da_le
     
-    # cohort exposure
-    da_pop = ds_dmg['population'].where(da_smple_cntry==1,drop=True)
-    da_chrt_exp = da_AFA * da_pop
-    bys = []
+    # # cohort exposure
+    # da_pop = ds_dmg['population'].where(da_smple_cntry==1,drop=True)
+    # da_chrt_exp = da_AFA * da_pop
+    # bys = []
     
-    # per birth year, make (year,age) selections
-    for by in np.arange(year_start,year_end+1):
+    # # per birth year, make (year,age) selections
+    # for by in np.arange(year_start,year_end+1):
         
-        # use life expectancy information where available (until 2020)
-        if by <= year_ref:
+    #     # use life expectancy information where available (until 2020)
+    #     if by <= year_ref:
             
-            time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by)),dims='cohort')
-            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-            data = da_chrt_exp.sel(time=time,age=ages) # paired selections
-            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by),dtype='int')})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-            bys.append(data)
+    #         time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by)),dims='cohort')
+    #         ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+    #         data = da_chrt_exp.sel(time=time,age=ages) # paired selections
+    #         data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by),dtype='int')})
+    #         data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+    #         data = data.assign_coords({'birth_year':by}).drop_vars('age')
+    #         bys.append(data)
         
-        # after 2020, assume constant life expectancy    
-        elif by > year_ref and by < year_end:
+    #     # after 2020, assume constant life expectancy    
+    #     elif by > year_ref and by < year_end:
             
-            # if lifespan not encompassed by 2113, set death to 2113
-            if ds_dmg['death_year'].sel(birth_year=year_ref).item() > year_end:
+    #         # if lifespan not encompassed by 2113, set death to 2113
+    #         if ds_dmg['death_year'].sel(birth_year=year_ref).item() > year_end:
                 
-                dy = year_end
+    #             dy = year_end
                 
-            else:
+    #         else:
                 
-                dy = ds_dmg['death_year'].sel(birth_year=year_ref).item()
+    #             dy = ds_dmg['death_year'].sel(birth_year=year_ref).item()
             
-            time = xr.DataArray(np.arange(by,dy),dims='cohort')
-            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-            data = da_chrt_exp.sel(time=time,age=ages)
-            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,dy,dtype='int')})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-            bys.append(data)
+    #         time = xr.DataArray(np.arange(by,dy),dims='cohort')
+    #         ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+    #         data = da_chrt_exp.sel(time=time,age=ages)
+    #         data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,dy,dtype='int')})
+    #         data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+    #         data = data.assign_coords({'birth_year':by}).drop_vars('age')
+    #         bys.append(data)
         
-        # for 2113, use single year of exposure    
-        elif by == year_end:
+    #     # for 2113, use single year of exposure    
+    #     elif by == year_end:
             
-            time = xr.DataArray([year_end],dims='cohort')
-            ages = xr.DataArray([0],dims='cohort')
-            data = da_chrt_exp.sel(time=time,age=ages)
-            data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-            bys.append(data)
+    #         time = xr.DataArray([year_end],dims='cohort')
+    #         ages = xr.DataArray([0],dims='cohort')
+    #         data = da_chrt_exp.sel(time=time,age=ages)
+    #         data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
+    #         data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+    #         data = data.assign_coords({'birth_year':by}).drop_vars('age')
+    #         bys.append(data)
     
-    da_chrt_exp = xr.concat(bys,dim='birth_year')
+    # da_chrt_exp = xr.concat(bys,dim='birth_year')
     
     # exposure per year per age
+    da_pop = ds_dmg['population'].where(da_smple_cntry==1,drop=True)
     da_exp_py_pa = da_AFA * xr.full_like(da_pop,1)
     bys = []    
     
     # to be new func, per birth year, make (year,age) selections
-    for by in np.arange(year_start,year_end+1):
+    # for by in np.arange(year_start,year_end+1):
+    for by in birth_years:
         
         # use life expectancy information where available (until 2020)
-        if by <= year_ref:
+        # if by <= year_ref:
             
-            time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by)),dims='cohort')
-            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-            data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
-            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by),dtype='int')})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-            bys.append(data)
+        time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
+        ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+        data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
+        data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
+        data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+        data = data.assign_coords({'birth_year':by}).drop_vars('age')
+        data.loc[
+            {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
+        ] = da_AFA.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
+            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
+        bys.append(data)
         
-        # after 2020, assume constant life expectancy    
-        elif by > year_ref and by < year_end:
+        # # after 2020, assume constant life expectancy
+        # elif by > year_ref and by < year_end:
             
-            # if lifespan not encompassed by 2113, set death to 2113
-            if ds_dmg['death_year'].sel(birth_year=year_ref).item() > year_end:
+        #     # if lifespan not encompassed by 2113, set death to 2113
+        #     if ds_dmg['death_year'].sel(birth_year=year_ref).item() > year_end:
                 
-                dy = year_end
+        #         dy = year_end
                 
-            else:
+        #     else:
                 
-                dy = ds_dmg['death_year'].sel(birth_year=year_ref).item()
+        #         dy = ds_dmg['death_year'].sel(birth_year=year_ref).item()
             
-            time = xr.DataArray(np.arange(by,dy),dims='cohort')
-            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-            data = da_exp_py_pa.sel(time=time,age=ages)
-            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,dy,dtype='int')})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-            bys.append(data)
+        #     time = xr.DataArray(np.arange(by,dy+1),dims='cohort')
+        #     ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+        #     data = da_exp_py_pa.sel(time=time,age=ages)
+        #     data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,dy+1,dtype='int')})
+        #     data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+        #     data = data.assign_coords({'birth_year':by}).drop_vars('age')
+        #     bys.append(data)
         
-        # for 2113, use single year of exposure    
-        elif by == year_end:
+        # # for 2113, use single year of exposure    
+        # elif by == year_end:
             
-            time = xr.DataArray([year_end],dims='cohort')
-            ages = xr.DataArray([0],dims='cohort')
-            data = da_exp_py_pa.sel(time=time,age=ages)
-            data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-            bys.append(data)
+        #     time = xr.DataArray([year_end],dims='cohort')
+        #     ages = xr.DataArray([0],dims='cohort')
+        #     data = da_exp_py_pa.sel(time=time,age=ages)
+        #     data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
+        #     data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+        #     data = data.assign_coords({'birth_year':by}).drop_vars('age')
+        #     bys.append(data)
     
     da_exp_py_pa = xr.concat(bys,dim='birth_year')
+    # CAN ADD ASSIGNMENT OF LAST YEAR PER BIRTH COHORT WITH FRACTIONAL EXPOSURE (SAME AS FOR DA_LE ABOVE)
+        # after each final line of "data = data.assign_coords..." in if statements, make assignment of exposure in final fractional year
+        # also seeing that the time variable using np.arange() is missing death year + 1 and only using death year...
     
     # to be new func
-    da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time').where(da_exp_py_pa>0)
+    da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
     
     # to be new func (need country level PIC data too)
-    ds_pic['99.99'] = ds_pic['99.99']#.where(ds_pic['99.99']>0) dont need where because pixel scale
+    # ds_pic['99.99'] = ds_pic['99.99']#.where(ds_pic['99.99']>0) dont need where because pixel scale
         
     # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
     da_age_exposure_mask = xr.where(
@@ -711,17 +774,16 @@ for i in list(d_isimip_meta.keys()):
     )
     da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
     da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
-    test_ae_weightedmean = da_age_emergence.weighted(weights).mean(['lat','lon'])
         
     # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
     da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years/pixels crossing threshold
-    da_birthyear_exposure_mask = xr.where(da_exp_py_pa.notnull(),1,0).where(da_birthyear_exposure_mask==1) # first get array of 1s where lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
-    da_exposure_mask = xr.where(da_birthyear_exposure_mask==1,1,0) # turn missing values to 0
     
-    da_birthyear_exposure_mask = xr.where(da_exposure_mask.sum(dim='time')>0,1,0)
-    unprec_all = ds_cohorts['population'].where(da_birthyear_exposure_mask==1)
-    unprec_all = unprec_all.sum(dim=['lat','lon'])
+    # da_birthyear_exposure_mask = xr.where(da_exposure_mask.sum(dim='time')>0,1,0)
+    da_unprec_pop = ds_dmg['population_by'].where(da_birthyear_exposure_mask==1)
     
+# testing
+da_birthyear_exposure_mask.sel(birth_year=1960).sum(dim=['lat','lon']) # how many pixels in articulated/aligned array (for some reason more; 257) note that this used ">=" but the comparison below doesn't
+xr.where(da_le.sel(birth_year=1960)>=ds_pic['99.99'],1,0).sum(dim=['lat','lon']) # how many pixels in earlier lifetime sum (229)
     # turn age emergence into dataset
         
 #%% --------------------------------------------------------------------
