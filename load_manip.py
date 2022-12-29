@@ -12,7 +12,7 @@ import regionmask
 import glob
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl = init()
 
 # ---------------------------------------------------------------
 # 1. Functions to load (see ms_load.m)
@@ -339,6 +339,7 @@ def load_GMT(
         ind_NDC = np.argmin(np.abs(GMT_steps-df_GMT_NDC.iloc[-1]))
         ind_30 = np.argmin(np.abs(GMT_steps-df_GMT_30.iloc[-1]))
         ind_40 = np.argmin(np.abs(GMT_steps-df_GMT_40.iloc[-1]))
+        indices=[ind_lb,ind_15,ind_20,ind_NDC,ind_30,ind_40]
         # year_range=np.arange(1960,2100+1)
         n_years = len(year_range)
         trj = np.empty((n_years,n_steps))
@@ -371,7 +372,7 @@ def load_GMT(
             index=year_range,
         )
 
-    return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC
+    return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, indices
 
 #%% ----------------------------------------------------------------
 # Load SSP population totals

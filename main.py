@@ -83,7 +83,7 @@ flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort em
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 set_extremes(flags)
@@ -98,7 +98,7 @@ from load_manip import *
 # Load global mean temperature projections
 global df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj
 
-df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, ind_15, ind_20, ind_NDC = load_GMT(
+df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, GMT_indices = load_GMT(
     year_start,
     year_end,
     year_range,
@@ -367,6 +367,18 @@ else: # load processed pic data
 #%% ----------------------------------------------------------------
 # compute pixel scale exposure
 # ------------------------------------------------------------------    
+
+# need run/GMT/country le, age_emergence and pop_frac datasets for assigning
+    # how to handle data across different sample countries?
+    # if this ends up being the end-use approach, which is possible for pop frac realism, I need datasets for spatial mean lifetime exposure across all countries
+        # for now just have non-spatial datasets with country dim for 4 sample countries (put pop-weighted age emergence, lifetime exposure and summed pop frac into these)
+# under per step loop, need pickling strategy (check for pickled file, if doesn't exist, run alignment)
+# need to convert pixel scale analysis as alternative (flag) option to weighted mean OR just append this to the code
+# strategy for comparing the 2 approaches with heatwaves:
+    # comparing pop frac only works if for weighted mean I use exposed only? otherwise I include whole pop in birth year for weighted mean, which will always be larger than pixel scale 
+    # age emergence per birth year
+    # number of events in lifetime per birth year
+    # 
 # cohort conversion to data array (again)
 da_cohort_size = xr.DataArray(
     np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
@@ -388,280 +400,243 @@ sample_countries = [
     'China',
     'Russian Federation'
 ]
-smple_cntry = 'China' # test country
-da_smple_cht = da_cohort_size.sel(country=smple_cntry) # cohort absolute sizes in sample country
-da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='age') # cohort relative sizes in sample country
-da_smple_cntry = xr.where( # grid cells/extent of sample country
-    countries_mask.where(countries_mask==countries_regions.map_keys(smple_cntry),drop=True)==countries_regions.map_keys(smple_cntry),
-    1,
-    0
-)
-weights = np.cos(np.deg2rad(da_smple_cntry.lat))
-weights.name = "weights"
-da_smple_pop = da_population.where(da_smple_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
 
-# demography dataset
-ds_dmg = xr.Dataset(
-    data_vars={
-        'life_expectancy': (
-            ['birth_year'],
-            df_life_expectancy_5[smple_cntry].values
-        ),
-        'death_year': (
-            ['birth_year'],
-            np.floor(df_life_expectancy_5[smple_cntry].values + df_life_expectancy_5[smple_cntry].index).astype('int')
-        ),
-        'population': (
-            ['time','lat','lon','age'],
-            da_smple_pop.data
-        ),
-        'country_extent': (
-            ['lat','lon'],
-            da_smple_cntry.data
-        ),
-    },
+# less dense birth years for spatial exposure looks
+sample_birth_years = np.arange(1960,2021,10)
+
+# spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load)
+    # can also add age emergence to here
+ds_le_spatial = xr.Dataset(
     coords={
-        'birth_year': ('birth_year', birth_years),
-        'time': ('time', da_population.time.data),
-        'lat': ('lat', da_smple_cntry.lat.data),
-        'lon': ('lon', da_smple_cntry.lon.data),
-        'age': ('age', np.arange(104,-1,-1)),
+        'birth_year': ('birth_year', sample_birth_years),
+        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+        'GMT': ('GMT', GMT_indices)
     }
 )
 
-# get birthyear aligned population for unprecedented calculation
-# to be new func, per birth year, make (year,age) selections
-bys = []
-# for by in np.arange(year_start,year_end+1):
-for by in birth_years:
-    
-    # use life expectancy information where available (until 2020)
-    # if by <= year_ref:
-        
-    time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
-    ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-    data = ds_dmg['population'].sel(time=time,age=ages) # paired selections
-    data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
-    data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-    data = data.assign_coords({'birth_year':by}).drop_vars('age')
-    bys.append(data)
-    
-    # # after 2020, assume constant life expectancy    
-    # elif by > year_ref and by < year_end:
-        
-    #     # if lifespan not encompassed by 2113, set death to 2113
-    #     if ds_dmg['death_year'].sel(birth_year=year_ref).item() > year_end:
-            
-    #         dy = year_end
-            
-    #     else:
-            
-    #         dy = ds_dmg['death_year'].sel(birth_year=year_ref).item()
-        
-    #     time = xr.DataArray(np.arange(by,dy+1),dims='cohort')
-    #     ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-    #     data = ds_dmg['population'].sel(time=time,age=ages)
-    #     data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,dy+1,dtype='int')})
-    #     data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-    #     data = data.assign_coords({'birth_year':by}).drop_vars('age')
-    #     bys.append(data)
-    
-    # # for 2113, use single year of exposure    
-    # elif by == year_end:
-        
-    #     time = xr.DataArray([year_end],dims='cohort')
-    #     ages = xr.DataArray([0],dims='cohort')
-    #     data = ds_dmg['population'].sel(time=time,age=ages)
-    #     data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
-    #     data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-    #     data = data.assign_coords({'birth_year':by}).drop_vars('age')
-    #     bys.append(data)
-
-ds_dmg['population_by'] = xr.concat(bys,dim='birth_year').sum(dim='time').where(ds_dmg['country_extent']==1)
-
-# pic dataset
-ds_pic = xr.Dataset(
-    data_vars={
-        'lifetime_exposure': (
-            ['lifetimes','lat','lon'],
-            np.full(
-                (len(range(400)),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
-                fill_value=np.nan,
-            ),
-        )
-    },
-    coords={
-        'lat': ('lat', da_smple_cntry.lat.data),
-        'lon': ('lon', da_smple_cntry.lon.data),
-        'lifetimes': ('lifetimes', np.arange(400)),
-    }
-)
-
-# lifetime exposure dataset (no information distributed across years/ages, i.e. summed across birthyear cohorts)
+# lifetime exposure dataset (pop weighted mean of pixel scale exposure)
 ds_le = xr.Dataset(
     data_vars={
         'lifetime_exposure': (
-            ['run','birth_year','lat','lon'],
+            ['country','run','GMT','birth_year'],
             np.full(
-                (len(list(d_isimip_meta.keys())),len(birth_years),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                 fill_value=np.nan,
             ),
         )
     },
     coords={
-        'lat': ('lat', da_smple_cntry.lat.data),
-        'lon': ('lon', da_smple_cntry.lon.data),
+        'country': ('country', sample_countries),
         'birth_year': ('birth_year', birth_years),
         'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+        'GMT': ('GMT', GMT_labels)
     }
 )
 
-# loop over PIC simulations
-c = 0
-for i in list(d_pic_meta.keys()):
-    
-    print('simulation {} of {}'.format(i,len(d_pic_meta)))
-    
-    # load AFA data of that run
-    with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
-        da_AFA_pic = pk.load(f)
-        
-    da_AFA_pic = da_AFA_pic.where(da_smple_cntry==1,drop=True)
-    
-    life_extent=82 # max 1960 life expectancy is 81, therefore bootstrap lifetimes of 82 years  
-    nboots=100 # number of lifetimes to be bootstrapped should go to settings
-    resample_dim='time'
-    by=1960 # 1960 birth year for pic stuff
-    
-    # resample 100 lifetimes and then sum 
-    da_exposure_pic = xr.concat(
-        [resample(da_AFA_pic,resample_dim,life_extent) for i in range(nboots)],
-        dim='lifetimes'    
-    ).assign_coords({'lifetimes':np.arange(c*nboots,c*nboots+nboots)})
-    
-    # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
-    da_pic_le = da_exposure_pic.loc[
-        {'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}
-    ].sum(dim='time') +\
-        da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}].drop('time') *\
-            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by).item()))
-            
-    ds_pic['lifetime_exposure'].loc[
+for cntry in sample_countries:
+
+    da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
+    da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='age') # cohort relative sizes in sample country
+    da_cntry = xr.where( # grid cells/extent of sample country
+        countries_mask.where(countries_mask==countries_regions.map_keys(cntry),drop=True)==countries_regions.map_keys(cntry),
+        1,
+        0
+    )
+    # prep spatial coords for country in dataset across countries
+    ds_le_spatial = ds_le_spatial.assign_coords(
         {
-            'lat': da_pic_le.lat.data,
-            'lon': da_pic_le.lon.data,
-            'lifetimes': np.arange(c*nboots,c*nboots+nboots),
+            'lat_{}'.format(cntry): da_cntry.lat.data,
+            'lon_{}'.format(cntry): da_cntry.lon.data,
         }
-    ] = da_pic_le
-    c += 1
-    
-# pic extreme lifetime exposure
-ds_pic['99.99'] = ds_pic['lifetime_exposure'].quantile(
-        q=0.9999,
-        dim='lifetimes',
     )
-
-# loop over simulations
-for i in list(d_isimip_meta.keys()): 
-
-    print('simulation {} of {}'.format(i,len(d_isimip_meta)))
-
-    # load AFA data of that run
-    with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
-        da_AFA = pk.load(f)
-        
-    # mask to sample country and reduce spatial extent
-    da_AFA = da_AFA.where(da_smple_cntry==1,drop=True)
     
-    #----------------------------------------------------------------------------------------------
-    # GMT mapping for stylized trajectories in dimension expansion of da_exposure_peryear_percountry
-    da_AFA_strj = xr.DataArray(
-        coords={
-            'time': ('time', da_AFA.time.values),
-            'ages': ('ages', da_cohort_size.ages.values),
-            'GMT': ('GMT', np.arange(len(d_isimip_meta[1]['GMT_strj_valid']))),
+    # weights for latitude (probably won't use but will use population instead)
+    weights = np.cos(np.deg2rad(da_cntry.lat))
+    weights.name = "weights"
+    da_smple_pop = da_population.where(da_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
+
+    # demography dataset
+    ds_dmg = xr.Dataset(
+        data_vars={
+            'life_expectancy': (
+                ['birth_year'],
+                df_life_expectancy_5[cntry].values
+            ),
+            'death_year': (
+                ['birth_year'],
+                np.floor(df_life_expectancy_5[cntry].values + df_life_expectancy_5[cntry].index).astype('int')
+            ),
+            'population': (
+                ['time','lat','lon','age'],
+                da_smple_pop.data
+            ),
+            'country_extent': (
+                ['lat','lon'],
+                da_cntry.data
+            ),
         },
-        dims=[
-            'country',
-            'time',
-            'ages',
-            'GMT',
-        ],
+        coords={
+            'birth_year': ('birth_year', birth_years),
+            'time': ('time', da_population.time.data),
+            'lat': ('lat', da_cntry.lat.data),
+            'lon': ('lon', da_cntry.lon.data),
+            'age': ('age', np.arange(104,-1,-1)),
+        }
     )
-    
-    for step in GMT_labels:
-        
-        if d_isimip_meta[i]['GMT_strj_valid'][step]:
-            
-            # assign data to data array based on step in stylized trajectories
-            da_exposure_peryear_perage_percountry_strj.loc[
-                {'country':da_exposure_peryear_perage_percountry_strj.country,
-                    'time':da_exposure_peryear_perage_percountry_strj.time,
-                    'GMT':step}
-                ] = da_exposure_peryear_percountry.reindex(
-                    {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-                ).assign_coords({'time':np.arange(year_start,year_end+1)}) * xr.full_like(da_cohort_size,1)    
-                
-    #----------------------------------------------------------------------------------------------
-    
-    # THEN LOOP EVERYTHING BELOW PER GMT STEP 
-    
-    # HERE we would insert some re-indexing for the marker scenarios (or multiple reindexing for stylized trajectories)
-    da_le = xr.concat(
-        [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
-        da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
-        (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
-        for by in birth_years],
-        dim='birth_year',
-    ).assign_coords({'birth_year':birth_years})
-    
-    # assign lifetime exposure array to dataset for run i
-    ds_le['lifetime_exposure'].loc[
-        {'run':i,'birth_year':birth_years,'lat':da_le.lat.data,'lon':da_le.lon.data}
-    ] = da_le
-    
-    # da_chrt_exp = xr.concat(bys,dim='birth_year')
-    
-    # exposure per year per age
-    da_pop = ds_dmg['population'].where(da_smple_cntry==1,drop=True)
-    da_exp_py_pa = da_AFA * xr.full_like(da_pop,1)
-    bys = []    
-    
-    # to be new func, per birth year, make (year,age) selections
-    # for by in np.arange(year_start,year_end+1):
+
+    # get birthyear aligned population for unprecedented calculation (population_by), also use for weighted mean of lifetime exposure
+    bys = []
     for by in birth_years:
             
         time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
         ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-        data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
+        data = ds_dmg['population'].sel(time=time,age=ages) # paired selections
         data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
         data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
         data = data.assign_coords({'birth_year':by}).drop_vars('age')
-        data.loc[
-            {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
-        ] = da_AFA.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
-            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
         bys.append(data)
 
-    
-    da_exp_py_pa = xr.concat(bys,dim='birth_year')
-    
-    # to be new func
-    da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
-        
-    # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
-    da_age_exposure_mask = xr.where(
-        da_exp_py_pa_cumsum >= ds_pic['99.99'],
-        1,
-        0,
+    ds_dmg['population_by'] = xr.concat(bys,dim='birth_year').sum(dim='time').where(ds_dmg['country_extent']==1)
+
+    # pic dataset
+    ds_pic = xr.Dataset(
+        data_vars={
+            'lifetime_exposure': (
+                ['lifetimes','lat','lon'],
+                np.full(
+                    (len(range(400)),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                    fill_value=np.nan,
+                ),
+            )
+        },
+        coords={
+            'lat': ('lat', da_cntry.lat.data),
+            'lon': ('lon', da_cntry.lon.data),
+            'lifetimes': ('lifetimes', np.arange(400)),
+        }
     )
-    da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
-    da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
-        
-    # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
-    da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years/pixels crossing threshold
     
-    da_unprec_pop = ds_dmg['population_by'].where(da_birthyear_exposure_mask==1)
+
+    # loop over PIC simulations
+    c = 0
+    for i in list(d_pic_meta.keys()):
+        
+        print('simulation {} of {}'.format(i,len(d_pic_meta)))
+        
+        # load AFA data of that run
+        with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
+            da_AFA_pic = pk.load(f)
+            
+        da_AFA_pic = da_AFA_pic.where(ds_dmg['country_extent']==1,drop=True)
+        
+        # resample 100 lifetimes and then sum 
+        da_exposure_pic = xr.concat(
+            [resample(da_AFA_pic,resample_dim,pic_life_extent) for i in range(nboots)],
+            dim='lifetimes'    
+        ).assign_coords({'lifetimes':np.arange(c*nboots,c*nboots+nboots)})
+        
+        # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
+        da_pic_le = da_exposure_pic.loc[
+            {'time':np.arange(pic_by,ds_dmg['death_year'].sel(birth_year=pic_by).item()+1)}
+        ].sum(dim='time') +\
+            da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()+1}].drop('time') *\
+                (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
+                
+        ds_pic['lifetime_exposure'].loc[
+            {
+                'lat': da_pic_le.lat.data,
+                'lon': da_pic_le.lon.data,
+                'lifetimes': np.arange(c*nboots,c*nboots+nboots),
+            }
+        ] = da_pic_le
+        c += 1
+        
+    # pic extreme lifetime exposure
+    ds_pic['99.99'] = ds_pic['lifetime_exposure'].quantile(
+            q=pic_qntl,
+            dim='lifetimes',
+        )
+
+    # loop over simulations
+    for i in list(d_isimip_meta.keys()): 
+
+        print('simulation {} of {}'.format(i,len(d_isimip_meta)))
+
+        # load AFA data of that run
+        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
+            da_AFA = pk.load(f)
+            
+        # mask to sample country and reduce spatial extent
+        da_AFA = da_AFA.where(ds_dmg['country_extent']==1,drop=True)
+        
+        for step in GMT_labels: # UNFINISHED
+            
+            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                
+                da_AFA = da_AFA.reindex(
+                    {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+                ).assign_coords({'time':year_range}) 
+                    
+                # simple lifetime exposure integration
+                da_le = xr.concat(
+                    [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
+                    da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
+                    (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
+                    for by in birth_years],
+                    dim='birth_year',
+                ).assign_coords({'birth_year':birth_years})
+        
+                # assign lifetime exposure array to spatial dataset for run i and for subset of birth years if this corresponds to step in GMT_indices
+                if step in GMT_indices:
+                    
+                    ds_le_spatial['lifetime_exposure_{}'.format(cntry)] = da_le.loc[{'birth_year':sample_birth_years}]
+                
+                # assign pop weighted mean exposure to dataset
+                ds_le['lifetime_exposure'].loc[
+                    {
+                        'country':cntry,
+                        'run':i,
+                        'GMT':step,
+                        'birth_year':birth_years,
+                    }
+                ] = da_le.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon'))
+        
+                da_exp_py_pa = da_AFA * xr.full_like(ds_dmg['population'],1)
+                bys = []    
+        
+                # to be new func, per birth year, make (year,age) selections
+                for by in birth_years:
+                        
+                    time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
+                    ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+                    data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
+                    data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
+                    data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+                    data = data.assign_coords({'birth_year':by}).drop_vars('age')
+                    data.loc[
+                        {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
+                    ] = da_AFA.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
+                        (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
+                    bys.append(data)
+        
+                da_exp_py_pa = xr.concat(bys,dim='birth_year')
+        
+                # to be new func
+                da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
+            
+                # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
+                da_age_exposure_mask = xr.where(
+                    da_exp_py_pa_cumsum >= ds_pic['99.99'],
+                    1,
+                    0,
+                )
+                da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
+                da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
+                    
+                # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
+                da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years/pixels crossing threshold
+                
+                da_unprec_pop = ds_dmg['population_by'].where(da_birthyear_exposure_mask==1)
     
         
 #%% --------------------------------------------------------------------
@@ -860,7 +835,6 @@ from plot import *
 
 # collect all data arrays for age of emergence into dataset for finding age per birth year
 ds_age_emergence = xr.merge([
-    # ds_age_emergence_RCP.rename({'age_emergence':'age_emergence_RCP'}),
     ds_age_emergence_15.rename({'age_emergence':'age_emergence_15'}),
     ds_age_emergence_20.rename({'age_emergence':'age_emergence_20'}),
     ds_age_emergence_NDC.rename({'age_emergence':'age_emergence_NDC'}),
