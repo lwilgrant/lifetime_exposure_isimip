@@ -9,7 +9,7 @@ import numpy as np
 def init(): 
 
     # initialise age and associated time period of interest
-    global ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc
+    global ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, sample_birth_years
     ages = np.arange(60,-1,-1)
     age_young = 0
     age_ref = np.nanmax(ages)
@@ -17,8 +17,9 @@ def init():
     year_ref = 2020
     year_start = year_ref - age_ref
     birth_years = np.arange(year_start,year_ref+1)     
-    year_end = 2113                            # based on maximum life expectancy reported in UN WPP
+    year_end = 2113 # based on maximum life expectancy reported in UN WPP
     year_range = np.arange(year_start,year_end+1)
+    sample_birth_years = np.arange(1960,2021,10) # for grid scale spatial datasets 
     
     # PIC sampling information
     global pic_life_extent, nboots, resample_dim, pic_by, pic_qntl
@@ -130,7 +131,7 @@ def init():
     global kernel_x
     kernel_x = np.arange(1,50.5,0.5)
     
-    return ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl
+    return ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years
 
 #%% ----------------------------------------------------------------
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)

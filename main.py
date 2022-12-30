@@ -83,7 +83,7 @@ flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort em
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 set_extremes(flags)
@@ -405,6 +405,7 @@ sample_countries = [
 sample_birth_years = np.arange(1960,2021,10)
 
 # spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load)
+    # per country, will add relevant lat_{}.format(cntry) and lon... coords
     # can also add age emergence to here
 ds_le_spatial = xr.Dataset(
     coords={
@@ -414,10 +415,48 @@ ds_le_spatial = xr.Dataset(
     }
 )
 
-# lifetime exposure dataset (pop weighted mean of pixel scale exposure)
+# lifetime exposure dataset (pop weighted mean of pixel scale lifetime exposure per country, run, GMT and birthyear)
 ds_le = xr.Dataset(
     data_vars={
         'lifetime_exposure': (
+            ['country','run','GMT','birth_year'],
+            np.full(
+                (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                fill_value=np.nan,
+            ),
+        )
+    },
+    coords={
+        'country': ('country', sample_countries),
+        'birth_year': ('birth_year', birth_years),
+        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+        'GMT': ('GMT', GMT_labels)
+    }
+)
+
+# age emergence dataset (pop weighted mean of pixel scale age emergence per country, run, GMT and birthyear)
+ds_ae = xr.Dataset(
+    data_vars={
+        'age_emergence': (
+            ['country','run','GMT','birth_year'],
+            np.full(
+                (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                fill_value=np.nan,
+            ),
+        )
+    },
+    coords={
+        'country': ('country', sample_countries),
+        'birth_year': ('birth_year', birth_years),
+        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+        'GMT': ('GMT', GMT_labels)
+    }
+)
+
+# pop fraction dataset (sum of unprecedented exposure pixels per per country, run, GMT and birthyear)
+ds_pf = xr.Dataset(
+    data_vars={
+        'unprec': (
             ['country','run','GMT','birth_year'],
             np.full(
                 (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
@@ -484,7 +523,7 @@ for cntry in sample_countries:
         }
     )
 
-    # get birthyear aligned population for unprecedented calculation (population_by), also use for weighted mean of lifetime exposure
+    # get birthyear aligned population for unprecedented calculation (population_by), also use for weighted mean of lifetime exposure and age emergence
     bys = []
     for by in birth_years:
             
@@ -516,46 +555,58 @@ for cntry in sample_countries:
         }
     )
     
-
-    # loop over PIC simulations
-    c = 0
-    for i in list(d_pic_meta.keys()):
+    # check for PIC file; process and dump pickle if not already existing
+    if not os.path.isfile('./data/pickles/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],cntry)):
         
-        print('simulation {} of {}'.format(i,len(d_pic_meta)))
-        
-        # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
-            da_AFA_pic = pk.load(f)
+        # loop over PIC simulations
+        c = 0
+        for i in list(d_pic_meta.keys()):
             
-        da_AFA_pic = da_AFA_pic.where(ds_dmg['country_extent']==1,drop=True)
-        
-        # resample 100 lifetimes and then sum 
-        da_exposure_pic = xr.concat(
-            [resample(da_AFA_pic,resample_dim,pic_life_extent) for i in range(nboots)],
-            dim='lifetimes'    
-        ).assign_coords({'lifetimes':np.arange(c*nboots,c*nboots+nboots)})
-        
-        # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
-        da_pic_le = da_exposure_pic.loc[
-            {'time':np.arange(pic_by,ds_dmg['death_year'].sel(birth_year=pic_by).item()+1)}
-        ].sum(dim='time') +\
-            da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()+1}].drop('time') *\
-                (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
+            print('simulation {} of {}'.format(i,len(d_pic_meta)))
+            
+            # load AFA data of that run
+            with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+                da_AFA_pic = pk.load(f)
                 
-        ds_pic['lifetime_exposure'].loc[
-            {
-                'lat': da_pic_le.lat.data,
-                'lon': da_pic_le.lon.data,
-                'lifetimes': np.arange(c*nboots,c*nboots+nboots),
-            }
-        ] = da_pic_le
-        c += 1
+            da_AFA_pic = da_AFA_pic.where(ds_dmg['country_extent']==1,drop=True)
+            
+            # resample 100 lifetimes and then sum 
+            da_exposure_pic = xr.concat(
+                [resample(da_AFA_pic,resample_dim,pic_life_extent) for i in range(nboots)],
+                dim='lifetimes'    
+            ).assign_coords({'lifetimes':np.arange(c*nboots,c*nboots+nboots)})
+            
+            # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
+            da_pic_le = da_exposure_pic.loc[
+                {'time':np.arange(pic_by,ds_dmg['death_year'].sel(birth_year=pic_by).item()+1)}
+            ].sum(dim='time') +\
+                da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()+1}].drop('time') *\
+                    (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
+                    
+            ds_pic['lifetime_exposure'].loc[
+                {
+                    'lat': da_pic_le.lat.data,
+                    'lon': da_pic_le.lon.data,
+                    'lifetimes': np.arange(c*nboots,c*nboots+nboots),
+                }
+            ] = da_pic_le
+            c += 1
+            
+        # pic extreme lifetime exposure definition
+        ds_pic['99.99'] = ds_pic['lifetime_exposure'].quantile(
+                q=pic_qntl,
+                dim='lifetimes',
+            )
         
-    # pic extreme lifetime exposure
-    ds_pic['99.99'] = ds_pic['lifetime_exposure'].quantile(
-            q=pic_qntl,
-            dim='lifetimes',
-        )
+        # pickle PIC for var, country
+        with open('./data/pickles/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],cntry), 'wb') as f:
+            pk.dump(ds_pic,f)
+            
+    else:
+        
+        # load PIC pickle
+        with open('./data/pickles/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
+            ds_pic = pk.load(f)        
 
     # loop over simulations
     for i in list(d_isimip_meta.keys()): 
@@ -563,7 +614,7 @@ for cntry in sample_countries:
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
+        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)
             
         # mask to sample country and reduce spatial extent
@@ -573,19 +624,31 @@ for cntry in sample_countries:
             
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
                 
-                da_AFA = da_AFA.reindex(
-                    {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-                ).assign_coords({'time':year_range}) 
+                # check for pickle of gridscale lifetime exposure; process if not existing
+                if not os.path.isfile('./data/pickles/gridscale_le_{}_{}_{}_{}'.format(flags['extr'],cntry,i,step)):
                     
-                # simple lifetime exposure integration
-                da_le = xr.concat(
-                    [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
-                    da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
-                    (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
-                    for by in birth_years],
-                    dim='birth_year',
-                ).assign_coords({'birth_year':birth_years})
-        
+                    da_AFA = da_AFA.reindex(
+                        {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+                    ).assign_coords({'time':year_range}) 
+                        
+                    # simple lifetime exposure integration
+                    da_le = xr.concat(
+                        [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
+                        da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
+                        (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
+                        for by in birth_years],
+                        dim='birth_year',
+                    ).assign_coords({'birth_year':birth_years})
+                    
+                    with open('./data/pickles/gridscale_le_{}_{}_{}_{}'.format(flags['extr'],cntry,i,step), 'wb') as f:
+                        pk.dump(da_le,f)
+                
+                # load existing pickle
+                else:
+                    
+                    with open('./data/pickles/gridscale_le_{}_{}_{}_{}'.format(flags['extr'],cntry,i,step), 'rb') as f:
+                        da_le = pk.load(f)
+            
                 # assign lifetime exposure array to spatial dataset for run i and for subset of birth years if this corresponds to step in GMT_indices
                 if step in GMT_indices:
                     
@@ -601,8 +664,9 @@ for cntry in sample_countries:
                     }
                 ] = da_le.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon'))
         
+                # START NEW if not  HERE
                 da_exp_py_pa = da_AFA * xr.full_like(ds_dmg['population'],1)
-                bys = []    
+                bys = []
         
                 # to be new func, per birth year, make (year,age) selections
                 for by in birth_years:
