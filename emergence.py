@@ -26,7 +26,7 @@ import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries = init()
 
 #%% --------------------------------------------------------------------
 # test colors for plotting
@@ -109,14 +109,80 @@ def get_all_cohorts(
     
     return d_all_cohorts  
 
+# #%% ----------------------------------------------------------------
+# # make age+time selections to align exposure, cohort exposure and cohort sizes along birth year and time
+# def calc_birthyear_align(
+#     da,
+#     df_life_expectancy,
+#     year_start,
+#     year_end,
+#     year_ref,
+# ):
+    
+#     country_list = []
+    
+#     # loop through countries
+#     for country in da.country.values:
+        
+#         birthyear_list = []
+        
+#         # per birth year, make (year,age) selections
+#         for birth_year in np.arange(year_start,year_end+1):
+            
+#             # use life expectancy information where available (until 2020)
+#             if birth_year <= year_ref:
+                
+#                 death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
+#                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
+#                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
+#                 data = da.sel(country=country,time=time,ages=ages) # paired selections
+#                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
+#                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+#                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+#                 birthyear_list.append(data)
+            
+#             # after 2020, assume constant life expectancy    
+#             elif birth_year > year_ref and birth_year < year_end:
+                
+#                 death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
+                
+#                 # if lifespan not encompassed by 2113, set death to 2113
+#                 if death_year > year_end:
+                    
+#                     death_year = year_end
+                
+#                 time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
+#                 ages = xr.DataArray(np.arange(0,len(time)),dims='age')
+#                 data = da.sel(country=country,time=time,ages=ages)
+#                 data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
+#                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+#                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+#                 birthyear_list.append(data)
+            
+#             # for 2113, use single year of exposure    
+#             elif birth_year == year_end:
+                
+#                 time = xr.DataArray([year_end],dims='age')
+#                 ages = xr.DataArray([0],dims='age')
+#                 data = da.sel(country=country,time=time,ages=ages)
+#                 data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
+#                 data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
+#                 data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
+#                 birthyear_list.append(data)                
+        
+#         da_data = xr.concat(birthyear_list,dim='birth_year')
+#         country_list.append(da_data)
+        
+#     da_all = xr.concat(country_list,dim='country')
+    
+#     return da_all
+
 #%% ----------------------------------------------------------------
 # make age+time selections to align exposure, cohort exposure and cohort sizes along birth year and time
+# this is new version that should be faster because I limit the alignment to 1960 to 2020 (birth_years instead of year range)
 def calc_birthyear_align(
     da,
     df_life_expectancy,
-    year_start,
-    year_end,
-    year_ref,
 ):
     
     country_list = []
@@ -127,48 +193,17 @@ def calc_birthyear_align(
         birthyear_list = []
         
         # per birth year, make (year,age) selections
-        for birth_year in np.arange(year_start,year_end+1):
-            
-            # use life expectancy information where available (until 2020)
-            if birth_year <= year_ref:
+        for by in birth_years:
                 
-                death_year = birth_year + np.floor(df_life_expectancy.loc[birth_year,country])
-                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
-                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                data = da.sel(country=country,time=time,ages=ages) # paired selections
-                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
-                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
-                birthyear_list.append(data)
-            
-            # after 2020, assume constant life expectancy    
-            elif birth_year > year_ref and birth_year < year_end:
-                
-                death_year = birth_year + np.floor(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
-                
-                # if lifespan not encompassed by 2113, set death to 2113
-                if death_year > year_end:
-                    
-                    death_year = year_end
-                
-                time = xr.DataArray(np.arange(birth_year,death_year),dims='age')
-                ages = xr.DataArray(np.arange(0,len(time)),dims='age')
-                data = da.sel(country=country,time=time,ages=ages)
-                data = data.rename({'age':'time'}).assign_coords({'time':np.arange(birth_year,death_year,dtype='int')})
-                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
-                birthyear_list.append(data)
-            
-            # for 2113, use single year of exposure    
-            elif birth_year == year_end:
-                
-                time = xr.DataArray([year_end],dims='age')
-                ages = xr.DataArray([0],dims='age')
-                data = da.sel(country=country,time=time,ages=ages)
-                data = data.rename({'age':'time'}).assign_coords({'time':[year_end]})
-                data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze()
-                data = data.assign_coords({'birth_year':birth_year}).drop_vars('ages')
-                birthyear_list.append(data)                
+            death_year = by + np.ceil(df_life_expectancy.loc[by,country]) # since we don't have AFA, best to round life expec up and then multiply last year of exposure by fraction of final year lived
+            time = xr.DataArray(np.arange(by,death_year+1),dims='cohort')
+            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+            data = da.sel(country=country,time=time,ages=ages) # paired selections
+            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,death_year+1,dtype='int')})
+            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+            data = data.assign_coords({'birth_year':by}).drop_vars('ages')
+            data.loc[{'time':death_year}] = data.loc[{'time':death_year}] * (df_life_expectancy.loc[by,country] - np.floor(df_life_expectancy.loc[by,country]))
+            birthyear_list.append(data)
         
         da_data = xr.concat(birthyear_list,dim='birth_year')
         country_list.append(da_data)
@@ -176,13 +211,10 @@ def calc_birthyear_align(
     da_all = xr.concat(country_list,dim='country')
     
     return da_all
-
-
 #%% ----------------------------------------------------------------
 # create dataset out of birthyear aligned cohort exposure and regular rexposure, add cumulative exposure, 
 def ds_exposure_align(
     da,
-    traject,
 ):
         
     da_cumsum = da.cumsum(dim='time').where(da>0)
@@ -444,9 +476,6 @@ def all_emergence(
             da_exposure_aligned = calc_birthyear_align(
                 da_exposure_peryear_perage_percountry,
                 df_life_expectancy_5,
-                year_start,
-                year_end,
-                year_ref,
             )
             
             # dataset of birthyear aligned exposure, add cumulative exposure 
@@ -469,9 +498,6 @@ def all_emergence(
             da_exposure_cohort_aligned = calc_birthyear_align(
                 da_exposure_cohort,
                 df_life_expectancy_5,
-                year_start,
-                year_end,
-                year_ref,
             )
             
             # convert aligned cohort exposure to dataset
@@ -576,7 +602,7 @@ def strj_emergence(
         with open('./data/pickles/exposure_cohort_{}_{}_{}_{}.pkl'.format(traject,d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
             da_exposure_cohort = pk.load(f)
         with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}_{}.pkl'.format(traject,d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
-            da_exposure_peryear_perage_percountry = pk.load(f)        
+            da_exposure_peryear_perage_percountry = pk.load(f)
     
         for step in da_exposure_peryear_perage_percountry.GMT.values:
             
@@ -592,15 +618,11 @@ def strj_emergence(
                     da_exposure_aligned = calc_birthyear_align(
                         da_exposure_peryear_perage_percountry.sel(GMT=step),
                         df_life_expectancy_5,
-                        year_start,
-                        year_end,
-                        year_ref,
                     )
                     
                     # dataset of birthyear aligned exposure, add cumulative exposure 
                     ds_exposure_aligned_run_step = ds_exposure_align(
                         da_exposure_aligned,
-                        traject,
                     )
                     
                     # pickle
@@ -641,15 +663,11 @@ def strj_emergence(
                     da_exposure_cohort_aligned_run_step = calc_birthyear_align(
                         da_exposure_cohort.sel(GMT=step),
                         df_life_expectancy_5,
-                        year_start,
-                        year_end,
-                        year_ref,
                     )
                     
                     # convert aligned cohort exposure to dataset
                     ds_exposure_cohort_aligned_run_step = ds_exposure_align(
                         da_exposure_cohort_aligned_run_step,
-                        traject,
                     )
                     
                     # pickle

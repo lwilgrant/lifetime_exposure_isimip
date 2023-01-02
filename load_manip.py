@@ -10,9 +10,10 @@ import pickle as pk
 from scipy import interpolate
 import regionmask
 import glob
+import os
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries = init()
 
 # ---------------------------------------------------------------
 # 1. Functions to load (see ms_load.m)
@@ -674,7 +675,6 @@ def get_life_expectancies(
 def get_cohortsize_countries(
     wcde, 
     df_countries, 
-    df_GMT_15,
 ): 
 
     # unpack loaded wcde values
@@ -692,17 +692,17 @@ def get_cohortsize_countries(
         wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
         wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
         [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
-        [Xnew, Ynew] = np.meshgrid(ages, np.array(df_GMT_15.index)) # prepare for 2D interpolation
+        [Xnew, Ynew] = np.meshgrid(ages, year_range) # prepare for 2D interpolation exchanged for "np.array(df_GMT_15.index)"
         wcde_country_data_raw = interpolate.griddata(
             (Xorig.ravel(),Yorig.ravel()),
             wcde_per_country.ravel(),
             (Xnew.ravel(),Ynew.ravel()),
         )
-        wcde_country_data_interp = wcde_country_data_raw.reshape( len(df_GMT_15.index),len(ages))
+        wcde_country_data_interp = wcde_country_data_raw.reshape(len(year_range),len(ages))
         d_cohort_size[name] = pd.DataFrame(
             (wcde_country_data_interp /5), 
             columns=ages, 
-            index=df_GMT_15.index
+            index=year_range,
         )
     
     return d_cohort_size
@@ -753,7 +753,6 @@ def get_cohortsize_countries(
 def get_all_cohorts(
     wcde, 
     df_countries, 
-    df_GMT_15,
 ): 
 
     # unpack loaded wcde values; 31 year ranges, 21 age categories
@@ -769,17 +768,17 @@ def get_all_cohorts(
         wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
         wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
         [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
-        [Xnew, Ynew] = np.meshgrid(new_ages, np.array(df_GMT_15.index)) # prepare for 2D interpolation
+        [Xnew, Ynew] = np.meshgrid(new_ages, year_range) # prepare for 2D interpolation
         wcde_country_data_raw = interpolate.griddata(
             (Xorig.ravel(),Yorig.ravel()),
             wcde_per_country.ravel(),
             (Xnew.ravel(),Ynew.ravel()),
         )
-        wcde_country_data_interp = wcde_country_data_raw.reshape( len(df_GMT_15.index),len(new_ages))
+        wcde_country_data_interp = wcde_country_data_raw.reshape(len(year_range),len(new_ages))
         d_all_cohorts[name] = pd.DataFrame(
-            (wcde_country_data_interp /5), 
+            (wcde_country_data_interp/5), 
             columns=new_ages, 
-            index=df_GMT_15.index
+            index=year_range,
         )        
     
     return d_all_cohorts  
@@ -880,5 +879,96 @@ def get_regions_data(
     
     return d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions
 
+#%% ---------------------------------------------------------------
+# Country data
 
+def all_country_data():
+    
+    # load worldbank and unwpp data
+    meta, worldbank, unwpp = load_worldbank_unwpp_data()
+
+    # unpack values
+    df_countries, df_regions = meta
+    df_worldbank_country, df_worldbank_region = worldbank
+    df_unwpp_country, df_unwpp_region = unwpp
+
+    # manipulate worldbank and unwpp data to get birth year and life expectancy values
+    df_birthyears, df_life_expectancy_5 = get_life_expectancies(
+        df_worldbank_country, 
+        df_unwpp_country,
+    )
+
+    # load population size per age cohort data
+    wcde = load_wcde_data() 
+
+    # interpolate population size per age cohort data to our ages (0-60)
+    d_cohort_size = get_cohortsize_countries(
+        wcde, 
+        df_countries, 
+    )
+    
+    # interpolate pop sizes per age cohort for all ages (0-104)
+    d_all_cohorts = get_all_cohorts(
+        wcde, 
+        df_countries, 
+    )
+
+    # -------------------------------------------------------------------------------------------------------
+    # do the same for the regions; get life expectancy, birth years and cohort weights per region, as well as countries per region
+    d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions = get_regions_data(
+        df_countries, 
+        df_regions, 
+        df_worldbank_region, 
+        df_unwpp_region, 
+        d_cohort_size,
+    )
+
+    # --------------------------------------------------------------------
+    # Load population and country masks, and mask population per country
+    
+    # Load SSP population totals 
+    da_population = load_population(
+        year_start,
+        year_end,
+    )
+    
+    gdf_country_borders = gpd.read_file('./data/natural_earth/Cultural_10m/Countries/ne_10m_admin_0_countries.shp'); 
+
+    # mask population totals per country  and save country regions object and countries mask
+    df_countries, countries_regions, countries_mask, gdf_country_borders = get_mask_population(
+        da_population, 
+        gdf_country_borders, 
+        df_countries,
+    ) 
+
+    # pack country information
+    d_countries = {
+        'info_pop' : df_countries, 
+        'borders' : gdf_country_borders,
+        'population_map' : da_population,
+        'birth_years' : df_birthyears,
+        'life_expectancy_5': df_life_expectancy_5, 
+        'cohort_size' : d_cohort_size, 
+        'all_cohorts' : d_all_cohorts,
+        'mask' : (countries_regions,countries_mask),
+    }
+
+    # pack region information
+    d_regions = {
+        'birth_years' : df_birthyears_regions,
+        'life_expectancy_5': df_life_expectancy_5_regions, 
+        'cohort_size' : d_cohort_weights_regions,
+    }
+
+    # save metadata dictionary as a pickle
+    print('Saving country and region data')
+    
+    if not os.path.isdir('./data/pickles'):
+        os.mkdir('./data/pickles')
+    with open('./data/pickles/country_info.pkl', 'wb') as f: # note; 'with' handles file stream closing
+        pk.dump(d_countries,f)
+    with open('./data/pickles/region_info.pkl', 'wb') as f:
+        pk.dump(d_regions,f)
+        
+    return d_countries,d_regions
 # %%
