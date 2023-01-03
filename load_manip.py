@@ -691,7 +691,7 @@ def get_cohortsize_countries(
         wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
         wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
         wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
-        [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
+        [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(year_range)]))) 
         [Xnew, Ynew] = np.meshgrid(ages, year_range) # prepare for 2D interpolation exchanged for "np.array(df_GMT_15.index)"
         wcde_country_data_raw = interpolate.griddata(
             (Xorig.ravel(),Yorig.ravel()),
@@ -767,7 +767,7 @@ def get_all_cohorts(
         wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
         wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
         wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
-        [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
+        [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(year_range)]))) 
         [Xnew, Ynew] = np.meshgrid(new_ages, year_range) # prepare for 2D interpolation
         wcde_country_data_raw = interpolate.griddata(
             (Xorig.ravel(),Yorig.ravel()),

@@ -62,19 +62,19 @@ flags['extr'] = 'heatwavedarea' # 0: all
                                 # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 1           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
-flags['gridscale'] = 1      # 0: do not process grid scale analysis, load pickles
+flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
 
 # TODO: add rest of flags
@@ -172,24 +172,16 @@ if flags['exposure']:
     start_time = time.time()
     
     # calculate exposure per country and per region and save data
-    exposures = calc_exposure(
-        grid_area,
-        d_regions,
+    ds_le = calc_exposure(
         d_isimip_meta, 
-        df_birthyears_regions, 
         df_countries, 
         countries_regions, 
         countries_mask, 
         da_population, 
         df_life_expectancy_5,
+        flags['extr'],
         flags['gmt'],
     )
-    
-    d_exposure_perrun_RCP,\
-    d_exposure_perregion_perrun_RCP,\
-    d_exposure_perrun_15,\
-    d_exposure_perrun_20,\
-    d_exposure_perrun_NDC = exposures
     
     print("--- {} minutes for original exosure computation ---".format(
         np.floor((time.time() - start_time) / 60),
@@ -200,25 +192,11 @@ else: # load processed exposure data
 
     print('Loading processed exposures')
 
-    # load country pickle
+    # load lifetime exposure pickle
     with open('./data/pickles/exposure_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
-        d_exposure = pk.load(f)
-
-    # unpack country information
-    d_exposure_perrun_RCP = d_exposure['exposure_perrun_RCP']
-    d_exposure_perrun_15 = d_exposure['exposure_perrun_15']
-    d_exposure_perrun_20 = d_exposure['exposure_perrun_20']
-    d_exposure_perrun_NDC = d_exposure['exposure_perrun_NDC']
-
-    # unpack region information
-    d_exposure_perregion_perrun_RCP = d_exposure['exposure_perregion_perrun_RCP']
-    d_landfrac_peryear_perregion = d_exposure['landfrac_peryear_perregion']
+        ds_le = pk.load(f)
     
-# ds_exposure_RCP = calc_exposure_mmm_xr(
-#     d_exposure_perrun_RCP,
-#     'country',
-#     'RCP',
-# )
+ds_le = calc_exposure_mmm_xr(ds_le)
 
 # --------------------------------------------------------------------
 # process exposure across cohorts
@@ -351,7 +329,7 @@ if flags['emergence']:
         with open('./data/pickles/global_mean_life_expectancy.pkl', 'rb') as f:
             da_gmle = pk.load(f)                      
     
-    ds_age_emergence_strj, ds_pop_frac_strj = strj_emergence(
+    ds_ae_strj, ds_pf_strj = strj_emergence(
         d_isimip_meta,
         df_life_expectancy_5,
         year_start,
@@ -372,11 +350,11 @@ else: # load pickles
     
     # pop frac
     with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
-        ds_pop_frac_strj = pk.load(f)                
+        ds_pf_strj = pk.load(f)                
     
     # age emergence           
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
-        ds_age_emergence_strj = pk.load(f)      
+        ds_ae_strj = pk.load(f)      
         
 #%% ----------------------------------------------------------------
 # grid scale
@@ -386,7 +364,7 @@ from gridscale import *
 
 if flags['gridscale']:
     
-    ds_le, ds_ae, ds_pf = grid_scale_emergence(
+    ds_le_gs, ds_ae_gs, ds_pf_gs = grid_scale_emergence(
         d_isimip_meta,
         d_pic_meta,
         flags['extr'],
@@ -403,11 +381,11 @@ else:
     
     # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
     with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr']), 'wb') as f:
-        ds_le = pk.load(f)    
+        ds_le_gs = pk.load(f)    
     with open('./data/pickles/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr']), 'wb') as f:
-        ds_ae = pk.load(f)
+        ds_ae_gs = pk.load(f)
     with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr']), 'wb') as f:
-        ds_pf = pk.load(f)    
+        ds_pf_gs = pk.load(f)    
 
 # load spatially explicit datasets
 d_le_spatial = {}
