@@ -72,7 +72,7 @@ flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute ex
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
 flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['gridscale'] = 1      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
@@ -369,18 +369,18 @@ if flags['gridscale']:
 else:
     
     # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
-    with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr']), 'wb') as f:
+    with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
         ds_le_gs = pk.load(f)    
-    with open('./data/pickles/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr']), 'wb') as f:
+    with open('./data/pickles/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr']), 'rb') as f:
         ds_ae_gs = pk.load(f)
-    with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr']), 'wb') as f:
+    with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr']), 'rb') as f:
         ds_pf_gs = pk.load(f)    
 
 # load spatially explicit datasets
 d_le_gs_spatial = {}
 for cntry in sample_countries:
-    with open('./data/pickles/gridscale_spatially_explicit_{}_{}'.format(flags['extr'],cntry), 'wb') as f:
-        d_le_gs_spatial['cntry'] = pk.load(f)        
+    with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
+        d_le_gs_spatial[cntry] = pk.load(f)
 
 #%% ----------------------------------------------------------------
 # plot emergence stuff
@@ -407,12 +407,77 @@ from plot import *
 #     flags['gmt'],
 # )
 
-# comparison of weighted mean vs pixel scale
+# comparison of weighted mean vs pixel scale (some prep required for pop frac from weighted mean)
+# pop fraction dataset (sum of unprecedented exposure pixels' population per per country, run, GMT and birthyear)
+ds_pf_plot = xr.Dataset(
+    data_vars={
+        'unprec_exposed': (
+            ['country','run','GMT','birth_year'],
+            np.full(
+                (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices),len(birth_years)),
+                fill_value=np.nan,
+            ),
+        ),
+        'unprec_exposed_fraction': (
+            ['country','run','GMT','birth_year'],
+            np.full(
+                (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices),len(birth_years)),
+                fill_value=np.nan,
+            ),
+        )
+        'unprec_all': (
+            ['country','run','GMT','birth_year'],
+            np.full(
+                (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices),len(birth_years)),
+                fill_value=np.nan,
+            ),
+        ),
+        'unprec_all_fraction': (
+            ['country','run','GMT','birth_year'],
+            np.full(
+                (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices),len(birth_years)),
+                fill_value=np.nan,
+            ),
+        )        
+    },
+    coords={
+        'country': ('country', sample_countries),
+        'birth_year': ('birth_year', birth_years),
+        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+        'GMT': ('GMT', GMT_indices)
+    }
+)
 
+for i in list(d_isimip_meta.keys()):
+    for step in GMT_indices:
+        if os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step)):
+            if d_isimip_meta[i]['GMT_strj_valid'][step]: # maybe an unecessary "if" since i probs didn't create it if the mapping wasn't right
+                with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step), 'rb') as f:
+                    cohort_exposure_array = pk.load(f)
+                with open('./data/pickles/da_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step), 'rb') as f:
+                    exposure_mask = pk.load(f)
+                for cntry in sample_countries:
+                    ds_pf_plot['unprec'].loc[{
+                        'country':cntry,
+                        'run':i,
+                        'GMT':step,
+                    }] = cohort_exposure_array['exposure'].sel(country=cntry).where(exposure_mask.sel(country=cntry)==1).sum(dim='time')
+                    ds_pf_plot['unprec_fraction'].loc[{
+                        'country':cntry,
+                        'run':i,
+                        'GMT':step,
+                    }] = cohort_exposure_array['exposure'].sel(country=cntry).where(exposure_mask.sel(country=cntry)==1).sum(dim='time') / ds_cohorts['population'].sel(country=cntry)                   
+                    
+    # da_birthyear_exposure_mask = xr.where(da_exposure_mask.sum(dim='time')>0,1,0)
+    # unprec_all = ds_cohorts['population'].where(da_birthyear_exposure_mask==1)
+    # unprec_exposed = ds_exposure_cohort['exposure'].where(da_exposure_mask==1)
+    # unprec_exposed = unprec_exposed.sum(dim=['time','country'])
 # weighted mean datasets
     # for population exposed in country:
         # loop through countries and pickle files per run/GMTlabel to get :
             # os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step)):
+            # with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'wb') as f:
+            #     pk.dump(ds_exposure_cohort_aligned_run_step,f)            
             # ^ divide each by ds_cohorts
             # get countries' pop frac per run/GMTlabel
     # age emergence:
@@ -422,11 +487,11 @@ from plot import *
 
 # gridscale datasets:
     # population unprecedented:
-        # ds_pf_gs
+        # ds_pf_gs['unprec_fraction']
     # age emergence:
-        # ds_ae_gs
+        # ds_ae_gs['age_emergence']
     # lifetime exposure:
-        # ds_le_gs
+        # ds_le_gs['lifetime_exposure']
 
 # import seaborn as sns
 

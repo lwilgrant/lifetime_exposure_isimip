@@ -374,37 +374,37 @@ def grid_scale_emergence(
                     ] = da_le.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon'))
             
                     # check for pickle of gridscale birthyear aligned exposure
-                    if not os.path.isfile('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step)):
+                    # if not os.path.isfile('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step)):
                         
-                        da_exp_py_pa = da_AFA * xr.full_like(ds_dmg['population'],1)
-                        bys = []
-                
-                        # to be new func, per birth year, make (year,age) selections
-                        for by in birth_years:
-                                
-                            time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
-                            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-                            data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
-                            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
-                            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-                            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-                            data.loc[
-                                {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
-                            ] = da_AFA.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
-                                (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
-                            bys.append(data)
-                
-                        da_exp_py_pa = xr.concat(bys,dim='birth_year')
+                    da_exp_py_pa = da_AFA * xr.full_like(ds_dmg['population'],1)
+                    bys = []
+            
+                    # to be new func, per birth year, make (year,age) selections
+                    for by in birth_years:
+                            
+                        time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
+                        ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+                        data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
+                        data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
+                        data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+                        data = data.assign_coords({'birth_year':by}).drop_vars('age')
+                        data.loc[
+                            {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
+                        ] = da_AFA.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
+                            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
+                        bys.append(data)
+            
+                    da_exp_py_pa = xr.concat(bys,dim='birth_year')
                         
                         # dump
-                        with open('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'wb') as f:
-                            pk.dump(da_exp_py_pa,f)
+                        # with open('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'wb') as f:
+                        #     pk.dump(da_exp_py_pa,f)
                     
-                    # load existing pickle
-                    else:
+                    # # load existing pickle
+                    # else:
                         
-                        with open('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'rb') as f:
-                            da_exp_py_pa = pk.load(f)
+                    #     with open('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'rb') as f:
+                    #         da_exp_py_pa = pk.load(f)
                             
                     # cumulative sum per birthyear
                     da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
@@ -480,4 +480,4 @@ def grid_scale_emergence(
     with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flag_extr), 'wb') as f:
         pk.dump(ds_pf,f)
         
-    return 
+    return ds_le, ds_ae, ds_pf

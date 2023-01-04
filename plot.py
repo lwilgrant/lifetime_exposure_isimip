@@ -1036,7 +1036,7 @@ def plot_pop_frac_birth_year_strj(
 
 #%% ----------------------------------------------------------------
 # plotting pop frac
-def plot_pop_frac_birth_year_GMT_strj(
+def plot_pf_ae_by_GMT_strj(
     ds_pop_frac_strj,
     ds_age_emergence_strj,
     df_GMT_strj,
