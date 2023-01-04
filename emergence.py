@@ -542,9 +542,6 @@ def all_emergence(
 def strj_emergence(
     d_isimip_meta,
     df_life_expectancy_5,
-    year_start,
-    year_end,
-    year_ref,
     ds_exposure_pic,
     ds_cohorts,
     flag_ext,
@@ -559,21 +556,21 @@ def strj_emergence(
             'unprec_exposed': (
                 ['run','birth_year','GMT'],
                 np.full(
-                    (len(list(d_isimip_meta.keys())),len(year_range),len(GMT_labels)),
+                    (len(list(d_isimip_meta.keys())),len(birth_years),len(GMT_labels)),
                     fill_value=np.nan,
                 ),
             ),
             'unprec_all': (
                 ['run','birth_year','GMT'],
                 np.full(
-                    (len(list(d_isimip_meta.keys())),len(year_range),len(GMT_labels)),
+                    (len(list(d_isimip_meta.keys())),len(birth_years),len(GMT_labels)),
                     fill_value=np.nan
                 ),
             ),
         },
         coords={
             'run': ('run', list(d_isimip_meta.keys())),
-            'birth_year': ('birth_year', year_range),
+            'birth_year': ('birth_year', birth_years),
             'GMT': ('GMT', np.arange(len(GMT_labels))),
         }
     )
@@ -583,14 +580,14 @@ def strj_emergence(
             'age_emergence': (
                 ['country','birth_year','run','GMT'], 
                 np.full(
-                    (len(ds_cohorts.country.data),len(year_range),len(list(d_isimip_meta.keys())),len(GMT_labels)),
+                    (len(ds_cohorts.country.data),len(birth_years),len(list(d_isimip_meta.keys())),len(GMT_labels)),
                     fill_value=np.nan,
                 )
             ),
         },
         coords={
             'country': ('country', ds_cohorts.country.data),
-            'birth_year': ('birth_year', year_range),
+            'birth_year': ('birth_year', birth_years),
             'run': ('run', list(d_isimip_meta.keys())),
             'GMT': ('GMT', np.arange(len(GMT_labels))),
         },        
@@ -710,7 +707,7 @@ def strj_emergence(
                 # assign run/GMT to larger dataset
                 ds_age_emergence.loc[{
                     'country': ds_cohorts.country.data,
-                    'birth_year': year_range,
+                    'birth_year': birth_years,
                     'run': i,
                     'GMT': step,
                 }] = ds_age_emergence_run_step    
@@ -718,7 +715,7 @@ def strj_emergence(
                 # population experiencing normal vs unprecedented exposure
                 ds_pop_frac.loc[{
                     'run':i,
-                    'birth_year': year_range,
+                    'birth_year': birth_years,
                     'GMT': step,
                 }] = ds_pop_frac_run_step
                               

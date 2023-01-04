@@ -134,16 +134,16 @@ def calc_exposure_mmm_xr(
 ):
         
     # take stats
-    mmm = ds_le['lifetime_exposure'].mean(dim='runs')
-    std = ds_le['lifetime_exposure'].std(dim='runs')
+    mmm = ds_le['lifetime_exposure'].mean(dim='run')
+    std = ds_le['lifetime_exposure'].std(dim='run')
     lqntl = ds_le['lifetime_exposure'].quantile(
         q=0.25,
-        dim='runs',
+        dim='run',
         method='inverted_cdf'
     )
     uqntl = ds_le['lifetime_exposure'].quantile(
         q=0.75,
-        dim='runs',
+        dim='run',
         method='inverted_cdf'
     )
     
@@ -319,6 +319,7 @@ def calc_exposure(
 # per-cohort number of extremes affecting one individual across life span
 def calc_cohort_exposure(
     flag_gmt,
+    flag_extr,
     d_isimip_meta,
     df_countries,
     countries_regions,
@@ -327,7 +328,7 @@ def calc_cohort_exposure(
     d_all_cohorts,
 ):
         
-    # unpack region information
+    # population information
     da_cohort_size = xr.DataArray(
         np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
         coords={
@@ -348,7 +349,7 @@ def calc_cohort_exposure(
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],str(i)), 'rb') as f:
+        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flag_extr,str(i)), 'rb') as f:
             da_AFA = pk.load(f)
 
         # --------------------------------------------------------------------
@@ -386,41 +387,6 @@ def calc_cohort_exposure(
                 'time',
             ],
         )
-
-        # multiply average exposure peryear by cohort sizes
-        # d_cohort_exposure_RCP[i]= da_exposure_peryear_percountry * da_cohort_size
-        pickle = da_exposure_peryear_percountry * da_cohort_size
-        
-        with open('./data/pickles/exposure_cohort_RCP_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],i), 'wb') as f:
-            pk.dump(pickle,f)
-        
-        # if max diff criteria met, run GMT mapping before scaling against cohort exposure
-        if d_isimip_meta[i]['GMT_15_valid']:
-            
-            pickle = da_exposure_peryear_percountry.reindex(
-                    {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_15']]}
-                ).assign_coords({'time':year_range}) * da_cohort_size
-            
-            with open('./data/pickles/exposure_cohort_15_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
-                pk.dump(pickle,f)
-            
-        if d_isimip_meta[i]['GMT_20_valid']:
-            
-            pickle = da_exposure_peryear_percountry.reindex(
-                    {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_20']]}
-                ).assign_coords({'time':year_range}) * da_cohort_size
-            
-            with open('./data/pickles/exposure_cohort_20_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
-                pk.dump(pickle,f)
-            
-        if d_isimip_meta[i]['GMT_NDC_valid']:
-            
-            pickle= da_exposure_peryear_percountry.reindex(
-                    {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_NDC']]}
-                ).assign_coords({'time':year_range}) * da_cohort_size
-            
-            with open('./data/pickles/exposure_cohort_NDC_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
-                pk.dump(pickle,f)
             
         # GMT mapping for cohort exposure for stylized trajectories
         da_exposure_cohort_strj = xr.DataArray(
@@ -451,42 +417,8 @@ def calc_cohort_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * da_cohort_size
                     
-        with open('./data/pickles/exposure_cohort_strj_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
+        with open('./data/pickles/exposure_cohort_strj_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
             pk.dump(da_exposure_cohort_strj,f)
-            
-        # expand dimension of da_exposure_peryear_percountry for eventual comparison against pic['ext']
-        pickle = da_exposure_peryear_percountry * xr.full_like(da_cohort_size,1)
-        
-        with open('./data/pickles/exposure_peryear_perage_percountry_RCP_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],i), 'wb') as f:
-            pk.dump(pickle,f)
-        
-        # dimension expansion for GMT mapping
-        if d_isimip_meta[i]['GMT_15_valid']:
-            
-            pickle = da_exposure_peryear_percountry.reindex(
-                    {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_15']]}
-                ).assign_coords({'time':year_range}) * xr.full_like(da_cohort_size,1)
-            
-            with open('./data/pickles/exposure_peryear_perage_percountry_15_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
-                pk.dump(pickle,f)
-            
-        if d_isimip_meta[i]['GMT_20_valid']:
-            
-            pickle = da_exposure_peryear_percountry.reindex(
-                    {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_20']]}
-                ).assign_coords({'time':year_range}) * xr.full_like(da_cohort_size,1)
-            
-            with open('./data/pickles/exposure_peryear_perage_percountry_20_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
-                pk.dump(pickle,f)
-            
-        if d_isimip_meta[i]['GMT_NDC_valid']:
-            
-            pickle  = da_exposure_peryear_percountry.reindex(
-                    {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_NDC']]}
-                ).assign_coords({'time':year_range}) * xr.full_like(da_cohort_size,1)
-            
-            with open('./data/pickles/exposure_peryear_perage_percountry_NDC_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
-                pk.dump(pickle,f)
             
         # GMT mapping for stylized trajectories in dimension expansion of da_exposure_peryear_percountry
         da_exposure_peryear_perage_percountry_strj = xr.DataArray(
@@ -517,7 +449,7 @@ def calc_cohort_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * xr.full_like(da_cohort_size,1)
         
-        with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'wb') as f:
+        with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
             pk.dump(da_exposure_peryear_perage_percountry_strj,f)                     
         
         
@@ -525,24 +457,16 @@ def calc_cohort_exposure(
 # convert PIC Area Fraction Affected (AFA) to 
 # per-country number of extremes affecting one individual across life span
 def calc_exposure_pic(
-    grid_area,
-    d_regions,
     d_pic_meta, 
-    df_birthyears_regions, 
     df_countries, 
     countries_regions, 
     countries_mask, 
     da_population, 
     df_life_expectancy_5, 
+    flag_extr,
 ):
 
-    d_exposure_perrun_pic = {}       
-    d_landfrac_peryear_perregion_pic = {}
-    d_exposure_perregion_perrun_pic = {}
-    
-    # unpack region information
-    df_birthyears_regions = d_regions['birth_years']
-    d_cohort_weights_regions = d_regions['cohort_size']                
+    d_exposure_perrun_pic = {}                 
     
     # loop over simulations
     for n,i in enumerate(list(d_pic_meta.keys())):
@@ -595,11 +519,8 @@ def calc_exposure_pic(
             ],
         )
 
-        # bootstrap native pic exposed area data
-        life_extent=82 # max 1960 life expectancy is 81, therefore bootstrap lifetimes of 82 years
-        nboots=100 # number of lifetimes to be bootstrapped should go to settings
-        resample_dim='time'
-        da_exposure_pic = xr.concat([resample(da_exposure_pic,resample_dim,life_extent) for i in range(nboots)],dim='lifetimes')
+        # bootstrap native pic exposed area data ;pic_life_extent, nboots, resample_dim
+        da_exposure_pic = xr.concat([resample(da_exposure_pic,resample_dim,pic_life_extent) for i in range(nboots)],dim='lifetimes')
         
         # --------------------------------------------------------------------
         # substitute calc_life_exposure because we are only doing the 1960 cohort
@@ -607,72 +528,12 @@ def calc_exposure_pic(
             da_exposure_pic.where(da_exposure_pic.time == 1960 + np.floor(life_expectancy_1960)).sum(dim='time') * \
                 (life_expectancy_1960 - np.floor(life_expectancy_1960))
 
-        # --------------------------------------------------------------------
-        # per region
-        #  
-
-        print('')
-
-        # initialise dictionaries
-        d_landfrac_peryear_perregion_pic[i] = {}
-        d_exposure_perregion_pic = {}
-
-        # loop over regions
-        for k, region in enumerate(df_birthyears_regions.columns): 
-            
-            print('processing region '+str(k+1)+' of '+str(len(df_birthyears_regions.columns)), end='\r')
-
-            # Get list of member countries from region - with seperate treatment for world (luke: now inside get_countries_of_regions func)
-            member_countries = get_countries_of_region(region, df_countries)
-    
-            # get spatial average of landfraction: historical + RCP simulations
-            ind_countries = countries_regions.map_keys(member_countries)
-
-            print('calculating landfrac') # don't need to bootstrap more samples of lifetimes from here because this is just PIC landfrac affected
-            d_landfrac_peryear_perregion_pic[i][region] = calc_weighted_fldmean(
-                da_AFA_pic, 
-                grid_area, 
-                countries_mask, 
-                ind_countries, 
-                flag_region=True,
-            )
-
-            print('calculating cohort weights')
-            # filter cohort weights to only keep countries within mask 
-            d_cohort_weights_regions[region] = d_cohort_weights_regions[region].loc[:,d_cohort_weights_regions[region].columns.isin(df_countries.index)]
-            da_cwr_1960 = xr.DataArray(
-                d_cohort_weights_regions[region].loc[60],
-                coords={
-                    'country': ('country', member_countries),
-                }
-            )
-            
-            # get weighted spatial average for all member countries per region
-            d_exposure_perregion_pic[region] = (d_exposure_perrun_pic[i].sel(country=member_countries) * da_cwr_1960).sum(axis=1) /\
-                da_cwr_1960.sum(dim='country')
-
-        # save exposures for every run
-        df_exposure_perregion_pic = pd.DataFrame(d_exposure_perregion_pic)
-        da_exposure_perregion_pic = xr.DataArray(df_exposure_perregion_pic).rename({'dim_0':'lifetimes','dim_1':'region'})
-        d_exposure_perregion_perrun_pic[i] = da_exposure_perregion_pic
-        
-    # --------------------------------------------------------------------
-    # save workspave in pickles
-    #  
-
     # save pickles
     print()
     print('Saving processed exposures')
 
-    # pack region information
-    d_exposure = {
-        'exposure_perrun' : d_exposure_perrun_pic, 
-        'exposure_perregion_perrun' : d_exposure_perregion_perrun_pic, 
-        'landfrac_peryear_perregion' : d_landfrac_peryear_perregion_pic 
-    }
+    with open('./data/pickles/exposure_pic_{}.pkl'.format(flag_extr), 'wb') as f:
+        pk.dump(d_exposure_perrun_pic,f)
 
-    with open('./data/pickles/exposure_pic_{}.pkl'.format(d_pic_meta[i]['extreme']), 'wb') as f:
-        pk.dump(d_exposure,f)
-
-    return d_exposure_perrun_pic, d_exposure_perregion_perrun_pic
+    return d_exposure_perrun_pic
 

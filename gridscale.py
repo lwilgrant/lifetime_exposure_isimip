@@ -153,6 +153,7 @@ def grid_scale_emergence(
 
     for cntry in sample_countries:
 
+        print(cntry)
         da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
         da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='age') # cohort relative sizes in sample country
         da_cntry = xr.where( # grid cells/extent of sample country
@@ -288,7 +289,7 @@ def grid_scale_emergence(
                     {'time':np.arange(pic_by,ds_dmg['death_year'].sel(birth_year=pic_by).item()+1)}
                 ].sum(dim='time') +\
                     da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()+1}].drop('time') *\
-                        (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
+                        (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
                         
                 ds_pic['lifetime_exposure'].loc[
                     {
@@ -342,7 +343,7 @@ def grid_scale_emergence(
                         da_le = xr.concat(
                             [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
                             da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
-                            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
+                            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
                             for by in birth_years],
                             dim='birth_year',
                         ).assign_coords({'birth_year':birth_years})
@@ -390,7 +391,7 @@ def grid_scale_emergence(
                             data.loc[
                                 {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
                             ] = da_AFA.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
-                                (ds_dmg['life_expectancy'].sel(birth_year=by).item() - xr.ufuncs.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
+                                (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
                             bys.append(data)
                 
                         da_exp_py_pa = xr.concat(bys,dim='birth_year')
