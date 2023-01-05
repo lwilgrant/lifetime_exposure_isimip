@@ -328,7 +328,7 @@ def grid_scale_emergence(
             # mask to sample country and reduce spatial extent
             da_AFA = da_AFA.where(ds_dmg['country_extent']==1,drop=True)
             
-            for step in GMT_labels: # UNFINISHED
+            for step in GMT_labels:
                 
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     
