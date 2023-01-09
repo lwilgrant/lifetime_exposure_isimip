@@ -25,12 +25,13 @@ import pandas as pd
 import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
+import seaborn as sns
 
 #%% --------------------------------------------------------------------
 # test colors for plotting
 
 def c(x):
-    col = plt.cm.OrRd(x)
+    col = plt.cm.cividis(x)
     fig, ax = plt.subplots(figsize=(1,1))
     fig.set_facecolor(col)
     ax.axis("off")
@@ -873,6 +874,222 @@ def plot_pop_frac_birth_year(
         f.savefig('./figures/pop_frac_birthyear_{}.png'.format(cohort_type),dpi=300)
 #%% ----------------------------------------------------------------
 # plotting pop frac
+def plot_le_by_GMT_strj(
+    ds_le,
+    df_GMT_strj,
+    ds_cohorts,
+    flag_ext,
+    flag_gmt,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=6
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.05 # bbox for legend
+    y0 = 0.7
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    # time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1.0
+    xmax = 4.0
+    
+    # placment birth year cbar
+    cb_by_x0 = 0.975
+    cb_by_y0 = 0.125
+    cb_by_xlen = 0.025
+    cb_by_ylen = 0.75
+
+    # placment emf cbar
+    cb_emf_x0 = 0.60
+    cb_emf_y0 = 0.05
+    cb_emf_xlen = 0.225
+    cb_emf_ylen = 0.015
+
+    # identify colors for birth years
+    cmap_by = plt.cm.get_cmap('viridis')
+    cmap55 = cmap_by(0.01)
+    cmap50 = cmap_by(0.05)   #light
+    cmap45 = cmap_by(0.1)
+    cmap40 = cmap_by(0.15)
+    cmap35 = cmap_by(0.2)
+    cmap30 = cmap_by(0.25)
+    cmap25 = cmap_by(0.3)
+    cmap20 = cmap_by(0.325)
+    cmap10 = cmap_by(0.4)
+    cmap5 = cmap_by(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_by(0.525)
+    cmap_10 = cmap_by(0.6)
+    cmap_20 = cmap_by(0.625)
+    cmap_25 = cmap_by(0.7)
+    cmap_30 = cmap_by(0.75)
+    cmap_35 = cmap_by(0.8)
+    cmap_40 = cmap_by(0.85)
+    cmap_45 = cmap_by(0.9)
+    cmap_50 = cmap_by(0.95)  #dark
+    cmap_55 = cmap_by(0.99)
+
+    colors_by = [
+        cmap45,cmap35,cmap30,cmap25,cmap10,cmap5, # 6 dark colors for 1960 - 1965
+        cmap_5,cmap_10,cmap_25,cmap_30,cmap_35,cmap_45, # 6 light colors for 1966-1970
+    ]    
+    
+    line_colors = []
+    for c in colors_by:
+        for repeat in range(5):
+            line_colors.append(c)
+    line_colors.append(colors_by[-1])
+
+    # declare list of colors for discrete colormap of colorbar for birth years
+    cmap_list_by = mpl.colors.ListedColormap(colors_by,N=len(colors_by))
+    cmap_list_by.set_under(cmap55)
+    cmap_list_by.set_over(cmap_45)
+
+    # colorbar args for birth years
+    values_by = [1960,1965,1970,1975,1980,1985,1990,1995,2000,2005,2010,2015,2020]
+    tick_locs_by = [1960,1970,1980,1990,2000,2010,2020]
+    tick_labels_by = list(str(n) for n in tick_locs_by)
+    norm_by = mpl.colors.BoundaryNorm(values_by,cmap_list_by.N)    
+
+    xticks = np.arange(1,4.1,0.5)
+    xticklabels = [1.0, None, 2.0, None, 3.0, None, 4.0]
+
+    ax_ylab = 'Lifetime exposure'
+    ax_xlab = 'GMT anomaly at 2100 [°C]'
+        
+    f,ax = plt.subplots(
+        nrows=1,
+        ncols=1,
+        figsize=(x,y),
+    )
+    
+    # colorbar axes
+    cbax_by = f.add_axes([
+        cb_by_x0, 
+        cb_by_y0, 
+        cb_by_xlen, 
+        cb_by_ylen
+    ])         
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of total pop and age emergence
+
+    # strj
+    for i,by in enumerate(birth_years):
+        
+        ax.plot( # note that here we weight the age emergence for aggregation
+            df_GMT_strj.loc[2100,:].values,
+            ds_le['mmm'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        mean(dim='country').values,
+            lw=lw_mean,
+            color=line_colors[i],
+            zorder=1,
+        )
+
+    ax.set_ylabel(
+        ax_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+    ax.set_xlabel(
+        ax_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+
+    # for i,ax in enumerate([ax1,ax2]):
+    # ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+    ax.set_xlim(xmin,xmax)
+    ax.set_xticks(
+        xticks,
+        labels=xticklabels
+    )
+    ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+    ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+    ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+    ax.set_axisbelow(True) 
+        # if i < 1:
+        #     ax.tick_params(labelbottom=False)  
+            
+    # birth year colorbar
+    cb_by = mpl.colorbar.ColorbarBase(
+        ax=cbax_by, 
+        cmap=cmap_list_by,
+        norm=norm_by,
+        spacing='uniform',
+        orientation='vertical',
+        extend='neither',
+        ticks=tick_locs_by,
+        drawedges=False,
+    )
+    cb_by.set_label(
+        'Birth year',
+        size=16,
+    )
+    cb_by.ax.xaxis.set_label_position('bottom')
+    cb_by.ax.tick_params(
+        labelcolor='0',
+        labelsize=16,
+        color='0.5',
+        length=3.5,
+        width=0.4,
+        # direction='right',
+    ) 
+    cb_by.ax.set_yticklabels(
+        tick_labels_by,
+        fontsize=10
+        # rotation=45,
+    )
+    cb_by.outline.set_edgecolor('0.9')
+    cb_by.outline.set_linewidth(0)                  
+            
+    # f.savefig(
+    #     './figures/lifetime_exposure_birthyear_GMT_strj_annual_{}_{}.png'.format(flag_ext,flag_gmt),
+    #     bbox_inches = "tight",
+    #     dpi=300,
+    # )
+
+#%% ----------------------------------------------------------------
+# plotting pop frac
 def plot_pop_frac_birth_year_strj(
     ds_pop_frac_strj,
     df_GMT_strj,
@@ -1041,7 +1258,6 @@ def plot_pf_ae_by_GMT_strj(
     ds_age_emergence_strj,
     df_GMT_strj,
     ds_cohorts,
-    year_range,
     flag_ext,
     flag_gmt,
 ):
@@ -1081,7 +1297,7 @@ def plot_pf_ae_by_GMT_strj(
     col_bis = 'black'     # color bisector
     style_bis = '--'     # style bisector
     lw_bis = 1     # lineweight bisector
-    time = year_range
+    # time = year_range
     # xmin = np.min(time)
     # xmax = np.max(time)
     xmin = 1.0
@@ -1324,7 +1540,7 @@ def plot_pop_frac_birth_year_GMT_strj_points(
     col_bis = 'black'     # color bisector
     style_bis = '--'     # style bisector
     lw_bis = 1     # lineweight bisector
-    time = year_range
+    # time = year_range
     # xmin = np.min(time)
     # xmax = np.max(time)
     xmin = 0.85
@@ -2341,4 +2557,190 @@ def plot_age_emergence_strj(
     )               
             
     f.savefig('./figures/age_emergence.png',dpi=300)    
-# %%
+#%% ----------------------------------------------------------------
+def wm_vs_gs_boxplots(
+    d_isimip_meta,
+    ds_ae_strj,
+    ds_le,
+    ds_pf_gs,
+    ds_ae_gs,
+    ds_le_gs,
+):
+
+    GMT_indices_plot = [0,10,19,28]
+    # pop fraction dataset (sum of unprecedented exposure pixels' population per per country, run, GMT and birthyear)
+    ds_pf_plot = xr.Dataset(
+        data_vars={
+            'unprec_exposed': (
+                ['country','run','GMT','birth_year'],
+                np.full(
+                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'unprec_exposed_fraction': (
+                ['country','run','GMT','birth_year'],
+                np.full(
+                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'unprec_all': (
+                ['country','run','GMT','birth_year'],
+                np.full(
+                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'unprec_all_fraction': (
+                ['country','run','GMT','birth_year'],
+                np.full(
+                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
+                    fill_value=np.nan,
+                ),
+            )        
+        },
+        coords={
+            'country': ('country', sample_countries),
+            'birth_year': ('birth_year', sample_birth_years),
+            'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+            'GMT': ('GMT', GMT_indices_plot)
+        }
+    )
+
+    # preparing weighted mean pop frac for our sample/comparison countries
+    for i in list(d_isimip_meta.keys()):
+        for step in GMT_indices_plot:
+            if os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step)):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]: # maybe an unecessary "if" since i probs didn't create it if the mapping wasn't right
+                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step), 'rb') as f:
+                        cohort_exposure_array = pk.load(f)
+                    with open('./data/pickles/da_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step), 'rb') as f:
+                        exposure_mask = pk.load(f)
+                        birthyear_exposure_mask = xr.where(exposure_mask.sum(dim='time')>1,1,0)
+                    for cntry in sample_countries:
+                        ds_pf_plot['unprec_exposed'].loc[{
+                            'country':cntry,
+                            'run':i,
+                            'GMT':step,
+                        }] = cohort_exposure_array['exposure'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1).sum(dim='time')
+                        ds_pf_plot['unprec_exposed_fraction'].loc[{
+                            'country':cntry,
+                            'run':i,
+                            'GMT':step,
+                        }] = cohort_exposure_array['exposure'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1).sum(dim='time') / ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}]
+                        ds_pf_plot['unprec_all'].loc[{
+                            'country':cntry,
+                            'run':i,
+                            'GMT':step,
+                        }] = ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(birthyear_exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1)
+                        ds_pf_plot['unprec_all_fraction'].loc[{
+                            'country':cntry,
+                            'run':i,
+                            'GMT':step,
+                        }] = ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(birthyear_exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1) / ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}]
+                        
+    # weighted mean age emergence
+    da_ae_plot = ds_ae_strj['age_emergence'].loc[{'GMT':GMT_indices_plot,'country':sample_countries,'birth_year':sample_birth_years}]
+
+    # weighted mean lifetime exposure
+    da_le_plot = ds_le['lifetime_exposure'].loc[{'GMT':GMT_indices_plot,'country':sample_countries,'birth_year':sample_birth_years}]
+
+    # gridscale datasets
+
+    # pop frac, age emergence and lifetime exposure
+    da_pf_gs_plot = ds_pf_gs['unprec_fraction'].loc[{'GMT':GMT_indices_plot,'birth_year':sample_birth_years}]
+    da_ae_gs_plot = ds_ae_gs['age_emergence'].loc[{'GMT':GMT_indices_plot,'birth_year':sample_birth_years}]
+    da_le_gs_plot = ds_le_gs['lifetime_exposure'].loc[{'GMT':GMT_indices_plot,'birth_year':sample_birth_years}]
+
+    # lifetime exposure dataframes for plotting
+    df_le_plot = da_le_plot.to_dataframe().drop(columns=['quantile']).reset_index() # so there are no series inside a cell (breaks up birth year and lifetime exposure to individual rows)
+    df_le_plot['GMT'] = df_le_plot['GMT'].astype('str') # so hue is a string
+    df_le_gs_plot = da_le_gs_plot.to_dataframe().reset_index() 
+    df_le_gs_plot['GMT'] = df_le_gs_plot['GMT'].astype('str')
+    
+    # age emergence dataframes for plotting
+    df_ae_plot = da_ae_plot.to_dataframe().reset_index()
+    df_ae_plot['GMT'] = df_ae_plot['GMT'].astype('str')
+    df_ae_gs_plot = da_ae_gs_plot.to_dataframe().reset_index()
+    df_ae_gs_plot['GMT'] = df_ae_gs_plot['GMT'].astype('str')
+    
+    # pop frac dataframes for plotting
+    df_pf_plot = ds_pf_plot['unprec_exposed_fraction'].to_dataframe().reset_index()
+    df_pf_plot['GMT'] = df_pf_plot['GMT'].astype('str')
+    df_pf_gs_plot = da_pf_gs_plot.to_dataframe().reset_index()
+    df_pf_gs_plot['GMT'] = df_pf_gs_plot['GMT'].astype('str')
+
+    import seaborn as sns
+
+    # x=40
+    # y=5
+
+    # f,axes = plt.subplots(
+    #     nrows=1, # variables
+    #     ncols=4, # countries
+    #     figsize=(x,y)
+    # )
+    x=20
+    y=5
+    f,ax = plt.subplots(
+        nrows=1, # variables
+        ncols=1, # countries
+        figsize=(x,y)
+    )
+    colors = {
+        '28':'darkred',
+        '19':'firebrick',
+        # 'NDC':'darkorange',
+        '10':'yellow',
+        # '1.5':'steelblue',
+        '0':'darkblue',
+    }
+
+    # lifetime exposure
+    ax = sns.boxplot(
+        data=df_le_plot[df_le_plot['country']=='Russian Federation'],
+        x='birth_year',
+        y='lifetime_exposure',
+        hue='GMT',
+        palette=colors,
+    )
+    ax = sns.boxplot(
+        data=df_le_gs_plot[df_le_gs_plot['country']=='Russian Federation'],
+        x='birth_year',
+        y='lifetime_exposure',
+        hue='GMT',
+        palette=colors,
+    )
+    
+    # age emergence
+    ax = sns.boxplot(
+        data=df_ae_plot[df_ae_plot['country']=='Canada'],
+        x='birth_year',
+        y='age_emergence',
+        hue='GMT',
+        palette=colors,
+    )
+    ax = sns.boxplot(
+        data=df_ae_gs_plot[df_ae_gs_plot['country']=='Canada'],
+        x='birth_year',
+        y='age_emergence',
+        hue='GMT',
+        palette=colors,
+    )    
+    
+    # pop frac
+    ax = sns.boxplot(
+        data=df_pf_plot[df_pf_plot['country']=='Canada'],
+        x='birth_year',
+        y='unprec_exposed_fraction',
+        hue='GMT',
+        palette=colors,
+    )
+    ax = sns.boxplot(
+        data=df_pf_gs_plot[df_pf_gs_plot['country']=='Canada'],
+        x='birth_year',
+        y='unprec_fraction',
+        hue='GMT',
+        palette=colors,
+    )       

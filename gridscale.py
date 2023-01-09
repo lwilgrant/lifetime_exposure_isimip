@@ -251,7 +251,7 @@ def grid_scale_emergence(
                 'lifetime_exposure': (
                     ['lifetimes','lat','lon'],
                     np.full(
-                        (len(range(400)),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                        (len(list(d_pic_meta.keys())*nboots),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
                         fill_value=np.nan,
                     ),
                 )
@@ -259,7 +259,7 @@ def grid_scale_emergence(
             coords={
                 'lat': ('lat', da_cntry.lat.data),
                 'lon': ('lon', da_cntry.lon.data),
-                'lifetimes': ('lifetimes', np.arange(400)),
+                'lifetimes': ('lifetimes', np.arange(len(list(d_pic_meta.keys())*nboots))),
             }
         )
         
@@ -347,6 +347,16 @@ def grid_scale_emergence(
                             for by in birth_years],
                             dim='birth_year',
                         ).assign_coords({'birth_year':birth_years})
+                        # da_bys= []
+                        # for by in birth_years:
+                            
+                        #     da_by = da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
+                        #         da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
+                        #             (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())\
+                        
+                        #     da_bys.append(da_by)
+                            
+                        # da_le_test = xr.concat(da_bys,dim='birth_year').assign_coords({'birth_year':birth_years})
                         
                         # dump spatial lifetime exposure for this country/run/GMT
                         with open('./data/pickles/gridscale_le_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'wb') as f:

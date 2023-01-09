@@ -280,7 +280,7 @@ def calc_exposure(
                 da_population, 
                 countries_mask, 
                 ind_country, 
-                flag_region= False,
+                flag_region=False,
             )
                         
         # --------------------------------------------------------------------

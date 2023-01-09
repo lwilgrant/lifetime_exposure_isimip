@@ -41,6 +41,7 @@ import mapclassify as mc
 from copy import deepcopy as cp
 import os
 import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
 scriptsdir = os.getcwd()
 
 
@@ -62,7 +63,7 @@ flags['extr'] = 'heatwavedarea' # 0: all
                                 # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 0           # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
@@ -76,7 +77,7 @@ flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort em
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
-flags['plot'] = 0
+flags['plot'] = 1
 
 # TODO: add rest of flags
 
@@ -196,7 +197,7 @@ else: # load processed exposure data
     # load lifetime exposure pickle
     with open('./data/pickles/exposure_{}_{}.pkl'.format(flags['extr'],flags['gmt']), 'rb') as f:
         ds_le = pk.load(f)
-    
+
 ds_le = calc_exposure_mmm_xr(ds_le)
 
 # --------------------------------------------------------------------
@@ -346,6 +347,12 @@ else: # load pickles
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
         ds_ae_strj = pk.load(f)      
         
+    # # remote testing
+    # with open('./data/pickles/age_emergence_{}_{}_{}_remote.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
+    #     ds_ae_strj_remote = pk.load(f)
+    # with open('./data/pickles/pop_frac_{}_{}_{}_remote.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
+    #     ds_pf_strj_remote = pk.load(f)        
+        
 #%% ----------------------------------------------------------------
 # grid scale
 # ------------------------------------------------------------------
@@ -398,151 +405,211 @@ from plot import *
     # will need cohort weighted mean of life expectancy across countries
     # 
     
-# plot_pf_ae_by_GMT_strj(
-#     ds_pf_strj,
-#     ds_ae_strj,
-#     df_GMT_strj,
-#     ds_cohorts,
-#     year_range,
-#     flags['extr'],
-#     flags['gmt'],
-# )
+GMT_indices_plot = [0,10,19,28]
+step_labels = {
+    0:'1.0 °C',
+    10:'2.0 °C',
+    19:'3.0 °C',
+    28:'4.0 °C',
+}
+birth_years_plot = np.arange(1960,2021,20)
+x=36
+y=8
 
+col_cbticlbl = '0'   # colorbar color of tick labels
+col_cbtic = '0.5'   # colorbar color of ticks
+col_cbedg = '0.9'   # colorbar color of edge
+cb_ticlen = 3.5   # colorbar length of ticks
+cb_ticwid = 0.4   # colorbar thickness of ticks
+cb_edgthic = 0   # colorbar thickness of edges between colors
+cblabel = 'corr'  # colorbar label
+sbplt_lw = 0.1   # linewidth on projection panels
+cstlin_lw = 0.75   # linewidth for coastlines
+
+# fonts
+title_font = 20
+cbtitle_font = 20
+tick_font = 18
+legend_font=12
+
+letters = ['a', 'b', 'c',
+           'd', 'e', 'f',
+           'g', 'h', 'i',
+           'j', 'k', 'l',
+           'm', 'n', 'o',
+           'p', 'q', 'r',
+           's', 't', 'u',
+           'v', 'w', 'x',
+           'y', 'z']
+
+# extent
+east = 180
+west = -180
+north = 80
+south = -60
+extent = [west,east,south,north]
+
+# placment lu trends cbar
+cb_x0 = 0.925
+cb_y0 = 0.1
+cb_xlen = 0.01
+cb_ylen = 1.75
+
+# identify colors
+cmap_whole = plt.cm.get_cmap('cividis')
+cmap55 = cmap_whole(0.01)
+cmap50 = cmap_whole(0.05)   # blue
+cmap45 = cmap_whole(0.1)
+cmap40 = cmap_whole(0.15)
+cmap35 = cmap_whole(0.2)
+cmap30 = cmap_whole(0.25)
+cmap25 = cmap_whole(0.3)
+cmap20 = cmap_whole(0.325)
+cmap10 = cmap_whole(0.4)
+cmap5 = cmap_whole(0.475)
+cmap0 = 'gray'
+cmap_5 = cmap_whole(0.525)
+cmap_10 = cmap_whole(0.6)
+cmap_20 = cmap_whole(0.625)
+cmap_25 = cmap_whole(0.7)
+cmap_30 = cmap_whole(0.75)
+cmap_35 = cmap_whole(0.8)
+cmap_40 = cmap_whole(0.85)
+cmap_45 = cmap_whole(0.9)
+cmap_50 = cmap_whole(0.95)  # yellow
+cmap_55 = cmap_whole(0.99)
+
+colors = [cmap55,cmap45,cmap25,cmap5,cmap_25,cmap_35,cmap_45]
+cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+cmap_list.set_over(cmap_55)
+levels_i = np.arange(0,16,5)
+levels_f = np.arange(20,51,10)
+levels = np.concatenate((levels_i,levels_f))
+norm = mpl.colors.BoundaryNorm(levels,cmap_list.N)   
+
+gdf_country_borders.loc[sample_countries,:]
+
+f,axes = plt.subplots(
+    nrows=len(GMT_indices_plot),
+    ncols=len(birth_years_plot),
+    figsize=(x,y),
+    subplot_kw={'projection':ccrs.Robinson()},
+)
+
+cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen])
+
+i=0
+for row,step in zip(axes,GMT_indices_plot):
+    
+   for ax,by in zip(row,birth_years_plot):
+       
+        for cntry in sample_countries:
+           
+            plottable = d_le_gs_spatial[cntry]['lifetime_exposure'].loc[{
+                'GMT':step,
+                'birth_year':by,
+            }].mean(dim='run')
+
+            plottable.plot(
+                ax=ax,
+                transform=ccrs.PlateCarree(),
+                levels=levels,
+                colors=colors,
+                cbar_ax=cbax,
+                add_labels=False,
+            )
+            
+            poly = gdf_country_borders.loc[cntry,'geometry']
+            ax.add_geometries(
+                poly,
+                crs=ccrs.Robinson(),
+                facecolor='none',
+                edgecolor='0.5'
+            )
+            
+        ax.coastlines(linewidth=cstlin_lw)
+        # ax.set_extent(extent)
+        ax.set_title(
+            letters[i],
+            loc='left',
+            fontsize=title_font,
+            fontweight='bold',
+        )
+        i+=1
+        
+        if step == GMT_indices_plot[0]:
+            
+            ax.set_title(
+                by,
+                loc='center',
+                fontsize=title_font,
+                fontweight='bold',
+            )
+            
+        if by == birth_years_plot[0]:
+            
+            
+            ax.text(
+                -0.07, 0.55, 
+                step_labels[step], 
+                va='bottom', 
+                ha='center',# # create legend with patche for hsitnolu and lu det/att levels
+                fontweight='bold',
+                fontsize=title_font,
+                rotation='vertical', 
+                rotation_mode='anchor',
+                transform=ax.transAxes
+            )
+    
+# lu response pattern colorbar
+cb = mpl.colorbar.ColorbarBase(
+    ax=cbax, 
+    cmap=cmap_list,
+    norm=norm,
+    spacing='proportional',
+    orientation='vertical',
+    extend='max',
+    ticks=levels,
+    drawedges=False,
+)
+cb.ax.tick_params(
+    labelsize=title_font,
+    # color=col_cbtic,
+    # length=cb_ticlen,
+    # width=cb_ticwid,
+    # direction='out'
+)
+
+
+
+    
 # comparison of weighted mean vs pixel scale (some prep required for pop frac from weighted mean)
 if flags['plot']:
-
-    GMT_indices_plot = [0,10,19,28]
-    # pop fraction dataset (sum of unprecedented exposure pixels' population per per country, run, GMT and birthyear)
-    ds_pf_plot = xr.Dataset(
-        data_vars={
-            'unprec_exposed': (
-                ['country','run','GMT','birth_year'],
-                np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'unprec_exposed_fraction': (
-                ['country','run','GMT','birth_year'],
-                np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'unprec_all': (
-                ['country','run','GMT','birth_year'],
-                np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'unprec_all_fraction': (
-                ['country','run','GMT','birth_year'],
-                np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(sample_birth_years)),
-                    fill_value=np.nan,
-                ),
-            )        
-        },
-        coords={
-            'country': ('country', sample_countries),
-            'birth_year': ('birth_year', sample_birth_years),
-            'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
-            'GMT': ('GMT', GMT_indices_plot)
-        }
+    
+    plot_le_by_GMT_strj(
+        ds_le,
+        df_GMT_strj,
+        ds_cohorts,
+        flags['extr'],
+        flags['gmt'],
+    )    
+        
+    plot_pf_ae_by_GMT_strj(
+        ds_pf_strj,
+        ds_ae_strj,
+        df_GMT_strj,
+        ds_cohorts,
+        flags['extr'],
+        flags['gmt'],
     )
 
-    # preparing weighted mean pop frac for our sample/comparison countries
-    for i in list(d_isimip_meta.keys()):
-        for step in GMT_indices_plot:
-            if os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step)):
-                if d_isimip_meta[i]['GMT_strj_valid'][step]: # maybe an unecessary "if" since i probs didn't create it if the mapping wasn't right
-                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step), 'rb') as f:
-                        cohort_exposure_array = pk.load(f)
-                    with open('./data/pickles/da_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],i,step), 'rb') as f:
-                        exposure_mask = pk.load(f)
-                        birthyear_exposure_mask = xr.where(exposure_mask.sum(dim='time')>1,1,0)
-                    for cntry in sample_countries:
-                        ds_pf_plot['unprec_exposed'].loc[{
-                            'country':cntry,
-                            'run':i,
-                            'GMT':step,
-                        }] = cohort_exposure_array['exposure'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1).sum(dim='time')
-                        ds_pf_plot['unprec_exposed_fraction'].loc[{
-                            'country':cntry,
-                            'run':i,
-                            'GMT':step,
-                        }] = cohort_exposure_array['exposure'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1).sum(dim='time') / ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}]
-                        ds_pf_plot['unprec_all'].loc[{
-                            'country':cntry,
-                            'run':i,
-                            'GMT':step,
-                        }] = ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(birthyear_exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1)
-                        ds_pf_plot['unprec_all_fraction'].loc[{
-                            'country':cntry,
-                            'run':i,
-                            'GMT':step,
-                        }] = ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}].where(birthyear_exposure_mask.loc[{'birth_year':sample_birth_years,'country':cntry}]==1) / ds_cohorts['population'].loc[{'birth_year':sample_birth_years,'country':cntry}]
-                        
-    # preparing weighted mean age emergence
-    da_ae_plot = ds_ae_strj['age_emergence'].loc[{'GMT':GMT_indices_plot,'country':sample_countries,'birth_year':sample_birth_years}]
+    # checking fraction of countries emerged from noise (appears to decrease over GMT trajectories per birth year, which)
+    for step in GMT_labels:
+        emerged_countries = xr.where(ds_ae_strj['age_emergence'].sel(GMT=step,birth_year=2000).mean(dim='run')>0,1,0).sum(dim='country') / len(ds_ae_strj.country.data)
+        print(emerged_countries.item())
+    
+    
 
-    # same for lifetime exposure
-    da_le_plot = ds_le['lifetime_exposure'].loc[{'GMT':GMT_indices_plot,'country':sample_countries,'birth_year':sample_birth_years}]
-
-    # gridscale datasets
-
-    # pop frac, age emergence and lifetime exposure
-    da_pf_gs_plot = ds_pf_gs['unprec_fraction'].loc[{'GMT':GMT_indices_plot,'birth_year':sample_birth_years}]
-    da_ae_gs_plot = ds_ae_gs['age_emergence'].loc[{'GMT':GMT_indices_plot,'birth_year':sample_birth_years}]
-    da_le_gs_plot = ds_le_gs['lifetime_exposure'].loc[{'GMT':GMT_indices_plot,'birth_year':sample_birth_years}]
-
-    df_le_plot = da_le_plot.to_dataframe().drop(columns=['quantile']).reset_index() # so there are no series inside a cell (breaks up birth year and lifetime exposure to individual rows)
-    df_le_plot['GMT'] = df_le_plot['GMT'].astype('str') # so hue is a string
-    df_le_gs_plot = da_le_gs_plot.to_dataframe().reset_index() 
-    df_le_gs_plot['GMT'] = df_le_gs_plot['GMT'].astype('str')
-
-
-    import seaborn as sns
-
-    # x=40
-    # y=5
-
-    # f,axes = plt.subplots(
-    #     nrows=1, # variables
-    #     ncols=4, # countries
-    #     figsize=(x,y)
-    # )
-    x=20
-    y=5
-    f,ax = plt.subplots(
-        nrows=1, # variables
-        ncols=1, # countries
-        figsize=(x,y)
-    )
-    colors = {
-        '28':'darkred',
-        '19':'firebrick',
-        # 'NDC':'darkorange',
-        '10':'yellow',
-        # '1.5':'steelblue',
-        '0':'darkblue',
-    }
-
-    ax = sns.boxplot(
-        data=df_le_plot[df_le_plot['country']=='Russian Federation'],
-        x='birth_year',
-        y='lifetime_exposure',
-        hue='GMT',
-        palette=colors,
-    )
-    ax = sns.boxplot(
-        data=df_le_gs_plot[df_le_gs_plot['country']=='Russian Federation'],
-        x='birth_year',
-        y='lifetime_exposure',
-        hue='GMT',
-        palette=colors,
-    )
     # # rename ds_pop_frac['mean_unprec_all'] to 'unprec_Fraction
 
     # for row,var in zip(axes,[ds_le['lifetime_exposure'],ds_ae['age_emergence'],ds_pf['unprec_fraction']]):
@@ -637,3 +704,5 @@ if flags['plot']:
     #     ind_NDC,
     #     year_range,
     # )
+
+# %%
