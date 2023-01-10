@@ -26,7 +26,7 @@ import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
 
 #%% ----------------------------------------------------------------
 # bootstrapping function 
@@ -106,7 +106,7 @@ def grid_scale_emergence(
     )
 
     # age emergence dataset (pop weighted mean of pixel scale age emergence per country, run, GMT and birthyear)
-        # spatial samples can go to ds_le_spatial
+        # spatial samples can go to ds_spatial
     ds_ae = xr.Dataset(
         data_vars={
             'age_emergence': (
@@ -156,15 +156,15 @@ def grid_scale_emergence(
         print(cntry)
         da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
         da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='age') # cohort relative sizes in sample country
-        da_cntry = xr.where( # grid cells/extent of sample country
-            countries_mask.where(countries_mask==countries_regions.map_keys(cntry),drop=True)==countries_regions.map_keys(cntry),
-            1,
-            0
-        )
+        da_cntry = xr.DataArray(
+            np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+            dims=countries_mask.dims,
+            coords=countries_mask.coords,
+        )        
         
         # spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load) per country
             # can also add spatial age emergence to here
-        ds_le_spatial = xr.Dataset(
+        ds_spatial = xr.Dataset(
             data_vars={
                 'lifetime_exposure': (
                     ['run','GMT','birth_year','lat','lon'],
@@ -186,7 +186,14 @@ def grid_scale_emergence(
                         (len(list(d_isimip_meta.keys())),len(GMT_indices),len(sample_birth_years),len(da_cntry.lat.data),len(da_cntry.lon.data)),
                         fill_value=np.nan,
                     ),
-                )            
+                ),
+                'emergence_mask': (
+                    ['run','GMT','birth_year','lat','lon'],
+                    np.full(
+                        (len(list(d_isimip_meta.keys())),len(GMT_indices),len(sample_birth_years),len(da_cntry.lat.data),len(da_cntry.lon.data)),
+                        fill_value=np.nan,
+                    ),
+                )
             },
             coords={
                 'lat': ('lat', da_cntry.lat.data),
@@ -347,16 +354,6 @@ def grid_scale_emergence(
                             for by in birth_years],
                             dim='birth_year',
                         ).assign_coords({'birth_year':birth_years})
-                        # da_bys= []
-                        # for by in birth_years:
-                            
-                        #     da_by = da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
-                        #         da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
-                        #             (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())\
-                        
-                        #     da_bys.append(da_by)
-                            
-                        # da_le_test = xr.concat(da_bys,dim='birth_year').assign_coords({'birth_year':birth_years})
                         
                         # dump spatial lifetime exposure for this country/run/GMT
                         with open('./data/pickles/gridscale_le_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'wb') as f:
@@ -371,7 +368,16 @@ def grid_scale_emergence(
                     # assign lifetime exposure array to spatial dataset for run i and for subset of birth years if this corresponds to step in GMT_indices (lb, 1.5, 2.0, NDC, 3.0 or 4.0)
                     if step in GMT_indices:
                         
-                        ds_le_spatial['lifetime_exposure'].loc[{'run':i,'GMT':step}] = da_le.loc[{'birth_year':sample_birth_years}]
+                        ds_spatial['lifetime_exposure'].loc[{
+                            'run':i,
+                            'GMT':step,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,
+                        }] = da_le.loc[{
+                            'birth_year':sample_birth_years,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,                            
+                        }]
                     
                     # assign pop weighted mean exposure to dataset
                     ds_le['lifetime_exposure'].loc[
@@ -382,9 +388,6 @@ def grid_scale_emergence(
                             'birth_year':birth_years,
                         }
                     ] = da_le.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon'))
-            
-                    # check for pickle of gridscale birthyear aligned exposure
-                    # if not os.path.isfile('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step)):
                         
                     da_exp_py_pa = da_AFA * xr.full_like(ds_dmg['population'],1)
                     bys = []
@@ -405,16 +408,6 @@ def grid_scale_emergence(
                         bys.append(data)
             
                     da_exp_py_pa = xr.concat(bys,dim='birth_year')
-                        
-                        # dump
-                        # with open('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'wb') as f:
-                        #     pk.dump(da_exp_py_pa,f)
-                    
-                    # # load existing pickle
-                    # else:
-                        
-                    #     with open('./data/pickles/gridscale_exposure_peryear_perage_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'rb') as f:
-                    #         da_exp_py_pa = pk.load(f)
                             
                     # cumulative sum per birthyear
                     da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
@@ -431,8 +424,8 @@ def grid_scale_emergence(
                         da_age_emergence = da_age_exposure_mask * (da_age_exposure_mask.time - da_age_exposure_mask.birth_year)
                         da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
                             
-                        # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
-                        da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) # find birth years/pixels crossing threshold
+                        # find birth years/pixels crossing threshold
+                        da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) 
                         
                         with open('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step), 'wb') as f:
                             pk.dump(da_birthyear_exposure_mask,f)
@@ -453,8 +446,37 @@ def grid_scale_emergence(
                             
                     if step in GMT_indices:
                         
-                        ds_le_spatial['age_emergence'].loc[{'run':i,'GMT':step}] = da_age_emergence.loc[{'birth_year':sample_birth_years}]
-                        ds_le_spatial['population_emergence'].loc[{'run':i,'GMT':step}] = da_unprec_pop.loc[{'birth_year':sample_birth_years}]
+                        ds_spatial['age_emergence'].loc[{
+                            'run':i,
+                            'GMT':step,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,
+                        }] = da_age_emergence.loc[{
+                            'birth_year':sample_birth_years,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,                            
+                        }]
+                        
+                        ds_spatial['population_emergence'].loc[{
+                            'run':i,
+                            'GMT':step,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,                            
+                        }] = da_unprec_pop.loc[{
+                            'birth_year':sample_birth_years,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,                               
+                        }]
+                        ds_spatial['emergence_mask'].loc[{
+                            'run':i,
+                            'GMT':step,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,
+                        }] = da_birthyear_exposure_mask.loc[{
+                            'birth_year':sample_birth_years,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,
+                        }]
                     
                     # assign mean/sum age emergence/pop unprec
                     ds_ae['age_emergence'].loc[{
@@ -480,7 +502,7 @@ def grid_scale_emergence(
                     
         # pickle spatially explicit dataset with subset of birth years and GMTs
         with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flag_extr,cntry), 'wb') as f:
-            pk.dump(ds_le_spatial,f)
+            pk.dump(ds_spatial,f)
 
     # pickle aggregated lifetime exposure, age emergence and pop frac datasets
     with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flag_extr), 'wb') as f:

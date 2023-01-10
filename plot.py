@@ -25,7 +25,9 @@ import pandas as pd
 import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
+import cartopy as cr
 import seaborn as sns
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
 
 #%% --------------------------------------------------------------------
 # test colors for plotting
@@ -2744,3 +2746,257 @@ def wm_vs_gs_boxplots(
         hue='GMT',
         palette=colors,
     )       
+
+#%% ----------------------------------------------------------------
+ 
+def gridscale_spatial(
+    d_le_gs_spatial,
+    analysis,
+    countries_mask,
+    countries_regions,
+    flag_extr,
+):
+        
+    GMT_indices_plot = [0,10,19,28]
+    step_labels = {
+        0:'1.0 °C',
+        10:'2.0 °C',
+        19:'3.0 °C',
+        28:'4.0 °C',
+    }
+    birth_years_plot = np.arange(1960,2021,20)
+    x=36
+    y=8
+
+    col_cbticlbl = '0'   # colorbar color of tick labels
+    col_cbtic = '0.5'   # colorbar color of ticks
+    col_cbedg = '0.9'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors
+    cblabel = 'corr'  # colorbar label
+    sbplt_lw = 0.1   # linewidth on projection panels
+    cstlin_lw = 0.75   # linewidth for coastlines
+
+    # fonts
+    title_font = 20
+    cbtitle_font = 20
+    tick_font = 18
+    legend_font=12
+
+    letters = ['a', 'b', 'c',
+            'd', 'e', 'f',
+            'g', 'h', 'i',
+            'j', 'k', 'l',
+            'm', 'n', 'o',
+            'p', 'q', 'r',
+            's', 't', 'u',
+            'v', 'w', 'x',
+            'y', 'z']
+
+    # extent
+    east = 180
+    west = -180
+    north = 80
+    south = -60
+    extent = [west,east,south,north]
+
+    # placment lu trends cbar
+    cb_x0 = 0.925
+    cb_y0 = 0.2
+    cb_xlen = 0.01
+    cb_ylen = 0.8
+
+    # identify colors
+    cmap_whole = plt.cm.get_cmap('cividis')
+    cmap55 = cmap_whole(0.01)
+    cmap50 = cmap_whole(0.05)   # blue
+    cmap45 = cmap_whole(0.1)
+    cmap40 = cmap_whole(0.15)
+    cmap35 = cmap_whole(0.2)
+    cmap30 = cmap_whole(0.25)
+    cmap25 = cmap_whole(0.3)
+    cmap20 = cmap_whole(0.325)
+    cmap10 = cmap_whole(0.4)
+    cmap5 = cmap_whole(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_whole(0.525)
+    cmap_10 = cmap_whole(0.6)
+    cmap_20 = cmap_whole(0.625)
+    cmap_25 = cmap_whole(0.7)
+    cmap_30 = cmap_whole(0.75)
+    cmap_35 = cmap_whole(0.8)
+    cmap_40 = cmap_whole(0.85)
+    cmap_45 = cmap_whole(0.9)
+    cmap_50 = cmap_whole(0.95)  # yellow
+    cmap_55 = cmap_whole(0.99)
+
+    # colors = [cmap55,cmap45,cmap25,cmap5,cmap_25,cmap_35,cmap_45]
+    # cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+    # cmap_list.set_over(cmap_55)
+    # levels_i = np.arange(0,16,5)
+    # levels_f = np.arange(20,51,10)
+    # levels = np.concatenate((levels_i,levels_f))
+    # norm = mpl.colors.BoundaryNorm(levels,cmap_list.N)   
+        
+    if analysis == 'lifetime_exposure':
+        
+        colors = [cmap55,cmap45,cmap25,cmap5,cmap_25,cmap_35,cmap_45]
+        cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+        cmap_list.set_over(cmap_55)
+        levels_i = np.arange(0,16,5)
+        levels_f = np.arange(20,51,10)
+        levels = np.concatenate((levels_i,levels_f))
+        norm = mpl.colors.BoundaryNorm(levels,cmap_list.N)
+        
+    if analysis == 'age_emergence':
+        
+        colors = [cmap55,cmap45,cmap25,cmap5,cmap_25,cmap_35,cmap_45]
+        cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+        cmap_list.set_over(cmap_55)
+        levels = np.arange(10,81,10)
+        norm = mpl.colors.BoundaryNorm(levels,cmap_list.N)
+        
+    if analysis == 'emergence_mask':
+        
+        colors = [cmap55,cmap45,cmap25,cmap_25,cmap_45]
+        cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+        # levels = np.arange(-0.5,1.6,1.0)
+        levels = np.arange(0,1.1,0.2)
+        norm = mpl.colors.BoundaryNorm(levels,cmap_list.N) 
+        # ticks = [0,1]
+                        
+
+    f,axes = plt.subplots(
+        nrows=len(GMT_indices_plot),
+        ncols=len(birth_years_plot),
+        figsize=(x,y),
+        # subplot_kw={'projection':ccrs.Robinson()},
+        subplot_kw={'projection':ccrs.PlateCarree()},
+    )
+
+    cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen])
+
+    i=0
+    for row,step in zip(axes,GMT_indices_plot):
+        
+        for ax,by in zip(row,birth_years_plot):
+        
+            for cntry in sample_countries:
+            
+                plottable = d_le_gs_spatial[cntry][analysis].loc[{
+                    'GMT':step,
+                    'birth_year':by,
+                }].mean(dim='run')
+                
+                if analysis == 'emergence_mask':
+                    
+                    da_cntry = xr.where( # grid cells/extent of sample country
+                        countries_mask.where(countries_mask==countries_regions.map_keys(cntry),drop=True)==countries_regions.map_keys(cntry),
+                        1,
+                        0
+                    )
+                    plottable = plottable.where(da_cntry==1)                 
+
+                plottable.plot(
+                    ax=ax,
+                    transform=ccrs.PlateCarree(),
+                    levels=levels,
+                    colors=colors,
+                    cbar_ax=cbax,
+                    add_labels=False,
+                )
+                
+            ax.coastlines(linewidth=cstlin_lw)
+            ax.add_feature(cr.feature.BORDERS,linewidth=cstlin_lw)
+            ax.set_title(
+                letters[i],
+                loc='left',
+                fontsize=title_font,
+                fontweight='bold',
+            )
+            i+=1
+            
+            if step == GMT_indices_plot[0]:
+                
+                ax.set_title(
+                    by,
+                    loc='center',
+                    fontsize=title_font,
+                    fontweight='bold',
+                )
+                
+            if by == birth_years_plot[0]:
+                
+                
+                ax.text(
+                    -0.07, 
+                    0.55, 
+                    step_labels[step], 
+                    va='bottom', 
+                    ha='center',# # create legend with patche for hsitnolu and lu det/att levels
+                    fontweight='bold',
+                    fontsize=title_font,
+                    rotation='vertical', 
+                    rotation_mode='anchor',
+                    transform=ax.transAxes
+                )
+    
+    # if analysis != 'emergence_mask':    
+        
+    # colorbar
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cbax, 
+        cmap=cmap_list,
+        norm=norm,
+        spacing='proportional',
+        orientation='vertical',
+        extend='max',
+        ticks=levels,
+        drawedges=False,
+    )
+        
+    # else:
+        
+    #     # colorbar
+    #     cb = mpl.colorbar.ColorbarBase(
+    #         ax=cbax, 
+    #         cmap=cmap_list,
+    #         norm=norm,
+    #         spacing='proportional',
+    #         orientation='vertical',
+    #         extend='max',
+    #         ticks=ticks,
+    #         drawedges=False,
+    #     )     
+        # cb.ax.set_ticklabels([''])       
+# cb = mpl.colorbar.ColorbarBase(ax=cbax, 
+#                                cmap=cmap_list,
+#                                norm=norm,
+#                                spacing='uniform',
+#                                orientation='horizontal',
+#                                extend='neither',
+#                                ticks=tick_locs,
+#                                drawedges=False)
+# cb.set_label('Correlation',
+#              size=title_font)
+# cb.ax.xaxis.set_label_position('top')
+# cb.ax.tick_params(labelcolor=col_cbticlbl,
+#                   labelsize=tick_font,
+#                   color=col_cbtic,
+#                   length=cb_ticlen,
+#                   width=cb_ticwid,
+#                   direction='out'); 
+# cb.ax.set_xticklabels(tick_labels,
+#                       rotation=45)
+# cb.outline.set_edgecolor(col_cbedg)
+# cb.outline.set_linewidth(cb_edgthic)        
+    
+    cb.ax.tick_params(
+        labelsize=title_font,
+    )
+    
+    plt.show()
+
+    f.savefig('./figures/gridscale_{}_{}.png'.format(flag_extr,analysis),dpi=300)    
+# %%

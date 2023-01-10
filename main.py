@@ -42,6 +42,7 @@ from copy import deepcopy as cp
 import os
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
+import cartopy as cr
 scriptsdir = os.getcwd()
 
 
@@ -87,7 +88,7 @@ flags['plot'] = 1
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 set_extremes(flags)
@@ -378,17 +379,17 @@ else:
     
     # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
     with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
-        ds_le_gs = pk.load(f)    
+        ds_le_gs = pk.load(f)
     with open('./data/pickles/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr']), 'rb') as f:
         ds_ae_gs = pk.load(f)
     with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr']), 'rb') as f:
-        ds_pf_gs = pk.load(f)    
+        ds_pf_gs = pk.load(f)
 
 # load spatially explicit datasets
-d_le_gs_spatial = {}
+d_gs_spatial = {}
 for cntry in sample_countries:
     with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
-        d_le_gs_spatial[cntry] = pk.load(f)
+        d_gs_spatial[cntry] = pk.load(f)
 
 #%% ----------------------------------------------------------------
 # plot emergence stuff
@@ -404,184 +405,10 @@ from plot import *
     # so, for e.g. 1970 BY, we need to limit the line up to life expectancy
     # will need cohort weighted mean of life expectancy across countries
     # 
-    
-GMT_indices_plot = [0,10,19,28]
-step_labels = {
-    0:'1.0 °C',
-    10:'2.0 °C',
-    19:'3.0 °C',
-    28:'4.0 °C',
-}
-birth_years_plot = np.arange(1960,2021,20)
-x=36
-y=8
 
-col_cbticlbl = '0'   # colorbar color of tick labels
-col_cbtic = '0.5'   # colorbar color of ticks
-col_cbedg = '0.9'   # colorbar color of edge
-cb_ticlen = 3.5   # colorbar length of ticks
-cb_ticwid = 0.4   # colorbar thickness of ticks
-cb_edgthic = 0   # colorbar thickness of edges between colors
-cblabel = 'corr'  # colorbar label
-sbplt_lw = 0.1   # linewidth on projection panels
-cstlin_lw = 0.75   # linewidth for coastlines
-
-# fonts
-title_font = 20
-cbtitle_font = 20
-tick_font = 18
-legend_font=12
-
-letters = ['a', 'b', 'c',
-           'd', 'e', 'f',
-           'g', 'h', 'i',
-           'j', 'k', 'l',
-           'm', 'n', 'o',
-           'p', 'q', 'r',
-           's', 't', 'u',
-           'v', 'w', 'x',
-           'y', 'z']
-
-# extent
-east = 180
-west = -180
-north = 80
-south = -60
-extent = [west,east,south,north]
-
-# placment lu trends cbar
-cb_x0 = 0.925
-cb_y0 = 0.1
-cb_xlen = 0.01
-cb_ylen = 1.75
-
-# identify colors
-cmap_whole = plt.cm.get_cmap('cividis')
-cmap55 = cmap_whole(0.01)
-cmap50 = cmap_whole(0.05)   # blue
-cmap45 = cmap_whole(0.1)
-cmap40 = cmap_whole(0.15)
-cmap35 = cmap_whole(0.2)
-cmap30 = cmap_whole(0.25)
-cmap25 = cmap_whole(0.3)
-cmap20 = cmap_whole(0.325)
-cmap10 = cmap_whole(0.4)
-cmap5 = cmap_whole(0.475)
-cmap0 = 'gray'
-cmap_5 = cmap_whole(0.525)
-cmap_10 = cmap_whole(0.6)
-cmap_20 = cmap_whole(0.625)
-cmap_25 = cmap_whole(0.7)
-cmap_30 = cmap_whole(0.75)
-cmap_35 = cmap_whole(0.8)
-cmap_40 = cmap_whole(0.85)
-cmap_45 = cmap_whole(0.9)
-cmap_50 = cmap_whole(0.95)  # yellow
-cmap_55 = cmap_whole(0.99)
-
-colors = [cmap55,cmap45,cmap25,cmap5,cmap_25,cmap_35,cmap_45]
-cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
-cmap_list.set_over(cmap_55)
-levels_i = np.arange(0,16,5)
-levels_f = np.arange(20,51,10)
-levels = np.concatenate((levels_i,levels_f))
-norm = mpl.colors.BoundaryNorm(levels,cmap_list.N)   
-
-gdf_country_borders.loc[sample_countries,:]
-
-f,axes = plt.subplots(
-    nrows=len(GMT_indices_plot),
-    ncols=len(birth_years_plot),
-    figsize=(x,y),
-    subplot_kw={'projection':ccrs.Robinson()},
-)
-
-cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen])
-
-i=0
-for row,step in zip(axes,GMT_indices_plot):
-    
-   for ax,by in zip(row,birth_years_plot):
-       
-        for cntry in sample_countries:
-           
-            plottable = d_le_gs_spatial[cntry]['lifetime_exposure'].loc[{
-                'GMT':step,
-                'birth_year':by,
-            }].mean(dim='run')
-
-            plottable.plot(
-                ax=ax,
-                transform=ccrs.PlateCarree(),
-                levels=levels,
-                colors=colors,
-                cbar_ax=cbax,
-                add_labels=False,
-            )
-            
-            poly = gdf_country_borders.loc[cntry,'geometry']
-            ax.add_geometries(
-                poly,
-                crs=ccrs.Robinson(),
-                facecolor='none',
-                edgecolor='0.5'
-            )
-            
-        ax.coastlines(linewidth=cstlin_lw)
-        # ax.set_extent(extent)
-        ax.set_title(
-            letters[i],
-            loc='left',
-            fontsize=title_font,
-            fontweight='bold',
-        )
-        i+=1
-        
-        if step == GMT_indices_plot[0]:
-            
-            ax.set_title(
-                by,
-                loc='center',
-                fontsize=title_font,
-                fontweight='bold',
-            )
-            
-        if by == birth_years_plot[0]:
-            
-            
-            ax.text(
-                -0.07, 0.55, 
-                step_labels[step], 
-                va='bottom', 
-                ha='center',# # create legend with patche for hsitnolu and lu det/att levels
-                fontweight='bold',
-                fontsize=title_font,
-                rotation='vertical', 
-                rotation_mode='anchor',
-                transform=ax.transAxes
-            )
-    
-# lu response pattern colorbar
-cb = mpl.colorbar.ColorbarBase(
-    ax=cbax, 
-    cmap=cmap_list,
-    norm=norm,
-    spacing='proportional',
-    orientation='vertical',
-    extend='max',
-    ticks=levels,
-    drawedges=False,
-)
-cb.ax.tick_params(
-    labelsize=title_font,
-    # color=col_cbtic,
-    # length=cb_ticlen,
-    # width=cb_ticwid,
-    # direction='out'
-)
-
-
-
+#%% ----------------------------------------------------------------
+# plot
+# ------------------------------------------------------------------   
     
 # comparison of weighted mean vs pixel scale (some prep required for pop frac from weighted mean)
 if flags['plot']:
@@ -602,11 +429,125 @@ if flags['plot']:
         flags['extr'],
         flags['gmt'],
     )
+    
+    # add emergence mask since i forgot to do it in gridscale.py (added it there but haven't rerun 10 Jan)
+    for cntry in sample_countries:
+        d_gs_spatial[cntry]['emergence_mask'] = (['run','GMT','birth_year','lat','lon'],np.full(
+                        (len(list(d_isimip_meta.keys())),len(GMT_indices),len(sample_birth_years),len(d_gs_spatial[cntry].lat.data),len(d_gs_spatial[cntry].lon.data)),
+                        fill_value=np.nan,
+                    ))
+        for i in list(d_isimip_meta.keys()):
+            for step in GMT_indices:
+                if os.path.isfile('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step)):
+                    with open('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step), 'rb') as f:
+                        da_birthyear_exposure_mask = pk.load(f)
+                        d_gs_spatial[cntry]['emergence_mask'].loc[{'run':i,'GMT':step}] = da_birthyear_exposure_mask.loc[{'birth_year':sample_birth_years}]
+    
+        ind_cntry = countries_regions.map_keys(cntry)
+        mask = xr.DataArray(
+            np.in1d(countries_mask,ind_cntry).reshape(countries_mask.shape),
+            dims=countries_mask.dims,
+            coords=countries_mask.coords,
+        )
+          
+        for analysis in ['lifetime_exposure','age_emergence','emergence_mask']:         
+            p = d_gs_spatial[cntry][analysis].loc[{
+                'birth_year':birth_years_plot,
+                'GMT':GMT_indices_plot,
+            }].mean(dim='run').plot(
+                col='birth_year',
+                row='GMT',
+                transform=ccrs.PlateCarree(),
+                subplot_kws={"projection": ccrs.PlateCarree()}
+            )
+            for ax in p.axes.flat:
+                ax.coastlines()
+                ax.gridlines()
+    
+                        
+    # spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load) per country
+        # can also add spatial age emergence to here
+    ds_gs_spatial = xr.Dataset(
+        data_vars={
+            'lifetime_exposure': (
+                ['run','GMT','birth_year','lat','lon'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'age_emergence': (
+                ['run','GMT','birth_year','lat','lon'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'population_emergence': (
+                ['run','GMT','birth_year','lat','lon'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'emergence_mask': (
+                ['run','GMT','birth_year','lat','lon'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+                    fill_value=np.nan,
+                ), 
+            )
+        },
+        coords={
+            'lat': ('lat', countries_mask.lat.data),
+            'lon': ('lon', countries_mask.lon.data),
+            'birth_year': ('birth_year', birth_years_plot),
+            'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+            'GMT': ('GMT', GMT_indices_plot)
+        }
+    )
+    
+    for cntry in sample_countries:
+        for analysis in ['lifetime_exposure','age_emergence','emergence_mask']:
+            ds_gs_spatial[analysis].loc[{
+                'lat':d_gs_spatial[cntry].lat.data,
+                'lon':d_gs_spatial[cntry].lon.data,
+                'birth_year':birth_years_plot,
+                'GMT':GMT_indices_plot,            
+            }] = d_gs_spatial[cntry][analysis].loc[{
+                'lat':d_gs_spatial[cntry].lat.data,
+                'lon':d_gs_spatial[cntry].lon.data,
+                'birth_year':birth_years_plot,
+                'GMT':GMT_indices_plot,
+            }]
+    
+    ind_cntrs = []
+    for cntry in sample_countries:
+        ind_cntrs.append(countries_regions.map_keys(cntry))
+    mask = xr.DataArray(
+        np.in1d(countries_mask,ind_cntrs).reshape(countries_mask.shape),
+        dims=countries_mask.dims,
+        coords=countries_mask.coords,
+    )
+    ds_gs_spatial = ds_gs_spatial.where(mask)
+    plottable = ds_gs_spatial['lifetime_exposure'].mean(dim='run')
+    plottable.plot(transform=ccrs.PlateCarree(),col='birth_year',row='GMT',subplot_kws={'projection':ccrs.PlateCarree()})
+    
+    
+    for analysis in ['lifetime_exposure','age_emergence','emergence_mask']:
+        
+        gridscale_spatial(
+            d_gs_spatial,
+            analysis,
+            countries_mask,
+            countries_regions,
+            flags['extr'],
+        )
 
     # checking fraction of countries emerged from noise (appears to decrease over GMT trajectories per birth year, which)
-    for step in GMT_labels:
-        emerged_countries = xr.where(ds_ae_strj['age_emergence'].sel(GMT=step,birth_year=2000).mean(dim='run')>0,1,0).sum(dim='country') / len(ds_ae_strj.country.data)
-        print(emerged_countries.item())
+    # for step in GMT_labels:
+    #     emerged_countries = xr.where(ds_ae_strj['age_emergence'].sel(GMT=step,birth_year=2000).mean(dim='run')>0,1,0).sum(dim='country') / len(ds_ae_strj.country.data)
+    #     print(emerged_countries.item())
     
     
 
