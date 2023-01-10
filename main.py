@@ -76,9 +76,9 @@ flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
-flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
+flags['gridscale'] = 1      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
-flags['plot'] = 1
+flags['plot'] = 0
 
 # TODO: add rest of flags
 

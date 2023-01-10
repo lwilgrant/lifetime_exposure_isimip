@@ -89,13 +89,20 @@ def grid_scale_emergence(
     # lifetime exposure dataset (pop weighted mean of pixel scale lifetime exposure per country, run, GMT and birthyear)
     ds_le = xr.Dataset(
         data_vars={
-            'lifetime_exposure': (
+            'lifetime_exposure_popweight': (
                 ['country','run','GMT','birth_year'],
                 np.full(
                     (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
-            )
+            ),
+            'lifetime_exposure_latweight': (
+                ['country','run','GMT','birth_year'],
+                np.full(
+                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    fill_value=np.nan,
+                ),
+            )            
         },
         coords={
             'country': ('country', sample_countries),
@@ -109,13 +116,20 @@ def grid_scale_emergence(
         # spatial samples can go to ds_spatial
     ds_ae = xr.Dataset(
         data_vars={
-            'age_emergence': (
+            'age_emergence_popweight': (
                 ['country','run','GMT','birth_year'],
                 np.full(
                     (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
-            )
+            ),
+            'age_emergence_latweight': (
+                ['country','run','GMT','birth_year'],
+                np.full(
+                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    fill_value=np.nan,
+                ),
+            )            
         },
         coords={
             'country': ('country', sample_countries),
@@ -205,8 +219,8 @@ def grid_scale_emergence(
         )
         
         # weights for latitude (probably won't use but will use population instead)
-        weights = np.cos(np.deg2rad(da_cntry.lat))
-        weights.name = "weights"
+        lat_weights = np.cos(np.deg2rad(da_cntry.lat))
+        lat_weights.name = "weights"
         da_smple_pop = da_population.where(da_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
 
         # demography dataset
@@ -380,7 +394,7 @@ def grid_scale_emergence(
                         }]
                     
                     # assign pop weighted mean exposure to dataset
-                    ds_le['lifetime_exposure'].loc[
+                    ds_le['lifetime_exposure_popweight'].loc[
                         {
                             'country':cntry,
                             'run':i,
@@ -388,6 +402,16 @@ def grid_scale_emergence(
                             'birth_year':birth_years,
                         }
                     ] = da_le.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon'))
+                    
+                    # assign lat weighted mean exposure to dataset
+                    ds_le['lifetime_exposure_latweight'].loc[
+                        {
+                            'country':cntry,
+                            'run':i,
+                            'GMT':step,
+                            'birth_year':birth_years,
+                        }
+                    ] = da_le.weighted(lat_weights).mean(('lat','lon'))                    
                         
                     da_exp_py_pa = da_AFA * xr.full_like(ds_dmg['population'],1)
                     bys = []
@@ -479,12 +503,19 @@ def grid_scale_emergence(
                         }]
                     
                     # assign mean/sum age emergence/pop unprec
-                    ds_ae['age_emergence'].loc[{
+                    ds_ae['age_emergence_popweight'].loc[{
                         'country':cntry,
                         'run':i,
                         'GMT':step,
                         'birth_year':birth_years,
                     }] = da_age_emergence.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon'))
+                    
+                    ds_ae['age_emergence_latweight'].loc[{
+                        'country':cntry,
+                        'run':i,
+                        'GMT':step,
+                        'birth_year':birth_years,
+                    }] = da_age_emergence.weighted(lat_weights).mean(('lat','lon'))                    
                     
                     ds_pf['unprec'].loc[{
                         'country':cntry,
