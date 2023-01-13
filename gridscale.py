@@ -70,21 +70,6 @@ def grid_scale_emergence(
     GMT_indices,
     da_population,
 ):
-    
-    # cohort conversion to data array (again)
-    da_cohort_size = xr.DataArray(
-        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
-        coords={
-            'country': ('country', list(df_countries['name'])),
-            'time': ('time', year_range),
-            'age': ('age', np.arange(104,-1,-1)),
-        },
-        dims=[
-            'country',
-            'time',
-            'age',
-        ]
-    )
 
     # lifetime exposure dataset (pop weighted mean of pixel scale lifetime exposure per country, run, GMT and birthyear)
     ds_le = xr.Dataset(
@@ -174,7 +159,8 @@ def grid_scale_emergence(
             np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
             dims=countries_mask.dims,
             coords=countries_mask.coords,
-        )        
+        )
+        da_cntry = da_cntry.where(da_cntry,drop=True)
         
         # spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load) per country
             # can also add spatial age emergence to here
@@ -248,7 +234,7 @@ def grid_scale_emergence(
                 'time': ('time', da_population.time.data),
                 'lat': ('lat', da_cntry.lat.data),
                 'lon': ('lon', da_cntry.lon.data),
-                'age': ('age', np.arange(104,-1,-1)),
+                'age': ('age', np.arange(100,-1,-1)),
             }
         )
 

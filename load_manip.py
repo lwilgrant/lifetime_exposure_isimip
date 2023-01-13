@@ -26,7 +26,7 @@ def load_worldbank_unwpp_data():
     # load World Bank life expectancy at birth data (source: https://data.worldbank.org/indicator/SP.DYN.LE00.IN) - not used in final analysis
     worldbank_years        = np.arange(1960,2018) 
     
-    df_worldbank = pd.read_excel('./data/world_bank/world_bank_life_expectancy_by_country.xls', header=None)
+    df_worldbank = pd.read_excel('./data/world_bank/world_bank_life_expectancy_by_country_update.xls', header=None)
     worldbank_country_data = df_worldbank.iloc[:,4:].values
     worldbank_country_meta = df_worldbank.iloc[:,:4].values
     
@@ -37,7 +37,7 @@ def load_worldbank_unwpp_data():
     )
 
     df_worldbank_regions   = pd.read_excel(
-        './data/world_bank/world_bank_life_expectancy_by_country.xls', 
+        './data/world_bank/world_bank_life_expectancy_by_country_update.xls', 
         'world regions', 
         header=None
     )
@@ -437,7 +437,7 @@ def load_isimip(
             for model in models: 
 
                 # store all files starting with model name
-                file_names = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*rcp*landarea*2099*')
+                file_names = sorted(glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*rcp*landarea*2099*'))
 
                 for file_name in file_names: 
 
@@ -707,46 +707,6 @@ def get_cohortsize_countries(
     
     return d_cohort_size
 
-# #%% ----------------------------------------------------------------
-# # interpolate cohortsize per country
-# def get_all_cohorts(
-#     wcde, 
-#     df_countries, 
-#     df_GMT_15,
-# ): 
-
-#     # unpack loaded wcde values; 31 year ranges, 21 age categories
-#     wcde = load_wcde_data() 
-#     wcde_years, wcde_ages, wcde_country_data, unused = wcde 
-#     new_ages = np.arange(104,-1,-1)
-
-#     d_all_cohorts = {}
-
-#     for i,name in enumerate(df_countries.index):
-
-#         wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
-#         wcde_per_country = np.hstack((
-#             np.expand_dims(wcde_country_data_reshape[:,0],axis=1)/4,
-#             np.expand_dims(wcde_country_data_reshape[:,0],axis=1)*3/4,
-#             wcde_country_data_reshape[:,1:],
-#             np.expand_dims(wcde_country_data_reshape[:,-1],axis=1)
-#         ))         
-#         wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
-#         [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], np.append(wcde_ages,107))),np.concatenate((wcde_years, [np.max(df_GMT_15.index)]))) 
-#         [Xnew, Ynew] = np.meshgrid(new_ages, np.array(df_GMT_15.index)) # prepare for 2D interpolation
-#         wcde_country_data_raw = interpolate.griddata(
-#             (Xorig.ravel(),Yorig.ravel()),
-#             wcde_per_country.ravel(),
-#             (Xnew.ravel(),Ynew.ravel()),
-#         )
-#         wcde_country_data_interp = wcde_country_data_raw.reshape( len(df_GMT_15.index),len(new_ages))
-#         d_all_cohorts[name] = pd.DataFrame(
-#             (wcde_country_data_interp /5), 
-#             columns=new_ages, 
-#             index=df_GMT_15.index
-#         )        
-    
-#     return d_all_cohorts  
 
 #%% ----------------------------------------------------------------
 # interpolate cohortsize per country (changing to use same start points as original cohort extraction for ages 0-60)
@@ -758,15 +718,15 @@ def get_all_cohorts(
     # unpack loaded wcde values; 31 year ranges, 21 age categories
     wcde = load_wcde_data() 
     wcde_years, wcde_ages, wcde_country_data, unused = wcde 
-    new_ages = np.arange(104,-1,-1)
+    new_ages = np.arange(100,-1,-1)
 
     d_all_cohorts = {}
 
     for i,name in enumerate(df_countries.index):
 
-        wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose()
-        wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) 
-        wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64')
+        wcde_country_data_reshape = np.reshape(wcde_country_data[i,:],((len(wcde_ages),len(wcde_years)))).transpose() # 31 year ranges as rows, 21 age groups as columns
+        wcde_per_country = np.hstack((np.expand_dims(wcde_country_data_reshape[:,0],axis=1),wcde_country_data_reshape)) # take 0-4 year olds, stack in front of 31x21 matrix to get 31x22
+        wcde_per_country = np.array(np.vstack([wcde_per_country,wcde_per_country[-1,:]]), dtype='float64') # take final year, duplicate at bottom of matrix to get 32x22
         [Xorig, Yorig] = np.meshgrid(np.concatenate(([np.min(ages)], wcde_ages)),np.concatenate((wcde_years, [np.max(year_range)]))) 
         [Xnew, Ynew] = np.meshgrid(new_ages, year_range) # prepare for 2D interpolation
         wcde_country_data_raw = interpolate.griddata(
@@ -777,11 +737,26 @@ def get_all_cohorts(
         wcde_country_data_interp = wcde_country_data_raw.reshape(len(year_range),len(new_ages))
         d_all_cohorts[name] = pd.DataFrame(
             (wcde_country_data_interp/5), 
-            columns=new_ages, 
+            columns=new_ages,
             index=year_range,
-        )        
+        )
+        
+    # population information
+    da_cohort_size = xr.DataArray(
+        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
+        coords={
+            'country': ('country', list(df_countries['name'])),
+            'time': ('time', year_range),
+            'ages': ('ages', np.arange(100,-1,-1)),
+        },
+        dims=[
+            'country',
+            'time',
+            'ages',
+        ]
+    )        
     
-    return d_all_cohorts  
+    return da_cohort_size
 
 #%% ----------------------------------------------------------------
 # mask population per country based on gridded population and countrymask
@@ -900,27 +875,11 @@ def all_country_data():
 
     # load population size per age cohort data
     wcde = load_wcde_data() 
-
-    # interpolate population size per age cohort data to our ages (0-60)
-    d_cohort_size = get_cohortsize_countries(
-        wcde, 
-        df_countries, 
-    )
     
     # interpolate pop sizes per age cohort for all ages (0-104)
-    d_all_cohorts = get_all_cohorts(
+    da_cohort_size = get_all_cohorts(
         wcde, 
         df_countries, 
-    )
-
-    # -------------------------------------------------------------------------------------------------------
-    # do the same for the regions; get life expectancy, birth years and cohort weights per region, as well as countries per region
-    d_region_countries, df_birthyears_regions, df_life_expectancy_5_regions, d_cohort_weights_regions = get_regions_data(
-        df_countries, 
-        df_regions, 
-        df_worldbank_region, 
-        df_unwpp_region, 
-        d_cohort_size,
     )
 
     # --------------------------------------------------------------------
@@ -943,32 +902,22 @@ def all_country_data():
 
     # pack country information
     d_countries = {
-        'info_pop' : df_countries, 
-        'borders' : gdf_country_borders,
-        'population_map' : da_population,
-        'birth_years' : df_birthyears,
+        'info_pop': df_countries, 
+        'borders': gdf_country_borders,
+        'population_map': da_population,
+        'birth_years': df_birthyears,
         'life_expectancy_5': df_life_expectancy_5, 
-        'cohort_size' : d_cohort_size, 
-        'all_cohorts' : d_all_cohorts,
-        'mask' : (countries_regions,countries_mask),
-    }
-
-    # pack region information
-    d_regions = {
-        'birth_years' : df_birthyears_regions,
-        'life_expectancy_5': df_life_expectancy_5_regions, 
-        'cohort_size' : d_cohort_weights_regions,
+        'cohort_size': da_cohort_size,
+        'mask': (countries_regions,countries_mask),
     }
 
     # save metadata dictionary as a pickle
-    print('Saving country and region data')
+    print('Saving country data')
     
     if not os.path.isdir('./data/pickles'):
         os.mkdir('./data/pickles')
     with open('./data/pickles/country_info.pkl', 'wb') as f: # note; 'with' handles file stream closing
         pk.dump(d_countries,f)
-    with open('./data/pickles/region_info.pkl', 'wb') as f:
-        pk.dump(d_regions,f)
         
-    return d_countries,d_regions
+    return d_countries
 # %%

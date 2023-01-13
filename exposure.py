@@ -327,21 +327,6 @@ def calc_cohort_exposure(
     da_population,
     d_all_cohorts,
 ):
-        
-    # population information
-    da_cohort_size = xr.DataArray(
-        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
-        coords={
-            'country': ('country', list(df_countries['name'])),
-            'time': ('time', year_range),
-            'ages': ('ages', np.arange(104,-1,-1)),
-        },
-        dims=[
-            'country',
-            'time',
-            'ages',
-        ]
-    )
 
     # loop over simulations
     for i in list(d_isimip_meta.keys()): 
@@ -426,7 +411,7 @@ def calc_cohort_exposure(
                 'country': ('country', list(d_exposure_peryear_percountry.keys())),
                 'time': ('time', da_AFA.time.values),
                 'ages': ('ages', da_cohort_size.ages.values),
-                'GMT': ('GMT', np.arange(len(d_isimip_meta[1]['GMT_strj_valid']))),
+                'GMT': ('GMT', GMT_labels),
             },
             dims=[
                 'country',
