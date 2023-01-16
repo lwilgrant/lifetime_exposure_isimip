@@ -195,20 +195,27 @@ def ds_exposure_align(
 # create dataset out of birthyear aligned cohort sizes
 def ds_cohort_align(
     da,
+    da_aligned,
 ):
-
-    da = da.sum(dim='time') # for each birth year, get total number of people (population in ds)
+    da_t = da.sum(dim='ages') 
+    da_by = da_aligned.sum(dim='time') 
     ds_cohort_sizes = xr.Dataset(
         data_vars={
-            'population': (da.dims,da.data),
+            'by_population': (da_by.dims,da_by.data), # for each birth year, get total number of people for by_weights (population in ds; duplicate counting risk with time sum)
+            'population': (da_aligned.dims,da_aligned.data), # population per birth year distributed over time for emergence mask
+            't_population': (da_t.dims,da_t.data) # population per timestep across countries for t_weights
         },
         coords={
-            'country': ('country',da.country.data),
-            'birth_year': ('birth_year',da.birth_year.data),
+            'country': ('country',da_aligned.country.data),
+            'birth_year': ('birth_year',da_aligned.birth_year.data),
+            'time': ('time',da_aligned.time.data),
+            'ages': ('ages',da.ages.data)
         },
     )
     
-    ds_cohort_sizes['weights'] = (ds_cohort_sizes['population'] / ds_cohort_sizes['population'].sum(dim='country')) # add cohort weights to dataset    
+    ds_cohort_sizes['by_weights'] = (ds_cohort_sizes['by_population'] / ds_cohort_sizes['by_population'].sum(dim='country')) # add cohort weights to dataset    
+    ds_cohort_sizes['t_weights'] = (ds_cohort_sizes['t_population'] / ds_cohort_sizes['t_population'].sum(dim='country')) # add cohort weights to dataset    
+    
      
     return ds_cohort_sizes
 
@@ -237,7 +244,7 @@ def exposure_pic_masking(
             
         # adjust exposure mask; for any birth cohorts that crossed extreme, keep 1s at all lived time steps and 0 for other birth cohorts
         da_birthyear_emergence_mask = xr.where(da_age_emergence_mask.sum(dim='time')>0,1,0) # find birth years crossing threshold
-        da_birthyear_emergence_mask = xr.where(ds_emergence_mask['exposure'].sel(country=c).notnull(),1,0).where(da_birthyear_emergence_mask==1) # first get array of 1s for timesteps when lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold
+        da_birthyear_emergence_mask = xr.where(ds_emergence_mask['exposure'].sel(country=c).notnull(),1,0).where(da_birthyear_emergence_mask==1) # first get array of 1s for timesteps when lifetimes exist in aligned exposure array, then only keep birthyears crossing threshold in emergence mask
         da_emergence_mask = xr.where(da_birthyear_emergence_mask==1,1,0) # turn missing values to 0
         emergence_mask_list.append(da_emergence_mask)
         
@@ -270,18 +277,24 @@ def calc_unprec_exposure(
     ds_exposure_cohort,
     da_emergence_mask,
     ds_cohorts,
-    traject,
 ):
 
     # new empty dataset with variables for population experiencing unprecedented exposure
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprec_exposed': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
+            'unprec_exposed_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
+            'unprec_exposed_t': (['time'], np.empty((len(ds_exposure_cohort.time.data)))),
+            'unprec_all_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
+            'unprec_all_t': (['time'], np.empty((len(ds_exposure_cohort.time.data)))),
         },
         coords={
-            'birth_year': ('birth_year' ,ds_exposure_cohort.birth_year.data),
+            'birth_year': ('birth_year', ds_exposure_cohort.birth_year.data),
+            'time': ('time', ds_exposure_cohort.time.data),
         }
     )
+    
+    # -------------------------------------------
+    # birth year based pop frac
     
     # keep people exposed during birth year's timesteps if cumulative exposure exceeds pic defined extreme
     unprec_exposed = ds_exposure_cohort['exposure'].where(da_emergence_mask==1)
@@ -289,17 +302,36 @@ def calc_unprec_exposure(
     
     # keep all people/members of birth year cohort if birth year's timesteps cum exposure exceeds pic extreme
     da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0)
-    unprec_all = ds_cohorts['population'].where(da_birthyear_emergence_mask==1)
+    unprec_all = ds_cohorts['by_population'].where(da_birthyear_emergence_mask==1)
     unprec_all = unprec_all.sum(dim='country') # want to do sums over time and country before reading in pickles for ensemble stats
     
     # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
-    if traject == 'strj':
-        unprec_exposed = unprec_exposed.where(unprec_exposed!=0)
-        unprec_all = unprec_all.where(unprec_all!=0)
+    unprec_exposed = unprec_exposed.where(unprec_exposed!=0)
+    unprec_all = unprec_all.where(unprec_all!=0)
     
     # assign aggregated unprecedented exposure to ds_pop_frac
-    ds_pop_frac['unprec_exposed'] = unprec_exposed
-    ds_pop_frac['unprec_all'] = unprec_all
+    ds_pop_frac['unprec_exposed_b'] = unprec_exposed
+    ds_pop_frac['unprec_all_b'] = unprec_all
+    
+    # -------------------------------------------
+    # time based pop frac
+    
+    # keep people exposed during birth year's timesteps if cumulative exposure exceeds pic defined extreme
+    unprec_exposed = ds_exposure_cohort['exposure'].where(da_emergence_mask==1)
+    unprec_exposed = unprec_exposed.sum(dim=['time','country'])
+    
+    # keep all people/members of birth year cohort if birth year's timesteps cum exposure exceeds pic extreme
+    da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0)
+    unprec_all = ds_cohorts['by_population'].where(da_birthyear_emergence_mask==1)
+    unprec_all = unprec_all.sum(dim='country') # want to do sums over time and country before reading in pickles for ensemble stats
+    
+    # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
+    unprec_exposed = unprec_exposed.where(unprec_exposed!=0)
+    unprec_all = unprec_all.where(unprec_all!=0)
+    
+    # assign aggregated unprecedented exposure to ds_pop_frac
+    ds_pop_frac['unprec_exposed_b'] = unprec_exposed
+    ds_pop_frac['unprec_all_b'] = unprec_all    
      
     return ds_pop_frac
 
@@ -375,7 +407,7 @@ def all_emergence(
     year_ref,
     ds_exposure_pic,
     ds_cohorts,
-    flag_ext,
+    flag_extr,
     flag_gmt,
     traject,
 ):
@@ -503,9 +535,8 @@ def strj_emergence(
     df_life_expectancy_5,
     ds_exposure_pic,
     ds_cohorts,
-    flag_ext,
+    flag_extr,
     flag_gmt,
-    traject,
 ):
     start_time = time.time()
     
@@ -550,14 +581,14 @@ def strj_emergence(
             'run': ('run', list(d_isimip_meta.keys())),
             'GMT': ('GMT', np.arange(len(GMT_labels))),
         },        
-    )    
+    )
     
     # loop through sims and run emergence analysis
     for i in list(d_isimip_meta.keys()):
         
-        with open('./data/pickles/exposure_cohort_{}_{}_{}_{}.pkl'.format(traject,d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
+        with open('./data/pickles/exposure_cohort_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
             da_exposure_cohort = pk.load(f)
-        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}_{}.pkl'.format(traject,d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
+        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
             da_exposure_peryear_perage_percountry = pk.load(f)
     
         for step in da_exposure_peryear_perage_percountry.GMT.values:
@@ -567,7 +598,7 @@ def strj_emergence(
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
                 
                 # check for pickles before running full proc
-                if not os.path.isfile('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step)):
+                if not os.path.isfile('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
                     
                     # align age + time selections of annual mean exposure along birthyears + time per country, birth cohort, run; to act as mask for birthyears when pic threshold is passed
                     da_exposure_aligned = calc_birthyear_align(
@@ -581,17 +612,17 @@ def strj_emergence(
                     )
                     
                     # pickle
-                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
                         pk.dump(ds_exposure_aligned_run_step,f)
                     
                 else:
                     
                     # load pickle
-                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'rb') as f:
+                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
                         ds_exposure_aligned_run_step = pk.load(f)
                 
                 # check for pickles before running
-                if not os.path.isfile('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step)) or not os.path.isfile('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step)):
+                if not os.path.isfile('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)) or not os.path.isfile('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
                     
                     # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
                     da_emergence_mask_run_step, ds_age_emergence_run_step = exposure_pic_masking(
@@ -600,19 +631,19 @@ def strj_emergence(
                     )
                     
                     # pickle
-                    with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'wb') as f:
+                    with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
                         pk.dump(da_emergence_mask_run_step,f)
-                    with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
                         pk.dump(ds_age_emergence_run_step,f)
                     
                 else:
                     
                     # load pickle
-                    with open('./data/pickles/da_exposure_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'rb') as f:
+                    with open('./data/pickles/da_exposure_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
                         da_emergence_mask_run_step = pk.load(f)
                 
                 # check for pickles before running
-                if not os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step)):
+                if not os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
                 
                     # aligned cohort exposure age+time selections
                     da_exposure_cohort_aligned_run_step = calc_birthyear_align(
@@ -626,28 +657,27 @@ def strj_emergence(
                     )
                     
                     # pickle
-                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
                         pk.dump(ds_exposure_cohort_aligned_run_step,f)
                         
                 else:
                     
                     # load pickle
-                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'rb') as f:
+                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
                         ds_exposure_cohort_aligned_run_step = pk.load(f)
                 
                 # check for pop frac before running; don't load on else since loading at end for total dataset of all runs/GMT steps
-                if not os.path.isfile('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step)):
+                if not os.path.isfile('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
                     
                     # population experiencing normal vs unprecedented exposure
                     ds_pop_frac_run_step = calc_unprec_exposure(
                         ds_exposure_cohort_aligned_run_step,
                         da_emergence_mask_run_step,
                         ds_cohorts,
-                        traject,
                     )
                     
                     # pickle
-                    with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
                         pk.dump(ds_pop_frac_run_step,f)                
     
     # loop through sims and and GMT levels and assign age emergence and pop frac to full datasets
@@ -657,9 +687,9 @@ def strj_emergence(
             
             if d_isimip_meta[i]['GMT_strj_valid'][step]: 
             
-                with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'rb') as f:
+                with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
                     ds_age_emergence_run_step = pk.load(f)
-                with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_ext,i,step), 'rb') as f:
+                with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
                     ds_pop_frac_run_step = pk.load(f)                     
                 
                 # assign run/GMT to larger dataset
@@ -684,11 +714,11 @@ def strj_emergence(
     )
         
     # pickle pop frac for individual run
-    with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flag_ext,flag_gmt,traject), 'wb') as f:
+    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flag_extr,flag_gmt), 'wb') as f:
         pk.dump(ds_pop_frac,f)
     
     # pickle age emergence for individual run
-    with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flag_ext,flag_gmt,traject), 'wb') as f:
+    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flag_extr,flag_gmt), 'wb') as f:
         pk.dump(ds_age_emergence,f)
             
     print("--- {} minutes ---".format(

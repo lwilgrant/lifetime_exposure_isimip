@@ -286,7 +286,7 @@ def calc_exposure(
         # --------------------------------------------------------------------
         # convert dict to dataframe for vectorizing and integrate exposures then map to GMTs        
         frame = {k:v.values for k,v in d_exposure_peryear_percountry.items()}
-        df_exposure = pd.DataFrame(frame,index=np.arange(1960,2114))           
+        df_exposure = pd.DataFrame(frame,index=year_range)           
         
         # if max threshold criteria met, run gmt mapping
         for step in GMT_labels:

@@ -276,7 +276,10 @@ if flags['emergence']:
         )
         
         # convert to dataset and add weights
-        ds_cohorts = ds_cohort_align(da_cohort_aligned)
+        ds_cohorts = ds_cohort_align(
+            da_cohort_size,
+            da_cohort_aligned,
+        )
         
         # # global mean life expectancy
         # le_subset = pd.concat([df_life_expectancy_5.loc[:,c] for c in df_countries['name']],axis=1) # get relevant countries' life expectancy
@@ -307,7 +310,6 @@ if flags['emergence']:
         ds_cohorts,
         flags['extr'],
         flags['gmt'],
-        'strj',
     )
         
 else: # load pickles

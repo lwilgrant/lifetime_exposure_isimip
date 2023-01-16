@@ -873,11 +873,6 @@ def all_country_data():
         df_unwpp_country,
     )
 
-    # interpolate pop sizes per age cohort for all ages (0-100)
-    da_cohort_size = get_all_cohorts(
-        df_countries, 
-    )
-
     # --------------------------------------------------------------------
     # Load population and country masks, and mask population per country
     
@@ -894,7 +889,15 @@ def all_country_data():
         da_population, 
         gdf_country_borders, 
         df_countries,
-    ) 
+    )
+    
+    # interpolate pop sizes per age cohort for all ages (0-100)
+    da_cohort_size = get_all_cohorts(
+        df_countries, 
+    )
+    
+    # limit df_life_expectancy to the same countries as are available in shapefile 
+    df_life_expectancy_5 = df_life_expectancy_5.loc[:,list(df_countries.index)]
 
     # pack country information
     d_countries = {
