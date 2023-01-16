@@ -64,7 +64,7 @@ flags['extr'] = 'heatwavedarea' # 0: all
                                 # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)

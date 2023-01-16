@@ -325,7 +325,7 @@ def calc_cohort_exposure(
     countries_regions,
     countries_mask,
     da_population,
-    d_all_cohorts,
+    da_cohort_size,
 ):
 
     # loop over simulations

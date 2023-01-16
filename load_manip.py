@@ -113,9 +113,10 @@ def load_wcde_data():
         'world regions', 
         header=None
     )
-    wcde_region_data    = df_wcde_region.values[:,2:]
 
-    return wcde_years, wcde_ages, wcde_country_data, wcde_region_data
+    return wcde_years, wcde_ages, wcde_country_data
+
+#%% ----------------------------------------------------------------
 
 def ar6_scen_grab(
     scens,
@@ -673,12 +674,12 @@ def get_life_expectancies(
 #%% ----------------------------------------------------------------
 # interpolate cohortsize per country
 def get_cohortsize_countries(
-    wcde, 
     df_countries, 
 ): 
 
     # unpack loaded wcde values
-    wcde_years, wcde_ages, wcde_country_data, unused = wcde 
+    wcde = load_wcde_data() 
+    wcde_years, wcde_ages, wcde_country_data = wcde 
     # 31 year ranges, 21 age categories
 
     # initialise dictionary to store cohort sizes dataframes per country with years as rows and ages as columns
@@ -711,13 +712,12 @@ def get_cohortsize_countries(
 #%% ----------------------------------------------------------------
 # interpolate cohortsize per country (changing to use same start points as original cohort extraction for ages 0-60)
 def get_all_cohorts(
-    wcde, 
     df_countries, 
 ): 
 
     # unpack loaded wcde values; 31 year ranges, 21 age categories
     wcde = load_wcde_data() 
-    wcde_years, wcde_ages, wcde_country_data, unused = wcde 
+    wcde_years, wcde_ages, wcde_country_data = wcde 
     new_ages = np.arange(100,-1,-1)
 
     d_all_cohorts = {}
@@ -743,9 +743,9 @@ def get_all_cohorts(
         
     # population information
     da_cohort_size = xr.DataArray(
-        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries['name'])]),
+        np.asarray([v for k,v in d_all_cohorts.items() if k in list(df_countries.index)]),
         coords={
-            'country': ('country', list(df_countries['name'])),
+            'country': ('country', list(df_countries.index)),
             'time': ('time', year_range),
             'ages': ('ages', np.arange(100,-1,-1)),
         },
@@ -873,12 +873,8 @@ def all_country_data():
         df_unwpp_country,
     )
 
-    # load population size per age cohort data
-    wcde = load_wcde_data() 
-    
-    # interpolate pop sizes per age cohort for all ages (0-104)
+    # interpolate pop sizes per age cohort for all ages (0-100)
     da_cohort_size = get_all_cohorts(
-        wcde, 
         df_countries, 
     )
 
