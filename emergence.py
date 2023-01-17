@@ -282,14 +282,13 @@ def calc_unprec_exposure(
     # new empty dataset with variables for population experiencing unprecedented exposure
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprec_exposed_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
-            'unprec_exposed_t': (['time'], np.empty((len(ds_exposure_cohort.time.data)))),
-            'unprec_all_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
-            'unprec_all_t': (['time'], np.empty((len(ds_exposure_cohort.time.data)))),
+            'unprec_exposed_b': (['birth_year'], np.empty((len(birth_years)))),
+            'unprec_all_b': (['birth_year'], np.empty((len(birth_years)))),
+            'unprec_all_t': (['time'], np.empty((len(year_range)))),
         },
         coords={
-            'birth_year': ('birth_year', ds_exposure_cohort.birth_year.data),
-            'time': ('time', ds_exposure_cohort.time.data),
+            'birth_year': ('birth_year', birth_years),
+            'time': ('time', year_range),
         }
     )
     
@@ -302,36 +301,18 @@ def calc_unprec_exposure(
     
     # keep all people/members of birth year cohort if birth year's timesteps cum exposure exceeds pic extreme
     da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0)
-    unprec_all = ds_cohorts['by_population'].where(da_birthyear_emergence_mask==1)
-    unprec_all = unprec_all.sum(dim='country') # want to do sums over time and country before reading in pickles for ensemble stats
+    ds_pop_frac['unprec_all_b'].loc[{'birth_year':birth_years}] = ds_cohorts['by_population'].where(da_birthyear_emergence_mask==1).sum(dim='country')
+    # unprec_all = unprec_all.sum(dim='country') # want to do sums over time and country before reading in pickles for ensemble stats
     
     # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
-    unprec_exposed = unprec_exposed.where(unprec_exposed!=0)
-    unprec_all = unprec_all.where(unprec_all!=0)
-    
-    # assign aggregated unprecedented exposure to ds_pop_frac
-    ds_pop_frac['unprec_exposed_b'] = unprec_exposed
-    ds_pop_frac['unprec_all_b'] = unprec_all
+    ds_pop_frac['unprec_exposed_b'].loc[{'birth_year':birth_years}] = unprec_exposed.where(unprec_exposed!=0)
+    # unprec_all = unprec_all.where(unprec_all!=0) # should be an unnecessary line
     
     # -------------------------------------------
     # time based pop frac
     
     # keep people exposed during birth year's timesteps if cumulative exposure exceeds pic defined extreme
-    unprec_exposed = ds_exposure_cohort['exposure'].where(da_emergence_mask==1)
-    unprec_exposed = unprec_exposed.sum(dim=['time','country'])
-    
-    # keep all people/members of birth year cohort if birth year's timesteps cum exposure exceeds pic extreme
-    da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0)
-    unprec_all = ds_cohorts['by_population'].where(da_birthyear_emergence_mask==1)
-    unprec_all = unprec_all.sum(dim='country') # want to do sums over time and country before reading in pickles for ensemble stats
-    
-    # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
-    unprec_exposed = unprec_exposed.where(unprec_exposed!=0)
-    unprec_all = unprec_all.where(unprec_all!=0)
-    
-    # assign aggregated unprecedented exposure to ds_pop_frac
-    ds_pop_frac['unprec_exposed_b'] = unprec_exposed
-    ds_pop_frac['unprec_all_b'] = unprec_all    
+    ds_pop_frac['unprec_all_t'].loc[{'time':year_range}] = ds_cohorts['population'].where(da_emergence_mask==1).sum(dim=('birth_year','country'))
      
     return ds_pop_frac
 
@@ -342,23 +323,33 @@ def pop_frac_stats(
     ds_cohorts,
 ):
     
-    # stats on exposure types
-    ds_pop_frac['mean_unprec_exposed'] = ds_pop_frac['unprec_exposed'].mean(dim='run')
-    ds_pop_frac['max_unprec_exposed'] = ds_pop_frac['unprec_exposed'].max(dim='run')
-    ds_pop_frac['min_unprec_exposed'] = ds_pop_frac['unprec_exposed'].min(dim='run')
-    ds_pop_frac['std_unprec_exposed'] = ds_pop_frac['unprec_exposed'].std(dim='run')
-    ds_pop_frac['mean_unprec_all'] = ds_pop_frac['unprec_all'].mean(dim='run')
-    ds_pop_frac['max_unprec_all'] = ds_pop_frac['unprec_all'].max(dim='run')
-    ds_pop_frac['min_unprec_all'] = ds_pop_frac['unprec_all'].min(dim='run')
-    ds_pop_frac['std_unprec_all'] = ds_pop_frac['unprec_all'].std(dim='run')
+    # stats on population emergence types
+    ds_pop_frac['mean_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].mean(dim='run')
+    ds_pop_frac['max_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].max(dim='run')
+    ds_pop_frac['min_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].min(dim='run')
+    ds_pop_frac['std_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].std(dim='run')
+    ds_pop_frac['mean_unprec_all_b'] = ds_pop_frac['unprec_all_b'].mean(dim='run')
+    ds_pop_frac['max_unprec_all_b'] = ds_pop_frac['unprec_all_b'].max(dim='run')
+    ds_pop_frac['min_unprec_all_b'] = ds_pop_frac['unprec_all_b'].min(dim='run')
+    ds_pop_frac['std_unprec_all_b'] = ds_pop_frac['unprec_all_b'].std(dim='run')
+    
+    ds_pop_frac['mean_unprec_all_t'] = ds_pop_frac['unprec_all_t'].mean(dim='run')
+    ds_pop_frac['max_unprec_all_t'] = ds_pop_frac['unprec_all_t'].max(dim='run')
+    ds_pop_frac['min_unprec_all_t'] = ds_pop_frac['unprec_all_t'].min(dim='run')
+    ds_pop_frac['std_unprec_all_t'] = ds_pop_frac['unprec_all_t'].std(dim='run')
     
     # unprecedented exposure as fraction of total population estimate
-    ds_pop_frac['frac_unprec_exposed'] = ds_pop_frac['unprec_exposed'] / ds_cohorts['population'].sum(dim=['country'])
-    ds_pop_frac['mean_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].mean(dim='run')
-    ds_pop_frac['std_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].std(dim='run')
-    ds_pop_frac['frac_unprec_all'] = ds_pop_frac['unprec_all'] / ds_cohorts['population'].sum(dim=['country'])
-    ds_pop_frac['mean_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].mean(dim='run')
-    ds_pop_frac['std_frac_unprec_all'] = ds_pop_frac['frac_unprec_all'].std(dim='run')    
+    ds_pop_frac['frac_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'] / ds_cohorts['by_population'].sum(dim=['country'])
+    # ds_pop_frac['mean_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].mean(dim='run')
+    ds_pop_frac['mean_frac_unprec_exposed_b'] = ds_pop_frac['mean_unprec_exposed_b'] / ds_cohorts['by_population'].sum(dim=['country'])
+    ds_pop_frac['std_frac_unprec_exposed_b'] = ds_pop_frac['frac_unprec_exposed_b'].std(dim='run')
+    ds_pop_frac['frac_unprec_all_b'] = ds_pop_frac['unprec_all_b'] / ds_cohorts['by_population'].sum(dim=['country'])
+    ds_pop_frac['mean_frac_unprec_all_b'] = ds_pop_frac['frac_unprec_all_b'].mean(dim='run')
+    ds_pop_frac['std_frac_unprec_all'] = ds_pop_frac['frac_unprec_all_b'].std(dim='run')
+    
+    ds_pop_frac['frac_unprec_all_t'] = ds_pop_frac['unprec_all_t'] / ds_cohorts['population'].sum(dim=('birth_year','country'))
+    ds_pop_frac['mean_frac_unprec_all_t'] = ds_pop_frac['frac_unprec_all_t'].mean(dim='run')
+    ds_pop_frac['std_frac_unprec_all_t'] = ds_pop_frac['frac_unprec_all_t'].std(dim='run')        
     
     return ds_pop_frac
 
@@ -543,25 +534,33 @@ def strj_emergence(
     # create new template datasets for pop_frac and age_emergence, make assignments for each run and GMT trajectory
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprec_exposed': (
+            'unprec_exposed_b': (
                 ['run','birth_year','GMT'],
                 np.full(
                     (len(list(d_isimip_meta.keys())),len(birth_years),len(GMT_labels)),
                     fill_value=np.nan,
                 ),
             ),
-            'unprec_all': (
+            'unprec_all_b': (
                 ['run','birth_year','GMT'],
                 np.full(
                     (len(list(d_isimip_meta.keys())),len(birth_years),len(GMT_labels)),
                     fill_value=np.nan
                 ),
             ),
+            'unprec_all_t': (
+                ['run','time','GMT'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(year_range),len(GMT_labels)),
+                    fill_value=np.nan
+                ),
+            ),            
         },
         coords={
             'run': ('run', list(d_isimip_meta.keys())),
             'birth_year': ('birth_year', birth_years),
-            'GMT': ('GMT', np.arange(len(GMT_labels))),
+            'GMT': ('GMT', GMT_labels),
+            'time': ('time', year_range),
         }
     )
     
@@ -579,7 +578,7 @@ def strj_emergence(
             'country': ('country', ds_cohorts.country.data),
             'birth_year': ('birth_year', birth_years),
             'run': ('run', list(d_isimip_meta.keys())),
-            'GMT': ('GMT', np.arange(len(GMT_labels))),
+            'GMT': ('GMT', GMT_labels),
         },        
     )
     
@@ -639,7 +638,7 @@ def strj_emergence(
                 else:
                     
                     # load pickle
-                    with open('./data/pickles/da_exposure_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
+                    with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
                         da_emergence_mask_run_step = pk.load(f)
                 
                 # check for pickles before running
@@ -701,11 +700,25 @@ def strj_emergence(
                 }] = ds_age_emergence_run_step    
                 
                 # population experiencing normal vs unprecedented exposure
-                ds_pop_frac.loc[{
+                ds_pop_frac['unprec_exposed_b'].loc[{
                     'run':i,
                     'birth_year': birth_years,
                     'GMT': step,
-                }] = ds_pop_frac_run_step
+                }] = ds_pop_frac_run_step['unprec_exposed_b']
+                
+                # population experiencing normal vs unprecedented exposure
+                ds_pop_frac['unprec_all_b'].loc[{
+                    'run':i,
+                    'birth_year': birth_years,
+                    'GMT': step,
+                }] = ds_pop_frac_run_step['unprec_all_b']
+                
+                # population experiencing normal vs unprecedented exposure
+                ds_pop_frac['unprec_all_t'].loc[{
+                    'run':i,
+                    'time': year_range,
+                    'GMT': step,
+                }] = ds_pop_frac_run_step['unprec_all_t']                             
                               
     # run ensemble stats across runs
     ds_pop_frac = pop_frac_stats(
@@ -728,3 +741,5 @@ def strj_emergence(
 
     return ds_age_emergence, ds_pop_frac
 
+
+# %%

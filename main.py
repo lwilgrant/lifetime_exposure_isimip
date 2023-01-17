@@ -54,7 +54,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'heatwavedarea' # 0: all
+flags['extr'] = 'floodedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -64,17 +64,17 @@ flags['extr'] = 'heatwavedarea' # 0: all
                                 # 7: waterscarcity
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
-flags['runs'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['runs'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                    # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
@@ -336,38 +336,38 @@ else: # load pickles
 # grid scale
 # ------------------------------------------------------------------
 
-from gridscale import *
+# from gridscale import *
 
-if flags['gridscale']:
+# if flags['gridscale']:
     
-    ds_le_gs, ds_ae_gs, ds_pf_gs = grid_scale_emergence(
-        d_isimip_meta,
-        d_pic_meta,
-        flags['extr'],
-        da_cohort_size,
-        df_countries,
-        countries_regions,
-        countries_mask,
-        df_life_expectancy_5,
-        GMT_indices,
-        da_population,
-    )
+#     ds_le_gs, ds_ae_gs, ds_pf_gs = grid_scale_emergence(
+#         d_isimip_meta,
+#         d_pic_meta,
+#         flags['extr'],
+#         da_cohort_size,
+#         df_countries,
+#         countries_regions,
+#         countries_mask,
+#         df_life_expectancy_5,
+#         GMT_indices,
+#         da_population,
+#     )
     
-else:
+# else:
     
-    # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
-    with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
-        ds_le_gs = pk.load(f)
-    with open('./data/pickles/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr']), 'rb') as f:
-        ds_ae_gs = pk.load(f)
-    with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr']), 'rb') as f:
-        ds_pf_gs = pk.load(f)
+#     # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
+#     with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
+#         ds_le_gs = pk.load(f)
+#     with open('./data/pickles/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr']), 'rb') as f:
+#         ds_ae_gs = pk.load(f)
+#     with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr']), 'rb') as f:
+#         ds_pf_gs = pk.load(f)
 
-# load spatially explicit datasets
-d_gs_spatial = {}
-for cntry in sample_countries:
-    with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
-        d_gs_spatial[cntry] = pk.load(f)
+# # load spatially explicit datasets
+# d_gs_spatial = {}
+# for cntry in sample_countries:
+#     with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
+#         d_gs_spatial[cntry] = pk.load(f)
 
 #%% ----------------------------------------------------------------
 # plot emergence stuff
@@ -408,136 +408,145 @@ if flags['plot']:
         flags['gmt'],
     )
     
-    # add emergence mask since i forgot to do it in gridscale.py (added it there but haven't rerun 10 Jan)
-    for cntry in sample_countries:
-        d_gs_spatial[cntry]['emergence_mask'] = (['run','GMT','birth_year','lat','lon'],np.full(
-                        (len(list(d_isimip_meta.keys())),len(GMT_indices),len(sample_birth_years),len(d_gs_spatial[cntry].lat.data),len(d_gs_spatial[cntry].lon.data)),
-                        fill_value=np.nan,
-                    ))
-        for i in list(d_isimip_meta.keys()):
-            for step in GMT_indices:
-                if os.path.isfile('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step)):
-                    with open('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step), 'rb') as f:
-                        da_birthyear_exposure_mask = pk.load(f)
-                        d_gs_spatial[cntry]['emergence_mask'].loc[{'run':i,'GMT':step}] = da_birthyear_exposure_mask.loc[{'birth_year':sample_birth_years}]
+    plot_pf_t_ae_by_GMT_strj(
+        ds_pf_strj,
+        ds_ae_strj,
+        df_GMT_strj,
+        ds_cohorts,
+        flags['extr'],
+        flags['gmt'],
+    )    
     
-    cntry = 'Canada'
-    ind_cntry = countries_regions.map_keys(cntry)
-    mask = xr.DataArray(
-        np.in1d(countries_mask,ind_cntry).reshape(countries_mask.shape),
-        dims=countries_mask.dims,
-        coords=countries_mask.coords,
-    )
+    # # add emergence mask since i forgot to do it in gridscale.py (added it there but haven't rerun 10 Jan)
+    # for cntry in sample_countries:
+    #     d_gs_spatial[cntry]['emergence_mask'] = (['run','GMT','birth_year','lat','lon'],np.full(
+    #                     (len(list(d_isimip_meta.keys())),len(GMT_indices),len(sample_birth_years),len(d_gs_spatial[cntry].lat.data),len(d_gs_spatial[cntry].lon.data)),
+    #                     fill_value=np.nan,
+    #                 ))
+    #     for i in list(d_isimip_meta.keys()):
+    #         for step in GMT_indices:
+    #             if os.path.isfile('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step)):
+    #                 with open('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step), 'rb') as f:
+    #                     da_birthyear_exposure_mask = pk.load(f)
+    #                     d_gs_spatial[cntry]['emergence_mask'].loc[{'run':i,'GMT':step}] = da_birthyear_exposure_mask.loc[{'birth_year':sample_birth_years}]
+    
+    # cntry = 'Canada'
+    # ind_cntry = countries_regions.map_keys(cntry)
+    # mask = xr.DataArray(
+    #     np.in1d(countries_mask,ind_cntry).reshape(countries_mask.shape),
+    #     dims=countries_mask.dims,
+    #     coords=countries_mask.coords,
+    # )
         
-    for cntry in sample_countries:
-        ind_cntry = countries_regions.map_keys(cntry)
-        mask = xr.DataArray(
-            np.in1d(countries_mask,ind_cntry).reshape(countries_mask.shape),
-            dims=countries_mask.dims,
-            coords=countries_mask.coords,
-        )        
-        for analysis in ['lifetime_exposure','age_emergence','emergence_mask','population_emergence']:   
-            if analysis == 'emergence_mask':
-                d_gs_spatial[cntry][analysis] = d_gs_spatial[cntry][analysis].where(mask)
-            if cntry != 'Russian Federation':
-                projection = ccrs.PlateCarree()
-            else:
-                projection = ccrs.LambertConformal(central_longitude=36.6, central_latitude=53.7, cutoff=30)
-            p = d_gs_spatial[cntry][analysis].loc[{
-                'birth_year':birth_years_plot,
-                'GMT':GMT_indices_plot,
-            }].mean(dim='run').plot(
-                col='birth_year',
-                row='GMT',
-                transform=ccrs.PlateCarree(),
-                subplot_kws={"projection": projection},
-                aspect=2,
-                size=3
-            )
-            for ax in p.axes.flat:
-                ax.coastlines()
-                ax.gridlines()
-            p.fig.savefig('./figures/gridscale_sample_{}_{}.png'.format(cntry,analysis))
+    # for cntry in sample_countries:
+    #     ind_cntry = countries_regions.map_keys(cntry)
+    #     mask = xr.DataArray(
+    #         np.in1d(countries_mask,ind_cntry).reshape(countries_mask.shape),
+    #         dims=countries_mask.dims,
+    #         coords=countries_mask.coords,
+    #     )        
+    #     for analysis in ['lifetime_exposure','age_emergence','emergence_mask','population_emergence']:   
+    #         if analysis == 'emergence_mask':
+    #             d_gs_spatial[cntry][analysis] = d_gs_spatial[cntry][analysis].where(mask)
+    #         if cntry != 'Russian Federation':
+    #             projection = ccrs.PlateCarree()
+    #         else:
+    #             projection = ccrs.LambertConformal(central_longitude=36.6, central_latitude=53.7, cutoff=30)
+    #         p = d_gs_spatial[cntry][analysis].loc[{
+    #             'birth_year':birth_years_plot,
+    #             'GMT':GMT_indices_plot,
+    #         }].mean(dim='run').plot(
+    #             col='birth_year',
+    #             row='GMT',
+    #             transform=ccrs.PlateCarree(),
+    #             subplot_kws={"projection": projection},
+    #             aspect=2,
+    #             size=3
+    #         )
+    #         for ax in p.axes.flat:
+    #             ax.coastlines()
+    #             ax.gridlines()
+    #         p.fig.savefig('./figures/gridscale_sample_{}_{}.png'.format(cntry,analysis))
     
                         
-    # spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load) per country
-        # can also add spatial age emergence to here
-    ds_gs_spatial = xr.Dataset(
-        data_vars={
-            'lifetime_exposure': (
-                ['run','GMT','birth_year','lat','lon'],
-                np.full(
-                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'age_emergence': (
-                ['run','GMT','birth_year','lat','lon'],
-                np.full(
-                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'population_emergence': (
-                ['run','GMT','birth_year','lat','lon'],
-                np.full(
-                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'emergence_mask': (
-                ['run','GMT','birth_year','lat','lon'],
-                np.full(
-                    (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
-                    fill_value=np.nan,
-                ), 
-            )
-        },
-        coords={
-            'lat': ('lat', countries_mask.lat.data),
-            'lon': ('lon', countries_mask.lon.data),
-            'birth_year': ('birth_year', birth_years_plot),
-            'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
-            'GMT': ('GMT', GMT_indices_plot)
-        }
-    )
+    # # spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load) per country
+    #     # can also add spatial age emergence to here
+    # ds_gs_spatial = xr.Dataset(
+    #     data_vars={
+    #         'lifetime_exposure': (
+    #             ['run','GMT','birth_year','lat','lon'],
+    #             np.full(
+    #                 (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+    #                 fill_value=np.nan,
+    #             ),
+    #         ),
+    #         'age_emergence': (
+    #             ['run','GMT','birth_year','lat','lon'],
+    #             np.full(
+    #                 (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+    #                 fill_value=np.nan,
+    #             ),
+    #         ),
+    #         'population_emergence': (
+    #             ['run','GMT','birth_year','lat','lon'],
+    #             np.full(
+    #                 (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+    #                 fill_value=np.nan,
+    #             ),
+    #         ),
+    #         'emergence_mask': (
+    #             ['run','GMT','birth_year','lat','lon'],
+    #             np.full(
+    #                 (len(list(d_isimip_meta.keys())),len(GMT_indices_plot),len(birth_years_plot),len(countries_mask.lat.data),len(countries_mask.lon.data)),
+    #                 fill_value=np.nan,
+    #             ), 
+    #         )
+    #     },
+    #     coords={
+    #         'lat': ('lat', countries_mask.lat.data),
+    #         'lon': ('lon', countries_mask.lon.data),
+    #         'birth_year': ('birth_year', birth_years_plot),
+    #         'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+    #         'GMT': ('GMT', GMT_indices_plot)
+    #     }
+    # )
     
-    for cntry in sample_countries:
-        for analysis in ['lifetime_exposure','age_emergence','emergence_mask']:
-            ds_gs_spatial[analysis].loc[{
-                'lat':d_gs_spatial[cntry].lat.data,
-                'lon':d_gs_spatial[cntry].lon.data,
-                'birth_year':birth_years_plot,
-                'GMT':GMT_indices_plot,            
-            }] = d_gs_spatial[cntry][analysis].loc[{
-                'lat':d_gs_spatial[cntry].lat.data,
-                'lon':d_gs_spatial[cntry].lon.data,
-                'birth_year':birth_years_plot,
-                'GMT':GMT_indices_plot,
-            }]
+    # for cntry in sample_countries:
+    #     for analysis in ['lifetime_exposure','age_emergence','emergence_mask']:
+    #         ds_gs_spatial[analysis].loc[{
+    #             'lat':d_gs_spatial[cntry].lat.data,
+    #             'lon':d_gs_spatial[cntry].lon.data,
+    #             'birth_year':birth_years_plot,
+    #             'GMT':GMT_indices_plot,            
+    #         }] = d_gs_spatial[cntry][analysis].loc[{
+    #             'lat':d_gs_spatial[cntry].lat.data,
+    #             'lon':d_gs_spatial[cntry].lon.data,
+    #             'birth_year':birth_years_plot,
+    #             'GMT':GMT_indices_plot,
+    #         }]
     
-    ind_cntrs = []
-    for cntry in sample_countries:
-        ind_cntrs.append(countries_regions.map_keys(cntry))
-    mask = xr.DataArray(
-        np.in1d(countries_mask,ind_cntrs).reshape(countries_mask.shape),
-        dims=countries_mask.dims,
-        coords=countries_mask.coords,
-    )
-    ds_gs_spatial = ds_gs_spatial.where(mask)
-    plottable = ds_gs_spatial['lifetime_exposure'].mean(dim='run')
-    plottable.plot(transform=ccrs.PlateCarree(),col='birth_year',row='GMT',subplot_kws={'projection':ccrs.PlateCarree()})
+    # ind_cntrs = []
+    # for cntry in sample_countries:
+    #     ind_cntrs.append(countries_regions.map_keys(cntry))
+    # mask = xr.DataArray(
+    #     np.in1d(countries_mask,ind_cntrs).reshape(countries_mask.shape),
+    #     dims=countries_mask.dims,
+    #     coords=countries_mask.coords,
+    # )
+    # ds_gs_spatial = ds_gs_spatial.where(mask)
+    # plottable = ds_gs_spatial['lifetime_exposure'].mean(dim='run')
+    # plottable.plot(transform=ccrs.PlateCarree(),col='birth_year',row='GMT',subplot_kws={'projection':ccrs.PlateCarree()})
     
     
-    for analysis in ['lifetime_exposure','age_emergence','emergence_mask']:
+    # for analysis in ['lifetime_exposure','age_emergence','emergence_mask']:
         
-        gridscale_spatial(
-            d_gs_spatial,
-            analysis,
-            countries_mask,
-            countries_regions,
-            flags['extr'],
-        )
+    #     gridscale_spatial(
+    #         d_gs_spatial,
+    #         analysis,
+    #         countries_mask,
+    #         countries_regions,
+    #         flags['extr'],
+    #     )
 
     # checking fraction of countries emerged from noise (appears to decrease over GMT trajectories per birth year, which)
     # for step in GMT_labels:

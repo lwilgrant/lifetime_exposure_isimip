@@ -402,7 +402,7 @@ def calc_cohort_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * da_cohort_size
                     
-        with open('./data/pickles/exposure_cohort_strj_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
+        with open('./data/pickles/exposure_cohort_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
             pk.dump(da_exposure_cohort_strj,f)
             
         # GMT mapping for stylized trajectories in dimension expansion of da_exposure_peryear_percountry
@@ -434,7 +434,7 @@ def calc_cohort_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * xr.full_like(da_cohort_size,1)
         
-        with open('./data/pickles/exposure_peryear_perage_percountry_strj_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
+        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
             pk.dump(da_exposure_peryear_perage_percountry_strj,f)                     
         
         
