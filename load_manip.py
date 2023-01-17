@@ -716,7 +716,7 @@ def get_all_cohorts(
 ): 
 
     # unpack loaded wcde values; 31 year ranges, 21 age categories
-    wcde = load_wcde_data() 
+    wcde = load_wcde_data()
     wcde_years, wcde_ages, wcde_country_data = wcde 
     new_ages = np.arange(100,-1,-1)
 
@@ -883,6 +883,11 @@ def all_country_data():
     )
     
     gdf_country_borders = gpd.read_file('./data/natural_earth/Cultural_10m/Countries/ne_10m_admin_0_countries.shp'); 
+    
+    # interpolate pop sizes per age cohort for all ages (0-100)
+    da_cohort_size = get_all_cohorts(
+        df_countries, 
+    )
 
     # mask population totals per country  and save country regions object and countries mask
     df_countries, countries_regions, countries_mask, gdf_country_borders = get_mask_population(
@@ -891,10 +896,8 @@ def all_country_data():
         df_countries,
     )
     
-    # interpolate pop sizes per age cohort for all ages (0-100)
-    da_cohort_size = get_all_cohorts(
-        df_countries, 
-    )
+    # only keep relevant countries in cohort size data
+    da_cohort_size = da_cohort_size.loc[{'country':list(df_countries.index)}]
     
     # limit df_life_expectancy to the same countries as are available in shapefile 
     df_life_expectancy_5 = df_life_expectancy_5.loc[:,list(df_countries.index)]
