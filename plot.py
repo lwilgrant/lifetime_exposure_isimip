@@ -2450,8 +2450,8 @@ def plot_age_emergence(
 # stylized trajectories
 def plot_stylized_trajectories(
     df_GMT_strj,
+    GMT_indices,
     d_isimip_meta,
-    year_range,
 ):
     
     # --------------------------------------------------------------------
@@ -2460,15 +2460,15 @@ def plot_stylized_trajectories(
                 'd', 'e', 'f',\
                 'g', 'h', 'i',\
                 'j', 'k', 'l']
-    x=6
-    y=12
+    x=8
+    y=6
     lw_mean=1
     lw_fill=0.1
     ub_alpha = 0.5
     title_font = 14
     tick_font = 12
     axis_font = 11
-    legend_font = 14
+    legend_font = 10
     impactyr_font =  11
     col_grid = '0.8'     # color background grid
     style_grid = 'dashed'     # style background grid
@@ -2476,14 +2476,22 @@ def plot_stylized_trajectories(
     col_hi = 'darkred'       # mean color for GMT trajectories above 2.5 at 2100
     col_med = 'darkgoldenrod'   # mean color for GMT trajectories above 1.5 to 2.5 at 2100     
     col_low = 'steelblue'       # mean color for GMT trajectories from min to 1.5 at 2100
-    colors = {
+    colors_rcp = {
         'rcp26': col_low,
         'rcp60': col_med,
         'rcp85': col_hi,
     }
+    colors = {
+        '4.0':'darkred',
+        '3.0':'firebrick',
+        'NDC':'darkorange',
+        '2.0':'yellow',
+        '1.5':'steelblue',
+        'lb':'darkblue',
+    }    
     legend_lw=3.5 # legend line width
-    x0 = 0.3 # bbox for legend
-    y0 = 0.75
+    x0 = 0.15 # bbox for legend
+    y0 = 0.25
     xlen = 0.2
     ylen = 0.2    
     legend_entrypad = 0.5 # space between entries
@@ -2495,13 +2503,13 @@ def plot_stylized_trajectories(
     # xmin = np.min(time)
     # xmax = np.max(time)
     xmin = 1960
-    xmax = 2113
+    xmax = 2100
 
     ax1_ylab = 'GMT [°C]'
     ax1_xlab = 'Time'
 
     gcms = ['gfdl-esm2m','hadgem2-es','ipsl-cm5a-lr','miroc5']
-    rcps = ['rcp26', 'rcp60','rcp85']
+    rcps = ['rcp26','rcp60','rcp85']
     GMTs = {}
     for gcm in gcms:
         GMTs[gcm] = {}
@@ -2510,7 +2518,7 @@ def plot_stylized_trajectories(
             while i < 1:
                 for k,v in list(d_isimip_meta.items()):
                     if v['gcm'] == gcm and v['rcp'] == rcp:
-                        GMTs[gcm][rcp] = v['GMT'].rolling(window=10,center=True).mean()
+                        GMTs[gcm][rcp] = v['GMT']
                         i+=1
                     if i == 1:
                         break
@@ -2537,10 +2545,61 @@ def plot_stylized_trajectories(
         for rcp in rcps:  
             GMTs[gcm][rcp].plot(
                 ax=ax1,
-                color=colors[rcp],
+                color=colors_rcp[rcp],
                 zorder=2,
-                lw=lw_mean
+                lw=lw_mean,
+                style='--'
             )  
+            
+    # plot new ar6 scenarios
+    df_GMT_lb = df_GMT_strj.loc[:,GMT_indices[0]]
+    df_GMT_lb.plot(
+        ax=ax1,
+        color=colors['lb'],
+        zorder=1,
+        lw=lw_mean,
+    )    
+    df_GMT_15 = df_GMT_strj.loc[:,GMT_indices[1]]
+    df_GMT_15.plot(
+        ax=ax1,
+        color=colors['1.5'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_20 = df_GMT_strj.loc[:,GMT_indices[2]]
+    df_GMT_20.plot(
+        ax=ax1,
+        color=colors['2.0'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_NDC = df_GMT_strj.loc[:,GMT_indices[3]]
+    df_GMT_NDC.plot(
+        ax=ax1,
+        color=colors['NDC'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_30 = df_GMT_strj.loc[:,GMT_indices[4]]
+    df_GMT_30.plot(
+        ax=ax1,
+        color=colors['3.0'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_40 = df_GMT_strj.loc[:,GMT_indices[5]]
+    df_GMT_40.plot(
+        ax=ax1,
+        color=colors['4.0'],
+        zorder=1,
+        lw=2,
+    )    
+    df_GMT_40.loc[1960:2009].plot(
+        ax=ax1,
+        color='grey',
+        zorder=3,
+        lw=2,
+    )                
 
 
     ax1.set_ylabel(
@@ -2570,16 +2629,29 @@ def plot_stylized_trajectories(
         ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
         ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
         ax.set_axisbelow(True) 
-        
-    # legend
-    handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['rcp85']),\
-               Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['rcp60']),\
-               Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['rcp26'])]
+    
+    handles = [
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['lb']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['1.5']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['2.0']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['NDC']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['3.0']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['4.0']),
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp85']),
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp60']),
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp26'])         
+    ]
     labels= [
+        'lower bound',
+        '1.5 °C',
+        '2.0 °C',
+        'NDC °C',
+        '3.0 °C',
+        '4.0 °C',
         'RCP 8.5',
         'RCP 6.0',
-        'RCP 2.6',
-    ]        
+        'RCP 2.6',        
+    ]    
         
     ax1.legend(
         handles, 
@@ -2596,7 +2668,7 @@ def plot_stylized_trajectories(
         handletextpad=legend_entrypad,
     )               
             
-    f.savefig('./figures/stylized_trajectories_smooth.png',dpi=300)    
+    f.savefig('./figures/GMT_trajectories_rcp_stylized.png',dpi=300)    
 
 #%% ----------------------------------------------------------------
 # plotting pop frac
@@ -2604,7 +2676,6 @@ def plot_age_emergence_strj(
     da_age_emergence_strj,
     df_GMT_strj,
     ds_cohorts,
-    year_range,
 ):
     
     # --------------------------------------------------------------------

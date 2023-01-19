@@ -586,7 +586,7 @@ def load_isimip(
                         }
                             
                     # save AFA field as pickle
-                    with open('./data/pickles/isimip_AFA_{}_{}_{}.pkl'.format(flags['rm'],extreme,str(i)), 'wb') as f: # added extreme to string of pickle
+                    with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(extreme,str(i)), 'wb') as f: # added extreme to string of pickle
                         pk.dump(da_AFA,f)
 
                     # update counter

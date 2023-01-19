@@ -65,7 +65,7 @@ flags['extr'] = 'heatwavedarea' # 0: all
 flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach with max trajectory a linear increase to 3.5 deg                               
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
 flags['rm'] = 'rm'       # no_rm: no smoothing of RCP GMTs before mapping
-                            # rm: run 20-year mean on RCP GMTs 
+                         # rm: 21-year rolling mean on RCP GMTs 
 flags['run'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
@@ -78,7 +78,7 @@ flags['exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol
                             # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
 flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
-flags['birthyears_emergence'] = 1  # 0: only run calc_birthyear_align with birth years from 1960-2020
+flags['birthyear_emergence'] = 1  # 0: only run calc_birthyear_align with birth years from 1960-2020
                                    # 1: run calc_birthyear_align with birth years from 1960-2100
 flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
@@ -400,6 +400,12 @@ from plot import *
     
 # comparison of weighted mean vs pixel scale (some prep required for pop frac from weighted mean)
 if flags['plot']:
+    
+    plot_stylized_trajectories(
+        df_GMT_strj,
+        GMT_indices,
+        d_isimip_meta,
+    )    
     
     plot_le_by_GMT_strj(
         ds_le,
