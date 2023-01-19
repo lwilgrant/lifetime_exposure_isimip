@@ -15,7 +15,7 @@ import glob
 import time
 import matplotlib.pyplot as plt
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
 #%% ----------------------------------------------------------------
 # bootstrapping function 
 
@@ -229,8 +229,7 @@ def calc_exposure(
     countries_mask, 
     da_population, 
     df_life_expectancy_5,
-    flag_extr,
-    flag_gmt,
+    flags,
 ):
 
     ds_le = xr.Dataset(
@@ -257,7 +256,7 @@ def calc_exposure(
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flag_extr,str(i)), 'rb') as f:
+        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)
 
         # --------------------------------------------------------------------
@@ -309,7 +308,7 @@ def calc_exposure(
                 }] = d_exposure_perrun_step.values.transpose()             
 
     # dump pickle of lifetime exposure
-    with open('./data/pickles/exposure_{}_{}.pkl'.format(flag_extr,flag_gmt), 'wb') as f:
+    with open('./data/pickles/exposure_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
         pk.dump(ds_le,f)
 
     return ds_le
@@ -318,14 +317,13 @@ def calc_exposure(
 # convert Area Fraction Affected (AFA) to 
 # per-cohort number of extremes affecting one individual across life span
 def calc_cohort_exposure(
-    flag_gmt,
-    flag_extr,
     d_isimip_meta,
     df_countries,
     countries_regions,
     countries_mask,
     da_population,
     da_cohort_size,
+    flags,
 ):
 
     # loop over simulations
@@ -334,7 +332,7 @@ def calc_cohort_exposure(
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flag_extr,str(i)), 'rb') as f:
+        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)
 
         # --------------------------------------------------------------------
@@ -402,7 +400,7 @@ def calc_cohort_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * da_cohort_size
                     
-        with open('./data/pickles/exposure_cohort_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
+        with open('./data/pickles/exposure_cohort_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm'],i), 'wb') as f:
             pk.dump(da_exposure_cohort_strj,f)
             
         # GMT mapping for stylized trajectories in dimension expansion of da_exposure_peryear_percountry
@@ -434,7 +432,7 @@ def calc_cohort_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * xr.full_like(da_cohort_size,1)
         
-        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}.pkl'.format(flag_extr,flag_gmt,i), 'wb') as f:
+        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm'],i), 'wb') as f:
             pk.dump(da_exposure_peryear_perage_percountry_strj,f)                     
         
         
@@ -448,7 +446,7 @@ def calc_exposure_pic(
     countries_mask, 
     da_population, 
     df_life_expectancy_5, 
-    flag_extr,
+    flags,
 ):
 
     d_exposure_perrun_pic = {}                 
@@ -517,7 +515,7 @@ def calc_exposure_pic(
     print()
     print('Saving processed exposures')
 
-    with open('./data/pickles/exposure_pic_{}.pkl'.format(flag_extr), 'wb') as f:
+    with open('./data/pickles/exposure_pic_{}.pkl'.format(flags['extr']), 'wb') as f:
         pk.dump(d_exposure_perrun_pic,f)
 
     return d_exposure_perrun_pic

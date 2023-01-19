@@ -13,7 +13,7 @@ import glob
 import os
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
 
 # ---------------------------------------------------------------
 # 1. Functions to load (see ms_load.m)
@@ -226,7 +226,7 @@ def load_GMT(
     year_start,
     year_end,
     year_range,
-    flag_gmt,
+    flags,
 ):
 
     # Load global mean temperature projections from SR15 
@@ -257,7 +257,7 @@ def load_GMT(
     df_GMT_SR15 = df_GMT_SR15[~df_GMT_SR15.index.duplicated(keep='first')]
     
     # stylized trajectories
-    if flag_gmt == 'original':
+    if flags['gmt'] == 'original':
     
         GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
         ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
@@ -296,7 +296,7 @@ def load_GMT(
             index=year_range,
         )
         
-    elif flag_gmt == 'ar6':
+    elif flags['gmt'] == 'ar6':
         
         # for alternative gmt mapping approaches, collect new ar6 scens from IASA explorer
         df_GMT_ar6 = pd.read_csv('./data/temperature_trajectories_AR6/ar6_c1_c7_nogaps_2000-2100.csv',header=0)
@@ -408,17 +408,16 @@ def load_population(
 #%% ----------------------------------------------------------------
 # Load ISIMIP model data
 def load_isimip(
-    flags_run, 
-    flags_gmt,
     extremes, 
     model_names,
     df_GMT_15,
     df_GMT_20,
     df_GMT_NDC,
     df_GMT_strj,
+    flags,
 ): 
     
-    if flags_run: 
+    if flags['run']: 
 
         print('Processing isimip')
 
@@ -449,10 +448,10 @@ def load_isimip(
 
                     # save metadata
                     d_isimip_meta[i] = {
-                        'model': file_name.split('_')[0].split('\\')[-1], 
-                        'gcm': file_name.split('_')[1], 
-                        'rcp': file_name.split('_')[2],                         
-                        'extreme': file_name.split('_')[3], 
+                        'model': file_name.split('_')[0].split('\\')[-1],
+                        'gcm': file_name.split('_')[1],
+                        'rcp': file_name.split('_')[2],
+                        'extreme': file_name.split('_')[3],
                     }
 
                     #load associated historical variable
@@ -510,6 +509,14 @@ def load_isimip(
                     # retain only period of interest
                     da_AFA = da_AFA.sel(time=slice(year_start,year_end))
                     df_GMT = df_GMT.loc[year_start:year_end,:]
+                    
+                    if flags['rm'] == 'no_rm':
+                        
+                        pass
+                    
+                    else:
+                        
+                        df_GMT = df_GMT.rolling(window=21,min_periods=10,center=True,).mean()
 
                     # save GMT in metadatadict
                     d_isimip_meta[i]['GMT'] = df_GMT 
@@ -579,7 +586,7 @@ def load_isimip(
                         }
                             
                     # save AFA field as pickle
-                    with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(extreme,str(i)), 'wb') as f: # added extreme to string of pickle
+                    with open('./data/pickles/isimip_AFA_{}_{}_{}.pkl'.format(flags['rm'],extreme,str(i)), 'wb') as f: # added extreme to string of pickle
                         pk.dump(da_AFA,f)
 
                     # update counter
@@ -587,7 +594,7 @@ def load_isimip(
         
             # save metadata dictionary as a pickle
             print('Saving metadata')
-            with open('./data/pickles/isimip_metadata_{}_{}.pkl'.format(extreme,flags_gmt), 'wb') as f:
+            with open('./data/pickles/isimip_metadata_{}_{}_{}.pkl'.format(extreme,flags['gmt'],flags['rm']), 'wb') as f:
                 pk.dump(d_isimip_meta,f)
             with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'wb') as f:
                 pk.dump(d_pic_meta,f)
@@ -599,7 +606,7 @@ def load_isimip(
         # loac pickled metadata for isimip and isimip-pic simulations
         extreme = extremes[0]
 
-        with open('./data/pickles/isimip_metadata_{}_{}.pkl'.format(extreme,flags_gmt), 'rb') as f:
+        with open('./data/pickles/isimip_metadata_{}_{}_{}.pkl'.format(extreme,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
         with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'rb') as f:
             d_pic_meta = pk.load(f)                

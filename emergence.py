@@ -26,47 +26,7 @@ import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
-
-#%% --------------------------------------------------------------------
-# test colors for plotting
-
-def c(x):
-    col = plt.cm.OrRd(x)
-    fig, ax = plt.subplots(figsize=(1,1))
-    fig.set_facecolor(col)
-    ax.axis("off")
-    plt.show()
-    
-#%% --------------------------------------------------------------------
-# convert floats to color category 
-    
-def floater(f):
-    if f < 1.5:
-        col = 'low'
-    elif f >=1.5 and f < 2.5:
-        col = 'med'
-    elif f >= 2.5:
-        col = 'hi'
-    return col
-    
-#%% ----------------------------------------------------------------
-# load Wittgenstein Center population size per age cohort (source: http://dataexplorer.wittgensteincentre.org/wcde-v2/)
-def load_wcde_data():
-
-    wcde_years          = np.arange(1950,2105,5)       # hard coded from 'wcde_data_orig.xls' len is 31
-    wcde_ages           = np.arange(2,102+5,5)         # hard coded from 'wcde_data_orig.xls' not that we assume +100 to be equal to 100-104, len is 21
-
-    df_wcde             =  pd.read_excel('./data/Wittgenstein_Centre/wcde_data.xlsx',header=None)
-    wcde_country_data   = df_wcde.values[:,4:]
-    df_wcde_region      =  pd.read_excel(
-        './data/Wittgenstein_Centre/wcde_data.xlsx', 
-        'world regions', 
-        header=None
-    )
-    wcde_region_data    = df_wcde_region.values[:,2:]
-
-    return wcde_years, wcde_ages, wcde_country_data, wcde_region_data    
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
 
 # #%% ----------------------------------------------------------------
 # # make age+time selections to align exposure, cohort exposure and cohort sizes along birth year and time
@@ -139,9 +99,11 @@ def load_wcde_data():
 #%% ----------------------------------------------------------------
 # make age+time selections to align exposure, cohort exposure and cohort sizes along birth year and time
 # this is new version that should be faster because I limit the alignment to 1960 to 2020 (birth_years instead of year range)
+# Jan 18 2023 briefly added extra statements to handle those born up to 2100
 def calc_birthyear_align(
     da,
     df_life_expectancy,
+    by_emergence,
 ):
     
     country_list = []
@@ -152,17 +114,50 @@ def calc_birthyear_align(
         birthyear_list = []
         
         # per birth year, make (year,age) selections
-        for by in birth_years:
+        for by in by_emergence:
+            
+            # use life expectancy information where available (until 2020)
+            if by <= year_ref:            
                 
-            death_year = by + np.ceil(df_life_expectancy.loc[by,country]) # since we don't have AFA, best to round life expec up and then multiply last year of exposure by fraction of final year lived
-            time = xr.DataArray(np.arange(by,death_year+1),dims='cohort')
-            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-            data = da.sel(country=country,time=time,ages=ages) # paired selections
-            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,death_year+1,dtype='int')})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-            data = data.assign_coords({'birth_year':by}).drop_vars('ages')
-            data.loc[{'time':death_year}] = data.loc[{'time':death_year}] * (df_life_expectancy.loc[by,country] - np.floor(df_life_expectancy.loc[by,country]))
-            birthyear_list.append(data)
+                death_year = by + np.ceil(df_life_expectancy.loc[by,country]) # since we don't have AFA, best to round life expec up and then multiply last year of exposure by fraction of final year lived
+                time = xr.DataArray(np.arange(by,death_year+1),dims='cohort')
+                ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+                data = da.sel(country=country,time=time,ages=ages) # paired selections
+                data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,death_year+1,dtype='int')})
+                data = data.reindex({'time':year_range}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+                data = data.assign_coords({'birth_year':by}).drop_vars('ages')
+                data.loc[{'time':death_year}] = data.loc[{'time':death_year}] * (df_life_expectancy.loc[by,country] - np.floor(df_life_expectancy.loc[by,country]))
+                birthyear_list.append(data)
+            
+            # after 2020, assume constant life expectancy    
+            elif by > year_ref and by < year_end:
+                
+                death_year = by + np.ceil(df_life_expectancy.loc[year_ref,country]) #for years after 2020, just take 2020 life expectancy
+                
+                # if lifespan not encompassed by 2113, set death to 2113
+                if death_year > year_end:
+                    
+                    death_year = year_end
+                
+                time = xr.DataArray(np.arange(by,death_year+1),dims='cohort')
+                ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+                data = da.sel(country=country,time=time,ages=ages) # paired selections
+                data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,death_year+1,dtype='int')})
+                data = data.reindex({'time':year_range}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+                data = data.assign_coords({'birth_year':by}).drop_vars('ages')
+                data.loc[{'time':death_year}] = data.loc[{'time':death_year}] * (df_life_expectancy.loc[year_ref,country] - np.floor(df_life_expectancy.loc[year_ref,country]))
+                birthyear_list.append(data)
+            
+            # for 2100, use single year of exposure    
+            elif by == 2100:
+                
+                time = xr.DataArray([2100],dims='cohort')
+                ages = xr.DataArray([0],dims='cohort')
+                data = da.sel(country=country,time=time,ages=ages)
+                data = data.rename({'cohort':'time'}).assign_coords({'time':[year_end]})
+                data = data.reindex({'time':year_range}).squeeze()
+                data = data.assign_coords({'birth_year':by}).drop_vars('ages')
+                birthyear_list.append(data)            
         
         da_data = xr.concat(birthyear_list,dim='birth_year')
         country_list.append(da_data)
@@ -282,12 +277,12 @@ def calc_unprec_exposure(
     # new empty dataset with variables for population experiencing unprecedented exposure
     ds_pop_frac = xr.Dataset(
         data_vars={
-            'unprec_exposed_b': (['birth_year'], np.empty((len(birth_years)))),
-            'unprec_all_b': (['birth_year'], np.empty((len(birth_years)))),
+            'unprec_exposed_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
+            'unprec_all_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
             'unprec_all_t': (['time'], np.empty((len(year_range)))),
         },
         coords={
-            'birth_year': ('birth_year', birth_years),
+            'birth_year': ('birth_year', ds_exposure_cohort.birth_year.data),
             'time': ('time', year_range),
         }
     )
@@ -301,11 +296,11 @@ def calc_unprec_exposure(
     
     # keep all people/members of birth year cohort if birth year's timesteps cum exposure exceeds pic extreme
     da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0)
-    ds_pop_frac['unprec_all_b'].loc[{'birth_year':birth_years}] = ds_cohorts['by_population'].where(da_birthyear_emergence_mask==1).sum(dim='country')
+    ds_pop_frac['unprec_all_b'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = ds_cohorts['by_population'].where(da_birthyear_emergence_mask==1).sum(dim='country')
     # unprec_all = unprec_all.sum(dim='country') # want to do sums over time and country before reading in pickles for ensemble stats
     
     # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
-    ds_pop_frac['unprec_exposed_b'].loc[{'birth_year':birth_years}] = unprec_exposed.where(unprec_exposed!=0)
+    ds_pop_frac['unprec_exposed_b'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = unprec_exposed.where(unprec_exposed!=0)
     # unprec_all = unprec_all.where(unprec_all!=0) # should be an unnecessary line
     
     # -------------------------------------------
@@ -526,10 +521,10 @@ def strj_emergence(
     df_life_expectancy_5,
     ds_exposure_pic,
     ds_cohorts,
-    flag_extr,
-    flag_gmt,
+    by_emergence,
+    flags,
 ):
-    start_time = time.time()
+    start_time = time.time()    
     
     # create new template datasets for pop_frac and age_emergence, make assignments for each run and GMT trajectory
     ds_pop_frac = xr.Dataset(
@@ -537,14 +532,14 @@ def strj_emergence(
             'unprec_exposed_b': (
                 ['run','birth_year','GMT'],
                 np.full(
-                    (len(list(d_isimip_meta.keys())),len(birth_years),len(GMT_labels)),
+                    (len(list(d_isimip_meta.keys())),len(by_emergence),len(GMT_labels)),
                     fill_value=np.nan,
                 ),
             ),
             'unprec_all_b': (
                 ['run','birth_year','GMT'],
                 np.full(
-                    (len(list(d_isimip_meta.keys())),len(birth_years),len(GMT_labels)),
+                    (len(list(d_isimip_meta.keys())),len(by_emergence),len(GMT_labels)),
                     fill_value=np.nan
                 ),
             ),
@@ -558,7 +553,7 @@ def strj_emergence(
         },
         coords={
             'run': ('run', list(d_isimip_meta.keys())),
-            'birth_year': ('birth_year', birth_years),
+            'birth_year': ('birth_year', by_emergence),
             'GMT': ('GMT', GMT_labels),
             'time': ('time', year_range),
         }
@@ -569,14 +564,14 @@ def strj_emergence(
             'age_emergence': (
                 ['country','birth_year','run','GMT'], 
                 np.full(
-                    (len(ds_cohorts.country.data),len(birth_years),len(list(d_isimip_meta.keys())),len(GMT_labels)),
+                    (len(ds_cohorts.country.data),len(by_emergence),len(list(d_isimip_meta.keys())),len(GMT_labels)),
                     fill_value=np.nan,
                 )
             ),
         },
         coords={
             'country': ('country', ds_cohorts.country.data),
-            'birth_year': ('birth_year', birth_years),
+            'birth_year': ('birth_year', by_emergence),
             'run': ('run', list(d_isimip_meta.keys())),
             'GMT': ('GMT', GMT_labels),
         },        
@@ -585,9 +580,9 @@ def strj_emergence(
     # loop through sims and run emergence analysis
     for i in list(d_isimip_meta.keys()):
         
-        with open('./data/pickles/exposure_cohort_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
+        with open('./data/pickles/exposure_cohort_{}_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags['gmt'],flags['rm'],i), 'rb') as f:
             da_exposure_cohort = pk.load(f)
-        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flag_gmt,i), 'rb') as f:
+        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}_{}.pkl'.format(d_isimip_meta[i]['extreme'],flags['gmt'],flags['rm'],i), 'rb') as f:
             da_exposure_peryear_perage_percountry = pk.load(f)
     
         for step in da_exposure_peryear_perage_percountry.GMT.values:
@@ -597,12 +592,13 @@ def strj_emergence(
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
                 
                 # check for pickles before running full proc
-                if not os.path.isfile('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
+                if not os.path.isfile('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step)):
                     
                     # align age + time selections of annual mean exposure along birthyears + time per country, birth cohort, run; to act as mask for birthyears when pic threshold is passed
                     da_exposure_aligned = calc_birthyear_align(
                         da_exposure_peryear_perage_percountry.sel(GMT=step),
                         df_life_expectancy_5,
+                        by_emergence,
                     )
                     
                     # dataset of birthyear aligned exposure, add cumulative exposure 
@@ -611,17 +607,17 @@ def strj_emergence(
                     )
                     
                     # pickle
-                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'wb') as f:
                         pk.dump(ds_exposure_aligned_run_step,f)
                     
                 else:
                     
                     # load pickle
-                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
+                    with open('./data/pickles/ds_exposure_aligned_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'rb') as f:
                         ds_exposure_aligned_run_step = pk.load(f)
                 
                 # check for pickles before running
-                if not os.path.isfile('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)) or not os.path.isfile('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
+                if not os.path.isfile('./data/pickles/da_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step)) or not os.path.isfile('./data/pickles/ds_age_emergence_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step)):
                     
                     # use birthyear aligned (cumulative) exposure and pic extreme to extract age of emergence and get mask to include all lived timesteps per birthyear that passed pic threshold
                     da_emergence_mask_run_step, ds_age_emergence_run_step = exposure_pic_masking(
@@ -630,24 +626,25 @@ def strj_emergence(
                     )
                     
                     # pickle
-                    with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
+                    with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'wb') as f:
                         pk.dump(da_emergence_mask_run_step,f)
-                    with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'wb') as f:
                         pk.dump(ds_age_emergence_run_step,f)
                     
                 else:
                     
                     # load pickle
-                    with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
+                    with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'rb') as f:
                         da_emergence_mask_run_step = pk.load(f)
                 
                 # check for pickles before running
-                if not os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
+                if not os.path.isfile('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step)):
                 
                     # aligned cohort exposure age+time selections
                     da_exposure_cohort_aligned_run_step = calc_birthyear_align(
                         da_exposure_cohort.sel(GMT=step),
                         df_life_expectancy_5,
+                        by_emergence,
                     )
                     
                     # convert aligned cohort exposure to dataset
@@ -656,17 +653,17 @@ def strj_emergence(
                     )
                     
                     # pickle
-                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'wb') as f:
                         pk.dump(ds_exposure_cohort_aligned_run_step,f)
                         
                 else:
                     
                     # load pickle
-                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
+                    with open('./data/pickles/ds_exposure_cohort_aligned_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'rb') as f:
                         ds_exposure_cohort_aligned_run_step = pk.load(f)
                 
                 # check for pop frac before running; don't load on else since loading at end for total dataset of all runs/GMT steps
-                if not os.path.isfile('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step)):
+                if not os.path.isfile('./data/pickles/ds_pop_frac_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step)):
                     
                     # population experiencing normal vs unprecedented exposure
                     ds_pop_frac_run_step = calc_unprec_exposure(
@@ -676,7 +673,7 @@ def strj_emergence(
                     )
                     
                     # pickle
-                    with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'wb') as f:
+                    with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'wb') as f:
                         pk.dump(ds_pop_frac_run_step,f)                
     
     # loop through sims and and GMT levels and assign age emergence and pop frac to full datasets
@@ -686,15 +683,15 @@ def strj_emergence(
             
             if d_isimip_meta[i]['GMT_strj_valid'][step]: 
             
-                with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
+                with open('./data/pickles/ds_age_emergence_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'rb') as f:
                     ds_age_emergence_run_step = pk.load(f)
-                with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}.pkl'.format(flag_gmt,flag_extr,i,step), 'rb') as f:
+                with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'rb') as f:
                     ds_pop_frac_run_step = pk.load(f)                     
                 
                 # assign run/GMT to larger dataset
                 ds_age_emergence.loc[{
                     'country': ds_cohorts.country.data,
-                    'birth_year': birth_years,
+                    'birth_year': by_emergence,
                     'run': i,
                     'GMT': step,
                 }] = ds_age_emergence_run_step    
@@ -702,14 +699,14 @@ def strj_emergence(
                 # population experiencing normal vs unprecedented exposure
                 ds_pop_frac['unprec_exposed_b'].loc[{
                     'run':i,
-                    'birth_year': birth_years,
+                    'birth_year': by_emergence,
                     'GMT': step,
                 }] = ds_pop_frac_run_step['unprec_exposed_b']
                 
                 # population experiencing normal vs unprecedented exposure
                 ds_pop_frac['unprec_all_b'].loc[{
                     'run':i,
-                    'birth_year': birth_years,
+                    'birth_year': by_emergence,
                     'GMT': step,
                 }] = ds_pop_frac_run_step['unprec_all_b']
                 
@@ -727,11 +724,11 @@ def strj_emergence(
     )
         
     # pickle pop frac for individual run
-    with open('./data/pickles/pop_frac_{}_{}.pkl'.format(flag_extr,flag_gmt), 'wb') as f:
+    with open('./data/pickles/pop_frac_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
         pk.dump(ds_pop_frac,f)
     
     # pickle age emergence for individual run
-    with open('./data/pickles/age_emergence_{}_{}.pkl'.format(flag_extr,flag_gmt), 'wb') as f:
+    with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
         pk.dump(ds_age_emergence,f)
             
     print("--- {} minutes ---".format(

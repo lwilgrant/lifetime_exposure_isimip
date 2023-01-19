@@ -28,7 +28,7 @@ import cartopy.crs as ccrs
 import cartopy as cr
 import seaborn as sns
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
 
 #%% --------------------------------------------------------------------
 # test colors for plotting
@@ -1395,7 +1395,7 @@ def plot_pf_ae_by_GMT_strj(
             
             ax1.plot(
                 df_GMT_strj.loc[2100,:].values,
-                ds_pop_frac_strj['mean_frac_unprec_{}'.format(cohort_type)].sel(birth_year=by).values,
+                ds_pop_frac_strj['mean_frac_unprec_{}_b'.format(cohort_type)].sel(birth_year=by).values,
                 lw=lw_mean,
                 color=line_colors[i],
                 zorder=1,
@@ -1405,7 +1405,7 @@ def plot_pf_ae_by_GMT_strj(
                 df_GMT_strj.loc[2100,:].values,
                 ds_age_emergence_strj['age_emergence'].\
                     sel(birth_year=by).\
-                        weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        weighted(ds_cohorts['by_weights'].sel(birth_year=by)).\
                             mean(dim=('country','run')).values,
                 lw=lw_mean,
                 color=line_colors[i],
@@ -1488,6 +1488,217 @@ def plot_pf_ae_by_GMT_strj(
             bbox_inches = "tight",
             dpi=300,
         )
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_pf_t_GMT_strj(
+    ds_pop_frac_strj,
+    ds_age_emergence_strj,
+    df_GMT_strj,
+    ds_cohorts,
+    flag_ext,
+    flag_gmt,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=9
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 14
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_NDC = 'darkred'       # unprec mean color
+    col_NDC_fill = '#F08080'     # unprec fill color
+    col_15 = 'steelblue'       # normal mean color
+    col_15_fill = 'lightsteelblue'     # normal fill color
+    col_20 = 'darkgoldenrod'   # rcp60 mean color
+    col_20_fill = '#ffec80'     # rcp60 fill color
+    legend_lw=3.5 # legend line width
+    x0 = 0.05 # bbox for legend
+    y0 = 0.7
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    # time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1.0
+    xmax = 4.0
+    
+    # placment birth year cbar
+    cb_by_x0 = 0.975
+    cb_by_y0 = 0.125
+    cb_by_xlen = 0.025
+    cb_by_ylen = 0.75
+
+    # placment emf cbar
+    cb_emf_x0 = 0.60
+    cb_emf_y0 = 0.05
+    cb_emf_xlen = 0.225
+    cb_emf_ylen = 0.015
+
+    # identify colors for birth years
+    cmap_by = plt.cm.get_cmap('viridis')
+    cmap55 = cmap_by(0.01)
+    cmap50 = cmap_by(0.05)   #light
+    cmap45 = cmap_by(0.1)
+    cmap40 = cmap_by(0.15)
+    cmap35 = cmap_by(0.2)
+    cmap30 = cmap_by(0.25)
+    cmap25 = cmap_by(0.3)
+    cmap20 = cmap_by(0.325)
+    cmap10 = cmap_by(0.4)
+    cmap5 = cmap_by(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_by(0.525)
+    cmap_10 = cmap_by(0.6)
+    cmap_20 = cmap_by(0.625)
+    cmap_25 = cmap_by(0.7)
+    cmap_30 = cmap_by(0.75)
+    cmap_35 = cmap_by(0.8)
+    cmap_40 = cmap_by(0.85)
+    cmap_45 = cmap_by(0.9)
+    cmap_50 = cmap_by(0.95)  #dark
+    cmap_55 = cmap_by(0.99)
+
+
+    flag_ext='heatwavedarea'
+    flag_gmt='ar6'
+    gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
+    p = ds_pf_strj['mean_frac_unprec_all_t'].loc[{
+        'time':np.arange(1960,2101)
+    }].plot(
+        x='time',
+        y='GMT',
+        levels=np.arange(0.6,1.01,0.05),
+        cbar_kwargs={
+            'label':'Population Fraction'
+        }
+    )
+    p.axes.set_yticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100
+    )
+    p.axes.set_ylabel('GMT [°C]')
+    p.axes.set_xlabel('Time')
+    p.axes.figure.savefig('./figures/pf_time_{}_{}.png'.format(flag_ext,flag_gmt))
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of total pop and age emergence
+
+    # strj
+    for i,by in enumerate(birth_years):
+        
+        ax1.plot(
+            df_GMT_strj.loc[2100,:].values,
+            ds_pop_frac_strj['mean_frac_unprec_all_t'].sel(birth_year=by).values,
+            lw=lw_mean,
+            color=line_colors[i],
+            zorder=1,
+        )
+        
+        ax2.plot( # note that here we weight the age emergence for aggregation
+            df_GMT_strj.loc[2100,:].values,
+            ds_age_emergence_strj['age_emergence'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['weights'].sel(birth_year=by)).\
+                        mean(dim=('country','run')).values,
+            lw=lw_mean,
+            color=line_colors[i],
+            zorder=1,
+        )
+
+    ax1.set_ylabel(
+        ax1_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+    ax2.set_ylabel(
+        ax2_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+    ax2.set_xlabel(
+        ax2_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+
+    for i,ax in enumerate([ax1,ax2]):
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        ax.set_xticks(
+            xticks,
+            labels=xticklabels
+        )
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        if i < 1:
+            ax.tick_params(labelbottom=False)  
+            
+    # birth year colorbar
+    cb_by = mpl.colorbar.ColorbarBase(
+        ax=cbax_by, 
+        cmap=cmap_list_by,
+        norm=norm_by,
+        spacing='uniform',
+        orientation='vertical',
+        extend='neither',
+        ticks=tick_locs_by,
+        drawedges=False,
+    )
+    cb_by.set_label(
+        'Birth year',
+        size=16,
+    )
+    cb_by.ax.xaxis.set_label_position('bottom')
+    cb_by.ax.tick_params(
+        labelcolor='0',
+        labelsize=16,
+        color='0.5',
+        length=3.5,
+        width=0.4,
+        # direction='right',
+    ) 
+    cb_by.ax.set_yticklabels(
+        tick_labels_by,
+        fontsize=10
+        # rotation=45,
+    )
+    cb_by.outline.set_edgecolor('0.9')
+    cb_by.outline.set_linewidth(0)                  
+            
+    f.savefig(
+        './figures/pf_t_ae_by_{}_{}.png'.format(flag_ext,flag_gmt),
+        bbox_inches = "tight",
+        dpi=300,
+    )
 
 #%% ----------------------------------------------------------------
 # plotting pop frac
