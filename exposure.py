@@ -10,12 +10,50 @@ import pandas as pd
 import geopandas as gpd
 import pickle as pk
 from scipy import interpolate
-import regionmask
+from scipy import stats as sts
+import regionmask as rm
 import glob
 import time
 import matplotlib.pyplot as plt
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters = init()
+
+
+#%% ----------------------------------------------------------------
+# linear regression
+def lreg(x, y):
+    # Wrapper around scipy linregress to use in apply_ufunc
+    slope, intercept, r_value, p_value, std_err = sts.linregress(x, y)
+    return np.array([slope, p_value, r_value])
+
+#%% ----------------------------------------------------------------
+# apply vectorized linear regression
+def vectorize_lreg(da_y,
+                   da_x=None):
+    
+    if da_x is not None:
+        
+        pass
+    
+    else:
+        
+        da_list = []
+        for t in da_y.time.values:
+            da_list.append(xr.where(da_y.sel(time=t).notnull(),t,da_y.sel(time=t)))
+        da_x = xr.concat(da_list,dim='time')
+        
+    stats = xr.apply_ufunc(lreg, da_x, da_y,
+                           input_core_dims=[['time'], ['time']],
+                           output_core_dims=[["parameter"]],
+                           vectorize=True,
+                           dask="parallelized",
+                           output_dtypes=['float64'],
+                           output_sizes={"parameter": 3})
+    slope = stats.sel(parameter=0) 
+    p_value = stats.sel(parameter=1)
+    r_value = stats.sel(parameter=2)
+    return slope,p_value
+
 #%% ----------------------------------------------------------------
 # bootstrapping function 
 
@@ -218,11 +256,97 @@ def calc_exposure_mmm_pic_xr(
     )
 
     return ds_exposure_pic_stats
-
 #%% ----------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 
 # per-country number of extremes affecting one individual across life span
-def calc_exposure(
+def calc_exposure_trends(
+    d_isimip_meta,
+    grid_area,
+    flags,
+):
+
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+    ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+
+    ds_e = xr.Dataset(
+        data_vars={
+            'exposure_trend': (
+                ['run','GMT','region'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(GMT_labels),len(ar6_regs_3D.region.data)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'exposure_p': (
+                ['run','GMT','region'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(GMT_labels),len(ar6_regs_3D.region.data)),
+                    fill_value=np.nan,
+                ),
+            ),            
+            'mean_exposure_trend': (
+                ['GMT','region'],
+                np.full(
+                    (len(GMT_labels),len(ar6_regs_3D.region.data)),
+                    fill_value=np.nan,
+                ),
+            ),
+        },
+        coords={
+            'region': ('region', ar6_regs_3D.region.data),
+            'run': ('run', list(d_isimip_meta.keys())),
+            'GMT': ('GMT', GMT_labels),
+        }
+    )
+    
+    # loop over simulations
+    for i in list(d_isimip_meta.keys()): 
+
+        print('simulation {} of {}'.format(i,len(d_isimip_meta)))
+
+        # load AFA data of that run
+        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+            da_AFA = pk.load(f)  
+        
+        # if max threshold criteria met, run gmt mapping
+        for step in GMT_labels:
+            
+            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            
+                da_AFA = da_AFA.reindex(
+                    {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+                ).assign_coords({'time':year_range}) 
+                
+                da_AFA_weighted_sum = da_AFA.weighted(ar6_regs_3D*grid_area/10**-6).sum(dim=('lat','lon'))
+        
+                # convert dataframe to data array of lifetime exposure (le) per country and birth year
+                stats = vectorize_lreg(da_AFA_weighted_sum)
+                slope = stats[0]
+                p_value = stats[1]
+                ds_e['exposure_trend'].loc[{
+                    'run':i,
+                    'GMT':step,
+                    'region':ar6_regs_3D.region.data,
+                }] = slope
+                ds_e['exposure_p'].loc[{
+                    'run':i,
+                    'GMT':step,
+                    'region':ar6_regs_3D.region.data,
+                }] = p_value                
+                
+    ds_e['mean_exposure_trend'] = ds_e['exposure_trend'].mean(dim='run')
+
+    # dump pickle of lifetime exposure
+    with open('./data/pickles/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
+        pk.dump(ds_e,f)
+
+    return ds_e
+        
+#%% ----------------------------------------------------------------
+# convert Area Fraction Affected (AFA) to 
+# per-country number of extremes affecting one individual across life span
+def calc_lifetime_exposure(
     d_isimip_meta, 
     df_countries, 
     countries_regions, 
@@ -308,7 +432,7 @@ def calc_exposure(
                 }] = d_exposure_perrun_step.values.transpose()             
 
     # dump pickle of lifetime exposure
-    with open('./data/pickles/exposure_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
+    with open('./data/pickles/lifetime_exposure_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
         pk.dump(ds_le,f)
 
     return ds_le
@@ -316,7 +440,7 @@ def calc_exposure(
 #%% ----------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 
 # per-cohort number of extremes affecting one individual across life span
-def calc_cohort_exposure(
+def calc_cohort_lifetime_exposure(
     d_isimip_meta,
     df_countries,
     countries_regions,
@@ -439,7 +563,7 @@ def calc_cohort_exposure(
 #%% ----------------------------------------------------------------
 # convert PIC Area Fraction Affected (AFA) to 
 # per-country number of extremes affecting one individual across life span
-def calc_exposure_pic(
+def calc_lifetime_exposure_pic(
     d_pic_meta, 
     df_countries, 
     countries_regions, 
