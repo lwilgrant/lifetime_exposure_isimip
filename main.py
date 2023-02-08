@@ -55,7 +55,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'driedarea' # 0: all
+flags['extr'] = 'floodedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -71,7 +71,7 @@ flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure_trends'] = 0       # 0: do not run trend analysis on exposure for identifying regional trends (load pickle)
+flags['exposure_trends'] = 1       # 0: do not run trend analysis on exposure for identifying regional trends (load pickle)
                                    # 1: run trend analysis
 flags['lifetime_exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                                      # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
@@ -175,8 +175,9 @@ if flags['exposure_trends']:
     ds_e = calc_exposure_trends(
         d_isimip_meta,
         grid_area,
+        gdf_country_borders,
         flags,
-    )         
+    )
         
     print("--- {} minutes for original exosure computation ---".format(
         np.floor((time.time() - start_time) / 60),
@@ -190,61 +191,6 @@ else: # load processed exposure data
     # load lifetime exposure pickle
     with open('./data/pickles/exposure_trends_{}_{}_{}_test.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
         ds_e = pk.load(f)
-
-# plot testing        
-continents = {}
-continents['North America'] = [1,2,3,4,5,6,7]
-continents['South America'] = [9,10,11,12,13,14,15]
-continents['Europe'] = [16,17,18,19]
-continents['Asia'] = [28,29,30,31,32,33,34,35,37,38]
-continents['Africa'] = [21,22,23,24,25,26]
-continents['Australia'] = [39,40,41,42]    
-
-regions = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
-gpd_continents = gpd.read_file('./data/shapefiles/IPCC_WGII_continental_regions.shp')
-# gpd_continents = gpd_continents[(gpd_continents.Region != 'Antarctica')&(gpd_continents.Region != 'Small Islands')]
-regions = gpd.clip(regions,gpd_continents)
-regions['keep'] = [0]*len(regions.Acronym)
-for r in ds_e.region.data:
-    regions.loc[r,'keep'] = 1 
-regions = regions[regions.keep!=0].sort_index()
-for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
-    regions[GMT] = ds_e['mean_exposure_trend'].loc[{'GMT':i}].values
-    
-
-samples = regions.loc[:,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')].values.flatten()
-q90 = np.quantile(samples,0.9)
-q10 = np.quantile(samples,0.1)
-cb_end = np.around(q90,-2)
-cb_start = np.around(q10,-2)
-levels = np.linspace(cb_start,cb_end,num=(int((cb_end - cb_start)/50)-1))
-levels = np.arange(cb_start,cb_end,50).astype('int')
-    
-f,axes = plt.subplots(
-    nrows=2,
-    ncols=3,
-    figsize=(15,5),
-)
-for ax,GMT in zip(axes.flatten(),np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
-    regions.plot(
-        ax=ax,
-        column=GMT,
-    )
-    
-for i,ax in enumerate(axes.flatten()):
-    ax.set_yticks([])
-    ax.set_xticks([])
-    ax.set_title(
-        letters[i],
-        loc='left',
-        fontweight='bold',
-        fontsize=10)
-    ax.set_title(
-        '{} °C @ 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_indices].iloc[i],1)),
-        loc='center',
-        fontweight='bold',
-        fontsize=10)           
-
 
 # --------------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 
@@ -493,12 +439,13 @@ if flags['plot']:
         d_isimip_meta,
     )    
     
-    plot_e_trends(
+    plot_trend(
         ds_e,
-        GMT_indices,
-        df_GMT_strj,
         flags,
-    )
+        gdf_country_borders,
+        df_GMT_strj,
+        GMT_indices,
+    )    
     
     plot_le_by_GMT_strj(
         ds_le,

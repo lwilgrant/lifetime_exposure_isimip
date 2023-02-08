@@ -51,6 +51,173 @@ def floater(f):
     elif f >= 2.5:
         col = 'hi'
     return col
+
+#%% --------------------------------------------------------------------
+# plot trends
+
+def plot_trend(
+    ds_e,
+    flags,
+    gdf_country_borders,
+    df_GMT_strj,
+    GMT_indices,
+):
+
+    continents = {}
+    continents['North America'] = [1,2,3,4,5,6,7]
+    continents['South America'] = [9,10,11,12,13,14,15]
+    continents['Europe'] = [16,17,18,19]
+    continents['Asia'] = [28,29,30,31,32,33,34,35,37,38]
+    continents['Africa'] = [21,22,23,24,25,26]
+    continents['Australia'] = [39,40,41,42]    
+
+    regions = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
+    gpd_continents = gpd.read_file('./data/shapefiles/IPCC_WGII_continental_regions.shp')
+    # gpd_continents = gpd_continents[(gpd_continents.Region != 'Antarctica')&(gpd_continents.Region != 'Small Islands')]
+    regions = gpd.clip(regions,gpd_continents)
+    regions['keep'] = [0]*len(regions.Acronym)
+    for r in ds_e.region.data:
+        regions.loc[r,'keep'] = 1 
+    regions = regions[regions.keep!=0].sort_index()
+    gdf_countries = gdf_country_borders.reset_index()
+    
+    for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+        regions[GMT] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':i}].values
+        gdf_countries[GMT] = ds_e['mean_exposure_trend_country'].loc[{'GMT':i}].values
+
+    samples = regions.loc[:,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')].values.flatten()
+    q90 = np.quantile(samples,0.9)
+    q10 = np.quantile(samples,0.1)
+    if flags['extr'] == 'driedarea':
+        cb_end = np.around(q90,-2)
+        cb_start = np.around(q10,-2)
+        levels = np.arange(cb_start,cb_end,50).astype('int')
+    elif flags['extr'] == 'floodedarea':
+        cb_end = np.around(q90,-1)
+        cb_start = np.around(q10,-1)
+        levels = np.arange(cb_start,cb_end+1,10).astype('int')
+        
+    # identify colors
+    cmap_whole = plt.cm.get_cmap('RdBu_r')
+    cmap55 = cmap_whole(0.01)
+    cmap50 = cmap_whole(0.05)   #blue
+    cmap45 = cmap_whole(0.1)
+    cmap40 = cmap_whole(0.15)
+    cmap35 = cmap_whole(0.2)
+    cmap30 = cmap_whole(0.25)
+    cmap25 = cmap_whole(0.3)
+    cmap20 = cmap_whole(0.325)
+    cmap10 = cmap_whole(0.4)
+    cmap5 = cmap_whole(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_whole(0.525)
+    cmap_10 = cmap_whole(0.6)
+    cmap_15 = cmap_whole(0.625)
+    cmap_20 = cmap_whole(0.65)
+    cmap_25 = cmap_whole(0.7)
+    cmap_30 = cmap_whole(0.75)
+    cmap_35 = cmap_whole(0.8)
+    cmap_40 = cmap_whole(0.85)
+    cmap_45 = cmap_whole(0.9)
+    cmap_50 = cmap_whole(0.95)  #red
+    cmap_55 = cmap_whole(0.99)
+
+    # need 11 colors for drying
+    if flags['extr'] == 'driedarea':
+        colors = [
+            cmap45,cmap25, # blue for negative drying (wetting)
+            cmap_5,cmap_10,cmap_15,cmap_20,cmap_25,cmap_30,cmap_35,cmap_40,cmap_45, # red for drying
+        ]
+    # need 8 colors for flooding
+    elif flags['extr'] == 'floodedarea':
+        colors = [
+            cmap_45, # red for negative flooding (drying)
+            cmap10,cmap20,cmap25,cmap30,cmap35,cmap40,cmap45, # blue for flooding
+        ]    
+
+    # declare list of colors for discrete colormap of colorbar
+    cmap = mpl.colors.ListedColormap(colors,N=len(colors))
+    if flags['extr'] == 'driedarea':
+        cmap.set_over(cmap_55)
+        cmap.set_under(cmap55)
+    elif flags['extr'] == 'floodedarea':
+        cmap.set_over(cmap55)
+        cmap.set_under(cmap_55)    
+    norm = mpl.colors.BoundaryNorm(levels,cmap.N)
+
+    # cbar location
+    cb_x0 = 0.25
+    cb_y0 = 0.05
+    cb_xlen = 0.5
+    cb_ylen = 0.015
+
+    # cbar stuff
+    col_cbticlbl = '0'   # colorbar color of tick labels
+    col_cbtic = '0.5'   # colorbar color of ticks
+    col_cbedg = '0.9'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors
+
+    # fonts
+    title_font = 14
+    cbtitle_font = 20
+    tick_font = 12
+    legend_font=12
+
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(15,5),
+    )
+
+    cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen,])
+
+    for ax,GMT in zip(axes.flatten(),np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+        regions.plot(
+            ax=ax,
+            column=GMT,
+            cmap=cmap,
+        )
+        
+    for i,ax in enumerate(axes.flatten()):
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_title(
+            letters[i],
+            loc='left',
+            fontweight='bold',
+            fontsize=10)
+        ax.set_title(
+            '{} °C @ 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_indices].iloc[i],1)),
+            loc='center',
+            fontweight='bold',
+            fontsize=10)          
+        
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cbax, 
+        cmap=cmap,
+        norm=norm,
+        spacing='uniform',
+        orientation='horizontal',
+        extend='both',
+        ticks=levels,
+        drawedges=False
+    )
+    # cb_lu.set_label('LU trends (°C/5-years)',
+    cb.set_label( '{} trends [km^2/year]'.format(flags['extr']))
+    cb.ax.xaxis.set_label_position('top')
+    cb.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        labelsize=tick_font,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )
+    cb.outline.set_edgecolor(col_cbedg)
+    cb.outline.set_linewidth(cb_edgthic)
+    f.savefig('./figures/{}_ar6_trends.png'.format(flags['extr']),dpi=800)
     
 #%% ----------------------------------------------------------------
 # plot timing and EMF of exceedence of pic-defined extreme
@@ -1256,7 +1423,7 @@ def plot_pop_frac_birth_year_strj(
 
 #%% ----------------------------------------------------------------
 # plotting pop frac
-def plot_pf_ae_by_GMT_strj(
+def plot_pf_ae_by_lines(
     ds_pf_strj,
     ds_ae_strj,
     df_GMT_strj,
@@ -1370,6 +1537,141 @@ def plot_pf_ae_by_GMT_strj(
     ax2_ylab = 'Age emergence'
     ax2_xlab = 'GMT anomaly at 2100 [°C]'
     
+    # line version
+    # for cohort_type in ['exposed','all']:
+    f,(ax1,ax2) = plt.subplots(
+        nrows=2,
+        ncols=1,
+        figsize=(x,y),
+    )
+    
+    # colorbar axes
+    cbax_by = f.add_axes([
+        cb_by_x0, 
+        cb_by_y0, 
+        cb_by_xlen, 
+        cb_by_ylen
+    ])         
+
+    # --------------------------------------------------------------------
+    # plot unprecedented frac of total pop and age emergence
+
+    # strj
+    for i,by in enumerate(np.arange(1960,2021,1)):
+        
+        ax1.plot(
+            df_GMT_strj.loc[2100,:].values,
+            ds_pf_strj['mean_frac_unprec_all_b_y0'].sel(birth_year=by).values,
+            lw=lw_mean,
+            color=line_colors[i],
+            zorder=1,
+        )
+        
+        ax2.plot( # note that here we weight the age emergence for aggregation
+            df_GMT_strj.loc[2100,:].values,
+            ds_ae_strj['age_emergence'].\
+                sel(birth_year=by).\
+                    weighted(ds_cohorts['by_y0_weights'].sel(birth_year=by)).\
+                        mean(dim=('country','run')).values,
+            lw=lw_mean,
+            color=line_colors[i],
+            zorder=1,
+        )
+
+    ax1.set_ylabel(
+        ax1_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+    ax2.set_ylabel(
+        ax2_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+    ax2.set_xlabel(
+        ax2_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+
+    for i,ax in enumerate([ax1,ax2]):
+        ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        ax.set_xticks(
+            xticks,
+            labels=xticklabels
+        )
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_axisbelow(True) 
+        if i < 1:
+            ax.tick_params(labelbottom=False)  
+            
+    # birth year colorbar
+    cb_by = mpl.colorbar.ColorbarBase(
+        ax=cbax_by, 
+        cmap=cmap_list_by,
+        norm=norm_by,
+        spacing='uniform',
+        orientation='vertical',
+        extend='neither',
+        ticks=tick_locs_by,
+        drawedges=False,
+    )
+    cb_by.set_label(
+        'Birth year',
+        size=16,
+    )
+    cb_by.ax.xaxis.set_label_position('bottom')
+    cb_by.ax.tick_params(
+        labelcolor='0',
+        labelsize=16,
+        color='0.5',
+        length=3.5,
+        width=0.4,
+        # direction='right',
+    ) 
+    cb_by.ax.set_yticklabels(
+        tick_labels_by,
+        fontsize=10
+        # rotation=45,
+    )
+    cb_by.outline.set_edgecolor('0.9')
+    cb_by.outline.set_linewidth(0)                  
+                
+    f.savefig(
+        './figures/pf_ae_by_lines_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']),
+        bbox_inches = "tight",
+        dpi=300,
+    )
+    
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_pf_ae_by_heatmap(
+    ds_pf_strj,
+    ds_ae_strj,
+    df_GMT_strj,
+    ds_cohorts,
+    flags,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    
     # --------------------------------------------------------------------
     # heatmap version
     
@@ -1396,12 +1698,13 @@ def plot_pf_ae_by_GMT_strj(
     )    
     p.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p.axes.set_xlabel('Birth year')
-    p.axes.figure.savefig('./figures/pf_by_y0_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p.axes.figure.savefig('./figures/pf_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    plt.show()
     
     p2 = ds_ae_strj['age_emergence'].weighted(ds_cohorts['by_y0_weights']).mean(dim=('country','run')).plot(
         x='birth_year',
         y='GMT',
-        levels=np.arange(10,80,5),
+        # levels=np.arange(10,80,5),
         cbar_kwargs={
             'label':'Age Emergence'
         }        
@@ -1412,126 +1715,9 @@ def plot_pf_ae_by_GMT_strj(
     )
     p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p2.axes.set_xlabel('Birth year')
-    p2.axes.figure.savefig('./figures/ae_by_y0_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
+    p2.axes.figure.savefig('./figures/ae_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
 
-    # # line version
-    # for cohort_type in ['exposed','all']:
         
-    #     f,(ax1,ax2) = plt.subplots(
-    #         nrows=2,
-    #         ncols=1,
-    #         figsize=(x,y),
-    #     )
-        
-    #     # colorbar axes
-    #     cbax_by = f.add_axes([
-    #         cb_by_x0, 
-    #         cb_by_y0, 
-    #         cb_by_xlen, 
-    #         cb_by_ylen
-    #     ])         
-
-    #     # --------------------------------------------------------------------
-    #     # plot unprecedented frac of total pop and age emergence
-
-    #     # strj
-    #     for i,by in enumerate(np.arange(1960,2021,1)):
-            
-    #         ax1.plot(
-    #             df_GMT_strj.loc[2100,:].values,
-    #             ds_pop_frac_strj['mean_frac_unprec_{}_b'.format(cohort_type)].sel(birth_year=by).values,
-    #             lw=lw_mean,
-    #             color=line_colors[i],
-    #             zorder=1,
-    #         )
-            
-    #         ax2.plot( # note that here we weight the age emergence for aggregation
-    #             df_GMT_strj.loc[2100,:].values,
-    #             ds_age_emergence_strj['age_emergence'].\
-    #                 sel(birth_year=by).\
-    #                     weighted(ds_cohorts['by_weights'].sel(birth_year=by)).\
-    #                         mean(dim=('country','run')).values,
-    #             lw=lw_mean,
-    #             color=line_colors[i],
-    #             zorder=1,
-    #         )
-
-    #     ax1.set_ylabel(
-    #         ax1_ylab, 
-    #         va='center', 
-    #         rotation='vertical', 
-    #         fontsize=axis_font, 
-    #         labelpad=10,
-    #     )
-    #     ax2.set_ylabel(
-    #         ax2_ylab, 
-    #         va='center', 
-    #         rotation='vertical', 
-    #         fontsize=axis_font, 
-    #         labelpad=10,
-    #     )    
-    #     ax2.set_xlabel(
-    #         ax2_xlab, 
-    #         va='center', 
-    #         rotation='horizontal', 
-    #         fontsize=axis_font, 
-    #         labelpad=10,
-    #     )    
-
-    #     for i,ax in enumerate([ax1,ax2]):
-    #         ax.set_title(letters[i],loc='left',fontsize=title_font,fontweight='bold')
-    #         ax.set_xlim(xmin,xmax)
-    #         ax.set_xticks(
-    #             xticks,
-    #             labels=xticklabels
-    #         )
-    #         ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
-    #         ax.tick_params(labelsize=tick_font,axis="y",direction="in")
-    #         ax.spines['right'].set_visible(False)
-    #         ax.spines['top'].set_visible(False)
-    #         ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
-    #         ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
-    #         ax.set_axisbelow(True) 
-    #         if i < 1:
-    #             ax.tick_params(labelbottom=False)  
-                
-    #     # birth year colorbar
-    #     cb_by = mpl.colorbar.ColorbarBase(
-    #         ax=cbax_by, 
-    #         cmap=cmap_list_by,
-    #         norm=norm_by,
-    #         spacing='uniform',
-    #         orientation='vertical',
-    #         extend='neither',
-    #         ticks=tick_locs_by,
-    #         drawedges=False,
-    #     )
-    #     cb_by.set_label(
-    #         'Birth year',
-    #         size=16,
-    #     )
-    #     cb_by.ax.xaxis.set_label_position('bottom')
-    #     cb_by.ax.tick_params(
-    #         labelcolor='0',
-    #         labelsize=16,
-    #         color='0.5',
-    #         length=3.5,
-    #         width=0.4,
-    #         # direction='right',
-    #     ) 
-    #     cb_by.ax.set_yticklabels(
-    #         tick_labels_by,
-    #         fontsize=10
-    #         # rotation=45,
-    #     )
-    #     cb_by.outline.set_edgecolor('0.9')
-    #     cb_by.outline.set_linewidth(0)                  
-                
-    #     f.savefig(
-    #         './figures/pop_frac_birthyear_GMT_strj_annual_{}_{}_{}_{}.png'.format(flags['extr'],cohort_type,flags['gmt'],flags['rm']),
-    #         bbox_inches = "tight",
-    #         dpi=300,
-    #     )
 #%% ----------------------------------------------------------------
 # plotting pop frac
 def plot_pf_t_GMT_strj(
@@ -2606,66 +2792,6 @@ def plot_stylized_trajectories(
     )               
             
     f.savefig('./figures/GMT_trajectories_rcp_stylized.png',dpi=300)    
-
-def plot_e_trends(
-    ds_e,
-    GMT_indices,
-    df_GMT_strj,
-    flags,
-):
-    
-    # ds_e = xr.Dataset(
-    #     data_vars={
-    #         'exposure_trend': (
-    #             ['run','GMT','lat','lon'],
-    #             np.full(
-    #                 (len(list(d_isimip_meta.keys())),len(GMT_labels),len(da_population.lat.data),len(da_population.lon.data)),
-    #                 fill_value=np.nan,
-    #             ),
-    #         ),
-    #         'exposure_p': (
-    #             ['run','GMT','lat','lon'],
-    #             np.full(
-    #                 (len(list(d_isimip_meta.keys())),len(GMT_labels),len(da_population.lat.data),len(da_population.lon.data)),
-    #                 fill_value=np.nan,
-    #             ),
-    #         ),            
-    #         'mean_exposure_trend': (
-    #             ['GMT','lat','lon'],
-    #             np.full(
-    #                 (len(GMT_labels),len(da_population.lat.data),len(da_population.lon.data)),
-    #                 fill_value=np.nan,
-    #             ),
-    #         ),
-    #     },
-    #     coords={
-    #         'lat': ('lat', da_population.lat.data),
-    #         'lon': ('lon', da_population.lon.data),
-    #         'run': ('run', list(d_isimip_meta.keys())),
-    #         'GMT': ('GMT', GMT_labels)
-    #     }
-    # ) 
-    
-    p = ds_e['mean_exposure_trend'].loc[{
-        'GMT':GMT_indices
-    }].plot(
-        transform=ccrs.PlateCarree(),
-        levels=np.arange(0,.1,0.01),
-        col='GMT',
-        subplot_kws={
-            'projection':ccrs.Robinson(),
-        },
-        cbar_kwargs={
-            'label':'Exposure trends'
-        },
-    )
-    # p.axes.set_yticks(
-    #     ticks=[0,5,10,15,20,25],
-    #     labels=gmts2100
-    # )
-    # p.axes.set_ylabel('GMT [°C]')
-    # p.axes.set_xlabel('Time')
-    p.axes.figure.savefig('./figures/pf_time_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))  
     
 
 #%% ----------------------------------------------------------------
