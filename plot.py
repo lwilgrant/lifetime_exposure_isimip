@@ -31,6 +31,19 @@ from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters = init()
 
 #%% --------------------------------------------------------------------
+class MidpointNormalize(mpl.colors.Normalize):
+    def __init__(self, vmin, vmax, midpoint=0, clip=False):
+        self.midpoint = midpoint
+        mpl.colors.Normalize.__init__(self, vmin, vmax, clip)
+
+    def __call__(self, value, clip=None):
+        normalized_min = max(0, 1 / 2 * (1 - abs((self.midpoint - self.vmin) / (self.midpoint - self.vmax))))
+        normalized_max = min(1, 1 / 2 * (1 + abs((self.vmax - self.midpoint) / (self.midpoint - self.vmin))))
+        normalized_mid = 0.5
+        x, y = [self.vmin, self.midpoint, self.vmax], [normalized_min, normalized_mid, normalized_max]
+        return np.ma.masked_array(np.interp(value, x, y))
+
+#%% --------------------------------------------------------------------
 # test colors for plotting
 
 def c(x):
@@ -62,6 +75,9 @@ def plot_trend(
     df_GMT_strj,
     GMT_indices,
 ):
+
+    #=========================================================================================
+    # plot trends for 1960-2113
 
     continents = {}
     continents['North America'] = [1,2,3,4,5,6,7]
@@ -218,6 +234,119 @@ def plot_trend(
     cb.outline.set_edgecolor(col_cbedg)
     cb.outline.set_linewidth(cb_edgthic)
     f.savefig('./figures/{}_ar6_trends.png'.format(flags['extr']),dpi=800)
+    
+    #=========================================================================================
+    # plot trends for different 80 year ranges
+
+    continents = {}
+    continents['North America'] = [1,2,3,4,5,6,7]
+    continents['South America'] = [9,10,11,12,13,14,15]
+    continents['Europe'] = [16,17,18,19]
+    continents['Asia'] = [28,29,30,31,32,33,34,35,37,38]
+    continents['Africa'] = [21,22,23,24,25,26]
+    continents['Australia'] = [39,40,41,42]    
+
+    regions = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
+    gpd_continents = gpd.read_file('./data/shapefiles/IPCC_WGII_continental_regions.shp')
+    regions = gpd.clip(regions,gpd_continents)
+    regions['keep'] = [0]*len(regions.Acronym)
+    for r in ds_e.region.data:
+        regions.loc[r,'keep'] = 1 
+    regions = regions[regions.keep!=0].sort_index()
+    gdf_countries = gdf_country_borders.reset_index()
+    
+    for y in np.arange(year_start,year_ref+1,20):
+        
+        for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+            regions[GMT] = ds_e['mean_exposure_trend_ar6_time_ranges'].loc[{'GMT':i,'year':y}].values
+            gdf_countries[GMT] = ds_e['mean_exposure_trend_country_time_ranges'].loc[{'GMT':i,'year':y}].values
+
+        samples = regions.loc[:,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')].values.flatten()
+        vmin = samples.min()
+        vmax = samples.max()
+
+        # need 11 colors for drying
+        if flags['extr'] == 'driedarea':
+            cmap = 'RdBu_r'
+        elif flags['extr'] == 'floodedarea':
+            cmap = 'RdBu'
+        norm = MidpointNormalize(vmin=vmin,vmax=vmax,midpoint=0)
+
+        # cbar location
+        cb_x0 = 0.25
+        cb_y0 = 0.05
+        cb_xlen = 0.5
+        cb_ylen = 0.015
+
+        # cbar stuff
+        col_cbticlbl = '0'   # colorbar color of tick labels
+        col_cbtic = '0.5'   # colorbar color of ticks
+        col_cbedg = '0.9'   # colorbar color of edge
+        cb_ticlen = 3.5   # colorbar length of ticks
+        cb_ticwid = 0.4   # colorbar thickness of ticks
+        cb_edgthic = 0   # colorbar thickness of edges between colors
+
+        # fonts
+        title_font = 14
+        cbtitle_font = 20
+        tick_font = 12
+        legend_font=12
+
+        f,axes = plt.subplots(
+            nrows=2,
+            ncols=3,
+            figsize=(15,5),
+        )
+
+        cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen,])
+
+        for ax,GMT in zip(axes.flatten(),np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+            regions.plot(
+                ax=ax,
+                column=GMT,
+                cmap=cmap,
+                cax=cbax,
+                norm=norm
+            )
+            
+        for i,ax in enumerate(axes.flatten()):
+            ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_title(
+                letters[i],
+                loc='left',
+                fontweight='bold',
+                fontsize=10)
+            ax.set_title(
+                '{} °C @ 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_indices].iloc[i],1)),
+                loc='center',
+                fontweight='bold',
+                fontsize=10)          
+            
+        cb = mpl.colorbar.ColorbarBase(
+            ax=cbax, 
+            cmap=cmap,
+            norm=norm,
+            # spacing='uniform',
+            orientation='horizontal',
+            # extend='both',
+            # ticks=levels,
+            drawedges=False
+        )
+        # cb_lu.set_label('LU trends (°C/5-years)',
+        cb.set_label( '{} trends [km^2/year], {}-{}'.format(flags['extr'],str(y),str(y+80)))
+        cb.ax.xaxis.set_label_position('top')
+        cb.ax.tick_params(
+            labelcolor=col_cbticlbl,
+            labelsize=tick_font,
+            color=col_cbtic,
+            length=cb_ticlen,
+            width=cb_ticwid,
+            direction='out'
+        )
+        cb.outline.set_edgecolor(col_cbedg)
+        cb.outline.set_linewidth(cb_edgthic)
+        f.savefig('./figures/{}_ar6_trends_{}-{}.png'.format(flags['extr'],str(y),str(y+80)),dpi=800)    
     
 #%% ----------------------------------------------------------------
 # plot timing and EMF of exceedence of pic-defined extreme

@@ -695,7 +695,9 @@ def strj_emergence(
                     
                     # pickle
                     with open('./data/pickles/ds_pop_frac_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'wb') as f:
-                        pk.dump(ds_pop_frac_run_step,f)                
+                        pk.dump(ds_pop_frac_run_step,f)           
+                        
+                    # regional emergence analysis (make country selection for wetting/drying regions before country sum in calc_unprec_exposure)
     
     # loop through sims and and GMT levels and assign age emergence and pop frac to full datasets
     for i in list(d_isimip_meta.keys()):

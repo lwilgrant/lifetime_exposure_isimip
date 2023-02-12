@@ -276,6 +276,7 @@ def calc_exposure_trends(
     # countries_3D = rm.defined_regions.natural_earth_v5_0_0.countries_110.mask_3D(lon,lat) opting to use same geodataframe as analysis instead of regionmask
     countries_3D = rm.mask_3D_geopandas(gdf_country_borders.reset_index(),lon,lat)
 
+    # dataset for exposure trends
     ds_e = xr.Dataset(
         data_vars={
             'exposure_trend_ar6': (
@@ -353,7 +354,7 @@ def calc_exposure_trends(
         with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)  
         
-        # per GMT step, if max threshold criteria met, run gmt mapping and trends
+        # per GMT step, if max threshold criteria met, run gmt mapping and compute trends
         for step in GMT_labels:
             
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
@@ -362,7 +363,7 @@ def calc_exposure_trends(
                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                 ).assign_coords({'time':year_range}) 
                 
-                # get sums of exposed area per ar6 & country
+                # get sums of exposed area per ar6 & country, convert m^2 to km^2
                 da_AFA_ar6_weighted_sum = da_AFA.weighted(ar6_regs_3D*grid_area/10**6).sum(dim=('lat','lon'))
                 da_AFA_country_weighted_sum = da_AFA.weighted(countries_3D*grid_area/10**6).sum(dim=('lat','lon'))
         
@@ -379,7 +380,7 @@ def calc_exposure_trends(
                 
                 # countries
                 stats_countries = vectorize_lreg(da_AFA_country_weighted_sum)
-                slope_countries = stats_countries
+                slope_countries = stats_countries[0]
                 ds_e['exposure_trend_country'].loc[{
                     'run':i,
                     'GMT':step,

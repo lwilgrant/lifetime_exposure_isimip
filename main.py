@@ -83,6 +83,8 @@ flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort em
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birth years from 1960-2020
                                     # 1: run calc_birthyear_align with birth years from 1960-2100
+flags['regional_emergence'] = 0     # 0: do not run regional emergence analysis
+                                    # 1: run regional emergence analysis                                     
 flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
 flags['plot'] = 0
@@ -186,10 +188,10 @@ if flags['exposure_trends']:
 
 else: # load processed exposure data
 
-    print('Loading processed exposures')
+    print('Loading processed exposure trends')
 
     # load lifetime exposure pickle
-    with open('./data/pickles/exposure_trends_{}_{}_{}_test.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+    with open('./data/pickles/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
         ds_e = pk.load(f)
 
 # --------------------------------------------------------------------
@@ -218,7 +220,7 @@ if flags['lifetime_exposure']:
 
 else: # load processed exposure data
 
-    print('Loading processed exposures')
+    print('Loading processed lifetime exposures')
 
     # load lifetime exposure pickle
     with open('./data/pickles/lifetime_exposure_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
@@ -323,27 +325,15 @@ if flags['emergence']:
             da_cohort_aligned,
         )
         
-        # # global mean life expectancy
-        # le_subset = pd.concat([df_life_expectancy_5.loc[:,c] for c in df_countries['name']],axis=1) # get relevant countries' life expectancy
-        # da_le_subset = le_subset.to_xarray().to_array().rename({'index':'birth_year','variable':'country'})
-        # da_gmle = da_le_subset.weighted(ds_cohorts['weights'].sel(birth_year=da_le_subset.birth_year.data)).mean(dim='country')
-        # testdf = da_gmle.to_dataframe(name='gmle') # testing for comp against df_GMT_strj
-        # not sure if there's logic to line limitation for plot_pop_frac_birth_year_GMT_strj()
-            # need to ask, what is the common level of warming that 1960 birth year lives to in all trajectories (horizontal line in gmt trajects)
-        
         # pickle birth year aligned cohort sizes and global mean life expectancy
         with open('./data/pickles/cohort_sizes.pkl', 'wb') as f:
             pk.dump(ds_cohorts,f)  
-        # with open('./data/pickles/global_mean_life_expectancy.pkl', 'wb') as f:
-        #     pk.dump(da_gmle,f)
-    
+
     else:
         
         # load pickled birth year aligned cohort sizes and global mean life expectancy
         with open('./data/pickles/cohort_sizes.pkl', 'rb') as f:
-            ds_cohorts = pk.load(f)          
-        # with open('./data/pickles/global_mean_life_expectancy.pkl', 'rb') as f:
-        #     da_gmle = pk.load(f)                      
+            ds_cohorts = pk.load(f)                             
     
     ds_ae_strj, ds_pf_strj = strj_emergence(
         d_isimip_meta,
@@ -372,7 +362,146 @@ else: # load pickles
     # with open('./data/pickles/age_emergence_{}_{}_{}_remote.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
     #     ds_ae_strj_remote = pk.load(f)
     # with open('./data/pickles/pop_frac_{}_{}_{}_remote.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
-    #     ds_pf_strj_remote = pk.load(f)        
+    #     ds_pf_strj_remote = pk.load(f)    
+    
+# #%% ----------------------------------------------------------------
+# # age emergence testing
+# # ------------------------------------------------------------------        
+
+# lat = grid_area.lat.values
+# lon = grid_area.lon.values
+
+# # 3d mask for ar6 regions
+# ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+
+# # 3d mask for countries
+# # countries_3D = rm.defined_regions.natural_earth_v5_0_0.countries_110.mask_3D(lon,lat) opting to use same geodataframe as analysis instead of regionmask
+# countries_3D = rm.mask_3D_geopandas(gdf_country_borders.reset_index(),lon,lat)
+
+# # checking 2020 cohort
+# test1 = ds_ae_strj['age_emergence'].loc[{'birth_year':2020}].mean(dim='run')
+# test1 = test1.assign_coords({'country':range(len(ds_ae_strj.country.data))})
+# p1 = test1.plot(figsize=(12,12))
+# p1.axes.figure.savefig('./figures/testing/p1_ae_2020_heatmap_{}.png'.format(flags['extr']),dpi=500)
+
+# # checking weighted mean across countries
+# test1_cohorts = ds_cohorts['by_y0_weights'].loc[{'birth_year':2020}].assign_coords({'country':range(len(ds_ae_strj.country.data))})
+# test2 = test1.weighted(test1_cohorts).mean(dim=('country'))
+# p2 = test2.plot()
+# p2[0].axes.figure.savefig('./figures/testing/p2_ae_2020_tseries_y0weighted_{}.png'.format(flags['extr']),dpi=500)
+
+# # checking arithmetic mean across countries
+# test3 = test1.mean(dim='country')
+# p3 = test3.plot()
+# p3[0].axes.figure.savefig('./figures/testing/p3_ae_2020_tseries_noweights_{}.png'.format(flags['extr']),dpi=500)
+
+# # compare p1 with same dimension heatmap for flood trends
+# test4_trend = ds_e['mean_exposure_trend_country_time_ranges'].loc[{'year':2020}].assign_coords({'country':range(len(ds_ae_strj.country.data))})
+# p4 = test4_trend.where(test4_trend!=0).plot(x='GMT',y='country',figsize=(12,12),cmap='RdBu',levels=20)
+        
+# # checking valid runs per GMT level:
+# for step in GMT_labels:
+#     print('step {}'.format(step))
+#     c=0
+#     for i in list(d_isimip_meta.keys()):
+#         if d_isimip_meta[i]['GMT_strj_valid'][step]:
+#             c+=1
+#     print('step {} has {} runs included'.format(step,c))    
+    
+# # checking year GMT mapping for last GMT step    
+# step = 28
+# s = 0
+# for i in list(d_isimip_meta.keys()):
+#     if d_isimip_meta[i]['GMT_strj_valid'][step]:
+#         # load AFA data of that run
+#         with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+#             da_AFA = pk.load(f)          
+#         # da_AFA = da_AFA.reindex(
+#         #             {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+#         #         ).assign_coords({'time':year_range}) 
+#         da_AFA = da_AFA.reindex(
+#                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+#                 )
+#         plt.plot(year_range,da_AFA.time.data)
+#         s+=1
+#         plt.show()
+# print(s)    
+    
+# # testing dataset for exposure trends
+# ds_e_test = xr.Dataset(
+#     data_vars={                                 
+#         'exposure_trend_country_time_ranges': (
+#             ['run','GMT','country','year'],
+#             np.full(
+#                 (len(list(d_isimip_meta.keys())),len(GMT_labels),len(countries_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
+#                 fill_value=np.nan,
+#             ),
+#         ),
+#         'mean_exposure_trend_country_time_ranges': (
+#             ['GMT','country','year'],
+#             np.full(
+#                 (len(GMT_labels),len(countries_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
+#                 fill_value=np.nan,
+#             ),
+#         ),
+#     },
+#     coords={
+#         'country': ('country', countries_3D.region.data),
+#         'run': ('run', list(d_isimip_meta.keys())),
+#         'GMT': ('GMT', GMT_labels),
+#         'year': ('year', np.arange(year_start,year_ref+1,20))
+#     }
+# )
+
+# # exposure trends
+# step = 28
+# s = 0
+# for i in list(d_isimip_meta.keys()):
+#     if d_isimip_meta[i]['GMT_strj_valid'][step]:
+#         # load AFA data of that run
+#         with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+#             da_AFA = pk.load(f)          
+#         da_AFA = da_AFA.reindex(
+#                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+#                 ).assign_coords({'time':year_range}) 
+#         da_AFA_country_weighted_sum = da_AFA.weighted(countries_3D*grid_area/10**6).sum(dim=('lat','lon')) 
+#         for y in np.arange(year_start,year_ref+1,20):
+#             stats_y_country = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
+#             slope_y_country = stats_y_country[0]
+#             ds_e['exposure_trend_country_time_ranges'].loc[{
+#                 'run':i,
+#                 'GMT':step,
+#                 'country':countries_3D.region.data,
+#                 'year':y,
+#             }] = slope_y_country
+        
+        
+# # checking how many sims per 
+# for i in list(d_isimip_meta.keys()): 
+
+#     print('simulation {} of {}'.format(i,len(d_isimip_meta)))
+
+#     # load AFA data of that run
+#     with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+#         da_AFA = pk.load(f)  
+    
+#     # per GMT step, if max threshold criteria met, run gmt mapping and compute trends
+#     for step in GMT_labels:
+        
+#         if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            
+#             da_AFA = da_AFA.reindex(
+#                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+#                 ).assign_coords({'time':year_range}) 
+            
+#             da_AFA_country_weighted_sum = da_AFA.weighted(countries_3D*grid_area/10**6).sum(dim=('lat','lon'))
+            
+#             for y in np.arange(year_start,year_ref+1,20):
+                
+#                     stats_y_country = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
+#                     slope_y_country = stats_y_country[0]
+#                     print('step {} slope is {}'.format(step,slope_y_country))               
+        
         
 #%% ----------------------------------------------------------------
 # grid scale
@@ -387,7 +516,6 @@ else: # load pickles
 #         d_pic_meta,
 #         flags['extr'],
 #         da_cohort_size,
-#         df_countries,
 #         countries_regions,
 #         countries_mask,
 #         df_life_expectancy_5,
@@ -460,7 +588,7 @@ if flags['plot']:
         df_GMT_strj,
         ds_cohorts,
         flags,
-    )     
+    )                  
         
     plot_pf_ae_by_heatmap(
         ds_pf_strj,
