@@ -1813,7 +1813,7 @@ def plot_pf_ae_by_heatmap(
         x='birth_year',
         y='GMT',
         add_colorbar=True,
-        levels=np.arange(0.1,1.01,0.05),
+        levels=10,
         cbar_kwargs={
             'label':'Population Fraction'
         }
@@ -2786,13 +2786,15 @@ def plot_stylized_trajectories(
     # --------------------------------------------------------------------
     # plot GMTs
 
-    # NDC
+    # plot all new scenarios in grey, then overlay marker scens
     df_GMT_strj.plot(
         ax=ax1,
         color='grey',
         zorder=1,
         lw=lw_mean,
     )
+    
+    # plot smooth gmts from RCPs
     for gcm in gcms:
         for rcp in rcps:  
             GMTs[gcm][rcp].plot(
@@ -2803,7 +2805,7 @@ def plot_stylized_trajectories(
                 style='--'
             )  
             
-    # plot new ar6 scenarios
+    # plot new ar6 marker scenarios in color
     df_GMT_lb = df_GMT_strj.loc[:,GMT_indices[0]]
     df_GMT_lb.plot(
         ax=ax1,

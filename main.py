@@ -71,7 +71,7 @@ flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure_trends'] = 1       # 0: do not run trend analysis on exposure for identifying regional trends (load pickle)
+flags['exposure_trends'] = 0       # 0: do not run trend analysis on exposure for identifying regional trends (load pickle)
                                    # 1: run trend analysis
 flags['lifetime_exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                                      # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
@@ -356,152 +356,486 @@ else: # load pickles
     
     # age emergence           
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
-        ds_ae_strj = pk.load(f)      
-        
-    # # remote testing
-    # with open('./data/pickles/age_emergence_{}_{}_{}_remote.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
-    #     ds_ae_strj_remote = pk.load(f)
-    # with open('./data/pickles/pop_frac_{}_{}_{}_remote.pkl'.format(flags['extr'],flags['gmt'],'strj'), 'rb') as f:
-    #     ds_pf_strj_remote = pk.load(f)    
+        ds_ae_strj = pk.load(f)       
     
-# #%% ----------------------------------------------------------------
-# # age emergence testing
-# # ------------------------------------------------------------------        
+#%% ----------------------------------------------------------------
+# age emergence & pop frac testing
+# ------------------------------------------------------------------        
 
-# lat = grid_area.lat.values
-# lon = grid_area.lon.values
+lat = grid_area.lat.values
+lon = grid_area.lon.values
 
-# # 3d mask for ar6 regions
-# ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+# 3d mask for ar6 regions
+ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
 
-# # 3d mask for countries
-# # countries_3D = rm.defined_regions.natural_earth_v5_0_0.countries_110.mask_3D(lon,lat) opting to use same geodataframe as analysis instead of regionmask
-# countries_3D = rm.mask_3D_geopandas(gdf_country_borders.reset_index(),lon,lat)
+# 3d mask for countries
+# countries_3D = rm.defined_regions.natural_earth_v5_0_0.countries_110.mask_3D(lon,lat) opting to use same geodataframe as analysis instead of regionmask
+countries_3D = rm.mask_3D_geopandas(gdf_country_borders.reset_index(),lon,lat)
 
-# # checking 2020 cohort
-# test1 = ds_ae_strj['age_emergence'].loc[{'birth_year':2020}].mean(dim='run')
-# test1 = test1.assign_coords({'country':range(len(ds_ae_strj.country.data))})
-# p1 = test1.plot(figsize=(12,12))
-# p1.axes.figure.savefig('./figures/testing/p1_ae_2020_heatmap_{}.png'.format(flags['extr']),dpi=500)
+# temporary read in of absolute population emerging (y0 one, will have this in ds_pop_frac in future iterations)
+# ds_pf_strj = ds_pf_strj.assign_coords({'country':ds_cohorts.country.data})
+# ds_pf_strj['unprec_country_b_y0'] = xr.DataArray(
+#     data=np.full(
+#         (len(list(d_isimip_meta.keys())),len(ds_cohorts.country.data),len(birth_years),len(GMT_labels)),
+#         fill_value=np.nan
+#     ),
+#     dims=['run','country','birth_year','GMT'],
+#     coords={
+#             'run': ('run', list(d_isimip_meta.keys())),
+#             'birth_year': ('birth_year', birth_years),
+#             'country': ('country', ds_cohorts.country.data),
+#             'GMT': ('GMT', GMT_labels),
+#         }
+# )
+# dataset for emergence masks for summing across runs
+ds_testing = xr.Dataset(
+    data_vars={
+        'emergence_masks': (
+            ['run','country','birth_year','GMT'],
+            np.full(
+                (len(list(d_isimip_meta.keys())),len(ds_cohorts.country.data),len(birth_years),len(GMT_labels)),
+                fill_value=np.nan,
+            ),
+        ),
+        'totals_emergence_masks': (
+            ['country','birth_year','GMT'],
+            np.full(
+                (len(ds_cohorts.country.data),len(birth_years),len(GMT_labels)),
+                fill_value=np.nan,
+            ),
+        ),
+        'unprec_country_b_y0': (
+            ['run','country','birth_year','GMT'],
+            np.full(
+                (len(list(d_isimip_meta.keys())),len(ds_cohorts.country.data),len(birth_years),len(GMT_labels)),
+                fill_value=np.nan,
+            ),
+        ),       
+        'mean_unprec_country_b_y0': (
+            ['country','birth_year','GMT'],
+            np.full(
+                (len(ds_cohorts.country.data),len(birth_years),len(GMT_labels)),
+                fill_value=np.nan,
+            ),
+        ),       
+    },
+    coords={
+        'run': ('run', list(d_isimip_meta.keys())),
+        'birth_year': ('birth_year', birth_years),
+        'country': ('country', ds_cohorts.country.data),
+        'GMT': ('GMT', GMT_labels),
+        'time': ('time', year_range),
+    }    
+)
 
-# # checking weighted mean across countries
-# test1_cohorts = ds_cohorts['by_y0_weights'].loc[{'birth_year':2020}].assign_coords({'country':range(len(ds_ae_strj.country.data))})
-# test2 = test1.weighted(test1_cohorts).mean(dim=('country'))
-# p2 = test2.plot()
-# p2[0].axes.figure.savefig('./figures/testing/p2_ae_2020_tseries_y0weighted_{}.png'.format(flags['extr']),dpi=500)
+for i in list(d_isimip_meta.keys()):
+    s=0
+    for step in GMT_labels:
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            # load pickle
+            with open('./data/pickles/da_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['gmt'],flags['extr'],flags['rm'],i,step), 'rb') as f:
+                da_emergence_mask_run_step = pk.load(f)
+            da_birthyear_emergence_mask = xr.where(da_emergence_mask_run_step.sum(dim='time')>0,1,0)
+            ds_testing['emergence_masks'].loc[{
+                'country':ds_cohorts.country.data,
+                'birth_year':birth_years,
+                'run':i,
+                'GMT':step,
+            }] = da_birthyear_emergence_mask
+            ds_testing['unprec_country_b_y0'].loc[{
+                'country':ds_cohorts.country.data,
+                'birth_year':birth_years,
+                'run':i,
+                'GMT':step,            
+            }] = ds_cohorts['by_population_y0'].where(da_birthyear_emergence_mask==1)             
+            s+=1
+            
+ds_testing['totals_emergence_masks'] = ds_testing['emergence_masks'].sum(dim='run')
 
-# # checking arithmetic mean across countries
-# test3 = test1.mean(dim='country')
-# p3 = test3.plot()
-# p3[0].axes.figure.savefig('./figures/testing/p3_ae_2020_tseries_noweights_{}.png'.format(flags['extr']),dpi=500)
+# testing 2020, step 28 bar plots of pf and ae per country, and then aggregate pf and ae for each sim
+step=28
+by=2020
+sims = []
+for i in list(d_isimip_meta.keys()):
+    if d_isimip_meta[i]['GMT_strj_valid'][step]:
+        sims.append(i)
 
-# # compare p1 with same dimension heatmap for flood trends
-# test4_trend = ds_e['mean_exposure_trend_country_time_ranges'].loc[{'year':2020}].assign_coords({'country':range(len(ds_ae_strj.country.data))})
-# p4 = test4_trend.where(test4_trend!=0).plot(x='GMT',y='country',figsize=(12,12),cmap='RdBu',levels=20)
+pfs = [] # sample for this GMT, by to check mean against heatmap
+for n,i in enumerate(list(d_isimip_meta.keys())):
+    if d_isimip_meta[i]['GMT_strj_valid'][step]:
+        
+        # initiate plotting axes
+        f,(ax1,ax2,ax3,ax4) = plt.subplots(
+            nrows=4,
+            ncols=1,
+            figsize=(10,10),
+        )
+        
+        # emergence mask
+        em = ds_testing['emergence_masks'].loc[{'birth_year':by,'run':i,'GMT':step}].where(ds_testing['emergence_masks'].loc[{'birth_year':by,'run':i,'GMT':step}]!=0).notnull().assign_coords({'country':range(len(ds_cohorts.country.data))})
+        
+        # x axis labels of country strings based on em
+        x_tick_labels = ds_cohorts.country.assign_coords({'country':range(len(ds_ae_strj.country.data))}).where(em,drop=True)
+        
+        # plot ae per country (ds_ae_strj)
+        p_ae = ds_ae_strj['age_emergence'].loc[{'run':i,'GMT':step,'birth_year':by}].assign_coords({'country':range(len(ds_cohorts.country.data))})
+        p_ae = p_ae.where(em,drop=True)
+        weights = ds_cohorts['by_y0_weights'].loc[{'birth_year':by}].assign_coords({'country':range(len(ds_ae_strj.country.data))}).where(em,drop=True)
+        mean_ae = p_ae.weighted(weights).mean(dim='country').item()
+        ax1.bar(x_tick_labels,p_ae.values)
+        ax1.set_title(
+            'mean ae: {}'.format(str(int(np.round(mean_ae,0)))),
+            loc='center',
+            fontweight='bold',
+        )     
+        ax1.set_title(
+            '{} \n{} \n{} \n{}°C @ 2100 \n{} birth cohort'.format(d_isimip_meta[i]['model'].split('/')[-1],d_isimip_meta[i]['gcm'],d_isimip_meta[i]['rcp'],np.round(df_GMT_strj.loc[2100,step],1),by),
+            loc='right',
+            fontweight='bold'
+        )
+        ax1.set_ylabel(
+            'age emergence', 
+            va='center', 
+            rotation='vertical',
+            labelpad=10,
+        )            
+        
+        # plot p per country  ds_testing['unprec_per_country_b_y0']
+        p_p = ds_testing['unprec_country_b_y0'].loc[{'run':i,'GMT':step,'birth_year':by}].assign_coords({'country':range(len(ds_cohorts.country.data))}).where(em,drop=True) * 1000
+        sum_p = p_p.sum(dim='country')
+        ax2.bar(x_tick_labels,p_p.values)
+        ax2.set_title(
+            'sum p: {} million'.format(str(int(np.round(sum_p,0) / 10**6))),
+            loc='center',
+            fontweight='bold',
+        )
+        ax2.set_ylabel(
+            'population emergence', 
+            va='center', 
+            rotation='vertical',
+            labelpad=10,
+        )
+          
+        # plot pf per country (each country is frac of global pop; ensure closes to 1) ds_pf_strj
+        p_pf = p_p / (ds_cohorts['by_population_y0'].loc[{'birth_year':by}].assign_coords({'country':range(len(ds_cohorts.country.data))}).sum(dim='country') * 1000)
+        p_pf = p_pf.where(em,drop=True)
+        pf = ds_pf_strj['frac_unprec_all_b_y0'].loc[{'run':i,'GMT':step,'birth_year':by}].item()
+        pfs.append(pf)
+        ax3.bar(x_tick_labels,p_pf.values)
+        ax3.set_title(
+            'pf: {}'.format(str(np.round(pf,2))),
+            loc='center',
+            fontweight='bold',
+        )
+        ax3.set_ylabel(
+            'population fraction \n emerged', 
+            va='center', 
+            rotation='vertical',
+            labelpad=10,
+        )
+        
+        # plot lifetime emergence and pic threshold
+        p_le = ds_le['lifetime_exposure'].loc[{'run':i,'GMT':step,'birth_year':by}].assign_coords({'country':range(len(ds_cohorts.country.data))})
+        mean_le = p_le.weighted(weights).mean(dim='country').item()
+        p_le = p_le.where(em,drop=True)
+        p_pic = ds_exposure_pic['mmm_pic'].assign_coords({'country':range(len(ds_cohorts.country.data))}).where(em,drop=True)
+        ax4.bar(x_tick_labels,p_le.values)
+        ax4.plot(
+            x_tick_labels,
+            p_pic.values,
+            marker='o',
+            linestyle='',
+            color='r'
+        )
+        ax4.set_title(
+            'mean le: {}'.format(str(np.round(mean_le,2))),
+            loc='center',
+            fontweight='bold',
+        )
+        ax4.set_ylabel(
+            'lifetime exposure', 
+            va='center', 
+            rotation='vertical',
+            labelpad=10,
+        )
+        ax4.set_xticklabels(x_tick_labels.values, rotation='vertical')
+        
+        # ax stuff
+        for n,ax in enumerate((ax1,ax2,ax3,ax4)):
+            ax.set_title(
+                letters[n],
+                loc='left',
+                fontweight='bold',
+            )
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)                 
+            if n < 3:
+                ax.tick_params(labelbottom=False)
+                
+        f.savefig('./figures/testing/ae_p_pf_le_GMT_{}_{}_{}_{}_{}'.format(step,d_isimip_meta[i]['model'].split('/')[-1],d_isimip_meta[i]['gcm'],d_isimip_meta[i]['rcp'],flags['extr']),dpi=800)
+
+# mean pf
+mean_pf = np.mean(pfs)
+
+# scatter plots of country-mean ae and global pf per run
+gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
+
+for by in sample_birth_years:
+    for step in GMT_indices:
+        
+        # initiate plotting axes
+        f,((ax1,ax2),(ax3,ax4)) = plt.subplots(
+            nrows=2,
+            ncols=2,
+            figsize=(10,7),
+        )
+
+        # age emergence in ax 1 and 2
+        ds_plt = ds_ae_strj['age_emergence']                             
+        ds_plt_gmt = ds_plt.loc[{'birth_year':by}]
+        ds_plt_gmt = ds_plt_gmt.weighted(ds_cohorts['by_y0_weights'].loc[{'birth_year':by}]).mean(dim='country')
+        p = ds_plt_gmt.to_dataframe().reset_index(level="run")
+        x = p.index.values
+        y = p['age_emergence'].values
+        ax1.scatter(
+            x,
+            y,
+        )
+        ax1.plot(
+            GMT_labels,
+            ds_plt_gmt.mean(dim='run').values,
+            marker='o',
+            linestyle='',
+            color='r'
+        )
+        ax1.set_title(
+            '{} birth cohort'.format(str(by)),
+            loc='center',
+            fontweight='bold',
+        )
+        ax1.set_ylabel(
+            'age emergence', 
+            va='center', 
+            rotation='vertical',
+            labelpad=10,
+        )                                               
+        ax1.set_xticks(
+            ticks=[0,5,10,15,20,25],
+            labels=None,
+        )
+
+        ds_plt_by = ds_plt.loc[{'GMT':step}]
+        ds_plt_by = ds_plt_by.weighted(ds_cohorts['by_y0_weights']).mean(dim='country')
+        p = ds_plt_by.to_dataframe().reset_index(level="run")
+        x = p.index.values
+        y = p['age_emergence'].values
+        ax2.scatter(
+            x,
+            y,
+        )
+        ax2.plot(
+            birth_years,
+            ds_plt_by.mean(dim='run').values,
+            marker='o',
+            linestyle='',
+            color='r'
+        )   
+        ax2.set_title(
+            '{} @ 2100 [°C]'.format(str(np.round(df_GMT_strj.loc[2100,step],1))),
+            loc='center',
+            fontweight='bold',
+        )       
+
+        # pf in ax 3 and 4
+        ds_plt = ds_pf_strj['frac_unprec_all_b_y0']                                                   
+        ds_plt_gmt = ds_plt.loc[{'birth_year':by}]
+        p = ds_plt_gmt.to_dataframe().reset_index(level="run")
+        x = p.index.values
+        y = p['frac_unprec_all_b_y0'].values
+        ax3.scatter(
+            x,
+            y,
+        )
+        ax3.plot(
+            GMT_labels,
+            ds_plt_gmt.mean(dim='run').values,
+            marker='o',
+            linestyle='',
+            color='r'
+        )
+        ax3.set_ylabel(
+            'population fraction', 
+            va='center', 
+            rotation='vertical',
+            labelpad=10,
+        )          
+        ax3.set_xlabel(
+            'GMT anomaly at 2100 [°C]', 
+            va='center', 
+            labelpad=10,
+        )                                           
+        ax3.set_xticks(
+            ticks=[0,5,10,15,20,25],
+            labels=gmts2100,
+        )
+
+        ds_plt_by = ds_plt.loc[{'GMT':step}]
+        p = ds_plt_by.to_dataframe().reset_index(level="run")
+        x = p.index.values
+        y = p['frac_unprec_all_b_y0'].values
+        ax4.scatter(
+            x,
+            y,
+        )
+        ax4.plot(
+            birth_years,
+            ds_plt_by.mean(dim='run').values,
+            marker='o',
+            linestyle='',
+            color='r'
+        )   
+        ax4.set_xlabel(
+            'Birth year', 
+            va='center', 
+            labelpad=10,
+        )         
+                
+        # ax stuff
+        for n,ax in enumerate((ax1,ax2,ax3,ax4)):
+            ax.set_title(
+                letters[n],
+                loc='left',
+                fontweight='bold',
+            )
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)                 
+            if n < 3:
+                ax.tick_params(labelbottom=False)        
+        
+        f.savefig('./figures/testing/ae_pf_GMT_by_scatterplots_{}_{}_{}.png'.format(step,by,flags['extr']),dpi=800)
+        
+        plt.show()
+        
+        
+        
+
+        # # axis stuff
+        # for n,ax in enumerate((ax1,ax2,ax3,ax4)):
+        #     ax.spines['right'].set_visible(False)
+        #     ax.spines['top'].set_visible(False)            
+# get fraction of emergence totals (i.e. per GMT and birth year, what are the fraction of sims that have emergence occuring)
+# need sum divided by number of non-nan runs per GMT, birth year
+test = xr.where(ds_testing['emergence_masks'].sum(dim=['run','birth_year','country'])>0,1,0)
+ds_testing = ds_testing.assign_coords({'country':range(len(ds_cohorts.country.data))})
+
+
+for testyear in np.arange(year_start,year_ref+1,20):
+    
+    # checking age emergence cohort
+    test1 = ds_ae_strj['age_emergence'].loc[{'birth_year':testyear}].mean(dim='run')
+    test1 = test1.assign_coords({'country':range(len(ds_ae_strj.country.data))})
+    p1 = test1.plot(figsize=(12,12))
+    p1.axes.figure.savefig('./figures/testing/p1_ae_{}_heatmap_{}.png'.format(testyear,flags['extr']),dpi=500)
+    plt.show()
+
+    # compare p1 with same dimension heatmap for flood trends
+    test4_trend = ds_e['mean_exposure_trend_country_time_ranges'].loc[{'year':testyear}].assign_coords({'country':range(len(ds_ae_strj.country.data))})
+    p4 = test4_trend.where(test4_trend!=0).plot(x='GMT',y='country',figsize=(12,12),cmap='RdBu',levels=20)
+    p4.axes.figure.savefig('./figures/testing/p4_trends_{}_heatmap_{}.png'.format(testyear,flags['extr']),dpi=500)
+    plt.show()
+    
+    p5 = ds_testing['totals_emergence_masks'].loc[{'birth_year':testyear}].plot(figsize=(12,12))
+    p5.axes.figure.savefig('./figures/testing/p5_emergencetotals_{}_heatmap_{}.png'.format(testyear,flags['extr']),dpi=500)
+    plt.show()
+    
+    p6 = ds_testing['mean_unprec_country_b_y0'].loc[{'birth_year':testyear}].plot(figsize=(12,12))
+    p6.axes.figure.savefig('./figures/testing/p6_unprecmean_{}_heatmap_{}.png'.format(testyear,flags['extr']),dpi=500)
+    plt.show()
+    
         
 # # checking valid runs per GMT level:
-# for step in GMT_labels:
-#     print('step {}'.format(step))
-#     c=0
-#     for i in list(d_isimip_meta.keys()):
-#         if d_isimip_meta[i]['GMT_strj_valid'][step]:
-#             c+=1
-#     print('step {} has {} runs included'.format(step,c))    
+sim_counts = []
+for step in GMT_labels:
+    print('step {}'.format(step))
+    c=0
+    for i in list(d_isimip_meta.keys()):
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            c+=1
+    sim_counts.append(c)
+    # print('step {} has {} runs included'.format(step,c))
+da_sim_counts = xr.DataArray(
+    data=sim_counts,
+    coords={'GMT':ds_pf_strj.GMT.data},
+)
+p_sc = da_sim_counts.plot(marker='o')
+p_sc[0].axes.figure.savefig('./figures/testing/p_sc_{}'.format(flags['extr']),dpi=500)
     
-# # checking year GMT mapping for last GMT step    
-# step = 28
-# s = 0
-# for i in list(d_isimip_meta.keys()):
-#     if d_isimip_meta[i]['GMT_strj_valid'][step]:
-#         # load AFA data of that run
-#         with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
-#             da_AFA = pk.load(f)          
-#         # da_AFA = da_AFA.reindex(
-#         #             {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-#         #         ).assign_coords({'time':year_range}) 
-#         da_AFA = da_AFA.reindex(
-#                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-#                 )
-#         plt.plot(year_range,da_AFA.time.data)
-#         s+=1
-#         plt.show()
-# print(s)    
+
     
-# # testing dataset for exposure trends
-# ds_e_test = xr.Dataset(
-#     data_vars={                                 
-#         'exposure_trend_country_time_ranges': (
-#             ['run','GMT','country','year'],
-#             np.full(
-#                 (len(list(d_isimip_meta.keys())),len(GMT_labels),len(countries_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
-#                 fill_value=np.nan,
-#             ),
-#         ),
-#         'mean_exposure_trend_country_time_ranges': (
-#             ['GMT','country','year'],
-#             np.full(
-#                 (len(GMT_labels),len(countries_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
-#                 fill_value=np.nan,
-#             ),
-#         ),
-#     },
-#     coords={
-#         'country': ('country', countries_3D.region.data),
-#         'run': ('run', list(d_isimip_meta.keys())),
-#         'GMT': ('GMT', GMT_labels),
-#         'year': ('year', np.arange(year_start,year_ref+1,20))
-#     }
-# )
+# checking year GMT mapping for last GMT step    
+step = 5
+s = 0
+for i in list(d_isimip_meta.keys()):
+    if d_isimip_meta[i]['GMT_strj_valid'][step]:
+        # load AFA data of that run
+        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+            da_AFA = pk.load(f)          
+        # da_AFA = da_AFA.reindex(
+        #             {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+        #         ).assign_coords({'time':year_range}) 
+        da_AFA = da_AFA.reindex(
+                    {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+                )
+        plt.plot(year_range,da_AFA.time.data)
+        s+=1
+        plt.show()
+print(s)    
 
-# # exposure trends
-# step = 28
-# s = 0
-# for i in list(d_isimip_meta.keys()):
-#     if d_isimip_meta[i]['GMT_strj_valid'][step]:
-#         # load AFA data of that run
-#         with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
-#             da_AFA = pk.load(f)          
-#         da_AFA = da_AFA.reindex(
-#                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-#                 ).assign_coords({'time':year_range}) 
-#         da_AFA_country_weighted_sum = da_AFA.weighted(countries_3D*grid_area/10**6).sum(dim=('lat','lon')) 
-#         for y in np.arange(year_start,year_ref+1,20):
-#             stats_y_country = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
-#             slope_y_country = stats_y_country[0]
-#             ds_e['exposure_trend_country_time_ranges'].loc[{
-#                 'run':i,
-#                 'GMT':step,
-#                 'country':countries_3D.region.data,
-#                 'year':y,
-#             }] = slope_y_country
-        
-        
-# # checking how many sims per 
-# for i in list(d_isimip_meta.keys()): 
+# testing age emergence results with different order of ensemble aggregation (highly sensitive here)
+test1 = ds_ae_strj['age_emergence'].mean(dim=('run')) # first mean per run, then across countries (unfair weight to countries that infrequently emerge)
+test1 = test1.weighted(ds_cohorts['by_y0_weights']).mean(dim='country')
+test1.plot(x='birth_year',y='GMT',)   
 
-#     print('simulation {} of {}'.format(i,len(d_isimip_meta)))
+# first mean across countries, then runs (preferred method)
+test2 = ds_ae_strj['age_emergence'].weighted(ds_cohorts['by_y0_weights']).mean(dim='country')
+test2 = test2.mean(dim=('run')) # first mean per run, then across countries (unfair weight to countries that infrequently emerge)
+test2.plot(x='birth_year',y='GMT',)   
 
-#     # load AFA data of that run
-#     with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
-#         da_AFA = pk.load(f)  
-    
-#     # per GMT step, if max threshold criteria met, run gmt mapping and compute trends
-#     for step in GMT_labels:
-        
-#         if d_isimip_meta[i]['GMT_strj_valid'][step]:
+# original (basically same as test2)
+test3 = ds_ae_strj['age_emergence'].weighted(ds_cohorts['by_y0_weights']).mean(dim=('country','run'))
+test3.plot(x='birth_year',y='GMT',)   
+
+for i in list(d_isimip_meta.keys()):
+    with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+            da_AFA = pk.load(f)
+    for step in GMT_labels:
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            da_AFA = da_AFA.reindex(
+                {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+            ).assign_coords({'time':year_range})
+            da_AFA_country_weighted_sum = da_AFA.weighted(countries_3D*grid_area/10**6).sum(dim=('lat','lon'))
+            y=1960
+            da_AFA_country_weighted_sum = da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}]
+            stats_y_country = vectorize_lreg(da_AFA_country_weighted_sum)
+            slope_y_country = stats_y_country[0]
+            ds_e['exposure_trend_country_time_ranges'].loc[{
+                'run':i,
+                'GMT':step,
+                'country':countries_3D.region.data,
+                'year':y,
+            }] = slope_y_country
+            mean_floods = ds_e['exposure_trend_country_time_ranges'].loc[{
+                'run':i,
+                'GMT':step,
+                'country':countries_3D.region.data,
+                'year':y,
+            }].mean(dim='country').item()
+            print('simulation {}, GMT {} has country mean flood trends at {}'.format(i,step,mean_floods))        
             
-#             da_AFA = da_AFA.reindex(
-#                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-#                 ).assign_coords({'time':year_range}) 
-            
-#             da_AFA_country_weighted_sum = da_AFA.weighted(countries_3D*grid_area/10**6).sum(dim=('lat','lon'))
-            
-#             for y in np.arange(year_start,year_ref+1,20):
-                
-#                     stats_y_country = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
-#                     slope_y_country = stats_y_country[0]
-#                     print('step {} slope is {}'.format(step,slope_y_country))               
-        
+# getting max country
+max_list = slope_y_country.region.where(slope_y_country == slope_y_country.max(dim='region')).values
+max = max_list[~np.isnan(max_list)].item()
+ds_cohorts.country.data[int(max)]
         
 #%% ----------------------------------------------------------------
 # grid scale
