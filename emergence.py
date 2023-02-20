@@ -595,38 +595,46 @@ def strj_emergence(
                 
                 # assign run/GMT to larger dataset
                 ds_age_emergence.loc[{
-                    'country': ds_cohorts.country.data,
-                    'birth_year': by_emergence,
+                    'country':ds_cohorts.country.data,
+                    'birth_year':by_emergence,
                     'run': i,
-                    'GMT': step,
+                    'GMT':step,
                 }] = ds_age_emergence_run_step    
                 
                 # exposed population experiencing unprecedented exposure
                 ds_pop_frac['unprec_exposed_b'].loc[{
                     'run':i,
-                    'birth_year': by_emergence,
-                    'GMT': step,
+                    'birth_year':by_emergence,
+                    'GMT':step,
                 }] = ds_pop_frac_run_step['unprec_exposed_b']
                 
                 # population experiencing unprecedented exposure using birth-year lumping approach and summing birth year cohort sizes over time
                 ds_pop_frac['unprec_all_b'].loc[{
                     'run':i,
-                    'birth_year': by_emergence,
-                    'GMT': step,
+                    'birth_year':by_emergence,
+                    'GMT':step,
                 }] = ds_pop_frac_run_step['unprec_all_b']
                 
                 # population experiencing unprecedented exposure using birth-year lumping approach and assuming cohort size == birth year size
                 ds_pop_frac['unprec_all_b_y0'].loc[{
                     'run':i,
-                    'birth_year': by_emergence,
-                    'GMT': step,
-                }] = ds_pop_frac_run_step['unprec_all_b_y0']                
+                    'birth_year':by_emergence,
+                    'GMT':step,
+                }] = ds_pop_frac_run_step['unprec_all_b_y0']  
+                
+                # country-level population experiencing unprecedented exposure (unprec_all_b_y0 before summing across countries)
+                ds_pop_frac['unprec_country_b_y0'].loc[{
+                    'country':ds_cohorts.country.data,
+                    'run':i,
+                    'birth_year':by_emergence,
+                    'GMT':step,
+                }] = ds_pop_frac_run_step['unprec_country_b_y0']                    
                 
                 # population unprecedented exposure over time
                 ds_pop_frac['unprec_all_t'].loc[{
                     'run':i,
-                    'time': year_range,
-                    'GMT': step,
+                    'time':year_range,
+                    'GMT':step,
                 }] = ds_pop_frac_run_step['unprec_all_t']                             
                               
     # run ensemble stats across runs

@@ -15,6 +15,7 @@ import regionmask as rm
 import glob
 import time
 import matplotlib.pyplot as plt
+from copy import deepcopy as cp
 from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters = init()
 
@@ -275,6 +276,11 @@ def calc_exposure_trends(
     # 3d mask for countries
     # countries_3D = rm.defined_regions.natural_earth_v5_0_0.countries_110.mask_3D(lon,lat) opting to use same geodataframe as analysis instead of regionmask
     countries_3D = rm.mask_3D_geopandas(gdf_country_borders.reset_index(),lon,lat)
+    
+    # testing on basins
+    gdf_basins = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
+    gdf_basins = gdf_basins.loc[:,['NAME','ID','geometry']]
+    basins_3D = rm.mask_3D_geopandas(gdf_basins,lon,lat)
 
     # dataset for exposure trends
     ds_e = xr.Dataset(
@@ -371,42 +377,38 @@ def calc_exposure_trends(
                 
                 # ar6
                 stats_ar6 = vectorize_lreg(da_AFA_ar6_weighted_sum)
-                slope_ar6 = stats_ar6[0]
                 ds_e['exposure_trend_ar6'].loc[{
                     'run':i,
                     'GMT':step,
                     'region':ar6_regs_3D.region.data,
-                }] = slope_ar6
+                }] = cp(stats_ar6[0])
                 
                 # countries
                 stats_countries = vectorize_lreg(da_AFA_country_weighted_sum)
-                slope_countries = stats_countries[0]
                 ds_e['exposure_trend_country'].loc[{
                     'run':i,
                     'GMT':step,
                     'country':countries_3D.region.data,
-                }] = slope_countries             
+                }] = cp(stats_countries[0])
                 
                 # regressions on separate 80 year periods
                 for y in np.arange(year_start,year_ref+1,20):
                     
                     stats_y_ar6 = vectorize_lreg(da_AFA_ar6_weighted_sum.loc[{'time':np.arange(y,y+81)}])
-                    slope_y_ar6 = stats_y_ar6[0]
                     ds_e['exposure_trend_ar6_time_ranges'].loc[{
                         'run':i,
                         'GMT':step,
                         'region':ar6_regs_3D.region.data,
                         'year':y,
-                    }] = slope_y_ar6
+                    }] = cp(stats_y_ar6[0])
                     
                     stats_y_country = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
-                    slope_y_country = stats_y_country[0]
                     ds_e['exposure_trend_country_time_ranges'].loc[{
                         'run':i,
                         'GMT':step,
                         'country':countries_3D.region.data,
                         'year':y,
-                    }] = slope_y_country
+                    }] = cp(stats_y_country[0])
                 
     ds_e['mean_exposure_trend_ar6'] = ds_e['exposure_trend_ar6'].mean(dim='run')
     ds_e['mean_exposure_trend_ar6_time_ranges'] = ds_e['exposure_trend_ar6_time_ranges'].mean(dim='run')
