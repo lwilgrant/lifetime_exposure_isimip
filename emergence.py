@@ -286,7 +286,7 @@ def calc_unprec_exposure(
             'unprec_exposed_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
             'unprec_all_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
             'unprec_all_b_y0': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
-            'unprec_country_b_y0': (['birth_year','country'], np.empty((len(ds_exposure_cohort.birth_year.data),len(ds_cohorts.country.data)))),
+            'unprec_country_b_y0': (['country','birth_year'], np.empty((len(ds_cohorts.country.data),len(ds_exposure_cohort.birth_year.data)))),
             'unprec_all_t': (['time'], np.empty((len(year_range)))),
         },
         coords={
@@ -439,9 +439,9 @@ def strj_emergence(
                 ),
             ),            
             'unprec_country_b_y0': (
-                ['run','birth_year','country','GMT'],
+                ['run','country','birth_year','GMT'],
                 np.full(
-                    (len(list(d_isimip_meta.keys())),len(by_emergence),len(ds_cohorts.country.data),len(GMT_labels)),
+                    (len(list(d_isimip_meta.keys())),len(ds_cohorts.country.data),len(by_emergence),len(GMT_labels)),
                     fill_value=np.nan
                 ),
             ),            
