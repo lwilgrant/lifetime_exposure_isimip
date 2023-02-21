@@ -73,13 +73,13 @@ flags['mask'] = 0           # 0: do not process country data (i.e. load masks pi
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['exposure_trends'] = 1       # 0: do not run trend analysis on exposure for identifying regional trends (load pickle)
                                    # 1: run trend analysis
-flags['lifetime_exposure'] = 1       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
+flags['lifetime_exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                                      # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
-flags['lifetime_exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['lifetime_exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                             # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['lifetime_exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['lifetime_exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                                      # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birth years from 1960-2020
                                     # 1: run calc_birthyear_align with birth years from 1960-2100
@@ -98,7 +98,7 @@ flags['plot'] = 0
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 set_extremes(flags)
@@ -194,6 +194,10 @@ else: # load processed exposure data
     # load lifetime exposure pickle
     with open('./data/pickles/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
         ds_e = pk.load(f)
+        
+    # load lifetime exposure pickle
+    with open('./data/pickles/exposure_trends_hpc_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+        ds_e_hpc = pk.load(f)        
 
 # --------------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 

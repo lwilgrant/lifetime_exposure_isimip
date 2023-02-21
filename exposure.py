@@ -17,7 +17,7 @@ import time
 import matplotlib.pyplot as plt
 from copy import deepcopy as cp
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 
 #%% ----------------------------------------------------------------
@@ -50,10 +50,8 @@ def vectorize_lreg(da_y,
                            dask="parallelized",
                            output_dtypes=['float64'],
                            output_sizes={"parameter": 3})
-    slope = stats.sel(parameter=0) 
-    p_value = stats.sel(parameter=1)
-    r_value = stats.sel(parameter=2)
-    return slope,p_value
+    slope = cp(stats.sel(parameter=0))
+    return slope
 
 #%% ----------------------------------------------------------------
 # bootstrapping function 
@@ -279,72 +277,73 @@ def calc_exposure_trends(
     
     # testing on basins
     gdf_basins = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
-    gdf_basins = gdf_basins.loc[:,['NAME','ID','geometry']]
+    gdf_basins = gdf_basins.loc[:,['NAME','geometry']]
+    gdf_basins = gdf_basins.loc[gdf_basins['NAME'].isin(basins)]
+    
+    # merge basins with multiple entries in dataframe
+    basins_grouped = []
+    bc = {k:0 for k in gdf_basins['NAME']} # bc for basin counter
+    for b_name in gdf_basins['NAME']:
+        if len(gdf_basins.loc[gdf_basins['NAME']==b_name]) > 1:
+            if bc[b_name]==0:
+                gdf_basin = gdf_basins.loc[gdf_basins['NAME']==b_name]
+                basins_grouped.append(gdf_basin.dissolve())
+            bc[b_name]+=1
+        else:
+            basins_grouped.append(gdf_basins.loc[gdf_basins['NAME']==b_name])
+    gdf_basins = pd.concat(basins_grouped).reset_index().loc[:,['NAME','geometry']]
     basins_3D = rm.mask_3D_geopandas(gdf_basins,lon,lat)
 
     # dataset for exposure trends
     ds_e = xr.Dataset(
         data_vars={
             'exposure_trend_ar6': (
-                ['run','GMT','region'],
-                np.full(
-                    (len(list(d_isimip_meta.keys())),len(GMT_labels),len(ar6_regs_3D.region.data)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'mean_exposure_trend_ar6': (
-                ['GMT','region'],
-                np.full(
-                    (len(GMT_labels),len(ar6_regs_3D.region.data)),
-                    fill_value=np.nan,
-                ),
-            ),            
-            'exposure_trend_ar6_time_ranges': (
                 ['run','GMT','region','year'],
                 np.full(
                     (len(list(d_isimip_meta.keys())),len(GMT_labels),len(ar6_regs_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
                     fill_value=np.nan,
                 ),
             ),
-            'mean_exposure_trend_ar6_time_ranges': (
+            'mean_exposure_trend_ar6': (
                 ['GMT','region','year'],
                 np.full(
                     (len(GMT_labels),len(ar6_regs_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
                     fill_value=np.nan,
                 ),
-            ),                     
+            ),                                
             'exposure_trend_country': (
-                ['run','GMT','country'],
-                np.full(
-                    (len(list(d_isimip_meta.keys())),len(GMT_labels),len(countries_3D.region.data)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'mean_exposure_trend_country': (
-                ['GMT','country'],
-                np.full(
-                    (len(GMT_labels),len(countries_3D.region.data)),
-                    fill_value=np.nan,
-                ),
-            ),                 
-            'exposure_trend_country_time_ranges': (
                 ['run','GMT','country','year'],
                 np.full(
                     (len(list(d_isimip_meta.keys())),len(GMT_labels),len(countries_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
                     fill_value=np.nan,
                 ),
             ),
-            'mean_exposure_trend_country_time_ranges': (
+            'mean_exposure_trend_country': (
                 ['GMT','country','year'],
                 np.full(
                     (len(GMT_labels),len(countries_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
                     fill_value=np.nan,
                 ),
-            ),                                   
+            ),         
+            'exposure_trend_basin': (
+                ['run','GMT','basin','year'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(GMT_labels),len(basins_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
+                    fill_value=np.nan,
+                ),
+            ),
+            'mean_exposure_trend_basin': (
+                ['GMT','basin','year'],
+                np.full(
+                    (len(GMT_labels),len(basins_3D.region.data),len(np.arange(year_start,year_ref+1,20))),
+                    fill_value=np.nan,
+                ),
+            ),                                                             
         },
         coords={
             'region': ('region', ar6_regs_3D.region.data),
             'country': ('country', countries_3D.region.data),
+            'basin': ('basin', basins_3D.region.data),
             'run': ('run', list(d_isimip_meta.keys())),
             'GMT': ('GMT', GMT_labels),
             'year': ('year', np.arange(year_start,year_ref+1,20))
@@ -362,58 +361,50 @@ def calc_exposure_trends(
         
         # per GMT step, if max threshold criteria met, run gmt mapping and compute trends
         for step in GMT_labels:
-            
+                
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
             
                 da_AFA = da_AFA.reindex(
                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                 ).assign_coords({'time':year_range}) 
                 
-                # get sums of exposed area per ar6 & country, convert m^2 to km^2
+                # get sums of exposed area per ar6, country & basin, convert m^2 to km^2
                 da_AFA_ar6_weighted_sum = da_AFA.weighted(ar6_regs_3D*grid_area/10**6).sum(dim=('lat','lon'))
                 da_AFA_country_weighted_sum = da_AFA.weighted(countries_3D*grid_area/10**6).sum(dim=('lat','lon'))
+                da_AFA_basin_weighted_sum = da_AFA.weighted(basins_3D*grid_area/10**6).sum(dim=('lat','lon'))
         
-                # run regression on exposed area sums
-                
-                # ar6
-                stats_ar6 = vectorize_lreg(da_AFA_ar6_weighted_sum)
-                ds_e['exposure_trend_ar6'].loc[{
-                    'run':i,
-                    'GMT':step,
-                    'region':ar6_regs_3D.region.data,
-                }] = cp(stats_ar6[0])
-                
-                # countries
-                stats_countries = vectorize_lreg(da_AFA_country_weighted_sum)
-                ds_e['exposure_trend_country'].loc[{
-                    'run':i,
-                    'GMT':step,
-                    'country':countries_3D.region.data,
-                }] = cp(stats_countries[0])
-                
-                # regressions on separate 80 year periods
+                # regressions on separate 80 year periods of area sums
                 for y in np.arange(year_start,year_ref+1,20):
                     
-                    stats_y_ar6 = vectorize_lreg(da_AFA_ar6_weighted_sum.loc[{'time':np.arange(y,y+81)}])
-                    ds_e['exposure_trend_ar6_time_ranges'].loc[{
+                    # ar6
+                    # slope_ar6 = vectorize_lreg(da_AFA_ar6_weighted_sum.loc[{'time':np.arange(y,y+81)}])
+                    ds_e['exposure_trend_ar6'].loc[{
                         'run':i,
                         'GMT':step,
                         'region':ar6_regs_3D.region.data,
                         'year':y,
-                    }] = cp(stats_y_ar6[0])
+                    }] = vectorize_lreg(da_AFA_ar6_weighted_sum.loc[{'time':np.arange(y,y+81)}])
                     
-                    stats_y_country = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
-                    ds_e['exposure_trend_country_time_ranges'].loc[{
+                    # countries
+                    # slope_country = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
+                    ds_e['exposure_trend_country'].loc[{
                         'run':i,
                         'GMT':step,
                         'country':countries_3D.region.data,
                         'year':y,
-                    }] = cp(stats_y_country[0])
+                    }] = vectorize_lreg(da_AFA_country_weighted_sum.loc[{'time':np.arange(y,y+81)}])
+                    
+                    # slope_basin = vectorize_lreg(da_AFA_basin_weighted_sum.loc[{'time':np.arange(y,y+81)}])
+                    ds_e['exposure_trend_basin'].loc[{
+                        'run':i,
+                        'GMT':step,
+                        'basin':basins_3D.region.data,
+                        'year':y,
+                    }] = vectorize_lreg(da_AFA_basin_weighted_sum.loc[{'time':np.arange(y,y+81)}])
                 
     ds_e['mean_exposure_trend_ar6'] = ds_e['exposure_trend_ar6'].mean(dim='run')
-    ds_e['mean_exposure_trend_ar6_time_ranges'] = ds_e['exposure_trend_ar6_time_ranges'].mean(dim='run')
     ds_e['mean_exposure_trend_country'] = ds_e['exposure_trend_country'].mean(dim='run')
-    ds_e['mean_exposure_trend_country_time_ranges'] = ds_e['exposure_trend_country_time_ranges'].mean(dim='run')
+    ds_e['mean_exposure_trend_basin'] = ds_e['exposure_trend_basin'].mean(dim='run')
 
     # dump pickle of lifetime exposure
     with open('./data/pickles/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
