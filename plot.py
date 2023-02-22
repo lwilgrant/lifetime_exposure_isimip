@@ -28,7 +28,7 @@ import cartopy.crs as ccrs
 import cartopy as cr
 import seaborn as sns
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 #%% --------------------------------------------------------------------
 class MidpointNormalize(mpl.colors.Normalize):
@@ -1786,7 +1786,7 @@ def plot_pf_ae_by_lines(
     
 #%% ----------------------------------------------------------------
 # plotting pop frac
-def plot_pf_ae_by_heatmap(
+def plot_p_pf_ae_by_heatmap(
     ds_pf_strj,
     ds_ae_strj,
     df_GMT_strj,
@@ -1807,7 +1807,8 @@ def plot_pf_ae_by_heatmap(
     # labels for GMT ticks
     gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
     
-    p = ds_pf_strj['mean_frac_unprec_all_b_y0'].loc[{
+    # pop
+    p = ds_pf_strj['mean_unprec_all_b_y0'].loc[{
         'birth_year':np.arange(1960,2021)
     }].plot(
         x='birth_year',
@@ -1815,7 +1816,7 @@ def plot_pf_ae_by_heatmap(
         add_colorbar=True,
         levels=10,
         cbar_kwargs={
-            'label':'Population Fraction'
+            'label':'Population'
         }
     ) 
     p.axes.set_yticks(
@@ -1827,10 +1828,35 @@ def plot_pf_ae_by_heatmap(
     )    
     p.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p.axes.set_xlabel('Birth year')
-    p.axes.figure.savefig('./figures/pf_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p.axes.figure.savefig('./figures/p_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    plt.show()    
+    
+    # pop frac
+    p2 = ds_pf_strj['mean_frac_unprec_all_b_y0'].loc[{
+        'birth_year':np.arange(1960,2021)
+    }].plot(
+        x='birth_year',
+        y='GMT',
+        add_colorbar=True,
+        levels=10,
+        cbar_kwargs={
+            'label':'Population Fraction'
+        }
+    ) 
+    p2.axes.set_yticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100
+    )
+    p2.axes.set_xticks(
+        ticks=np.arange(1960,2025,10),
+    )    
+    p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
+    p2.axes.set_xlabel('Birth year')
+    p2.axes.figure.savefig('./figures/pf_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()
     
-    p2 = ds_ae_strj['age_emergence'].weighted(ds_cohorts['by_y0_weights']).mean(dim=('country','run')).plot(
+    # age emergence
+    p3 = ds_ae_strj['age_emergence'].weighted(ds_cohorts['by_y0_weights']).mean(dim=('country','run')).plot(
         x='birth_year',
         y='GMT',
         # levels=np.arange(10,80,5),
@@ -1838,13 +1864,13 @@ def plot_pf_ae_by_heatmap(
             'label':'Age Emergence'
         }        
     )
-    p2.axes.set_yticks(
+    p3.axes.set_yticks(
         ticks=[0,5,10,15,20,25],
         labels=gmts2100
     )
-    p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
-    p2.axes.set_xlabel('Birth year')
-    p2.axes.figure.savefig('./figures/ae_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
+    p3.axes.set_ylabel('GMT anomaly at 2100 [°C]')
+    p3.axes.set_xlabel('Birth year')
+    p3.axes.figure.savefig('./figures/ae_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
 
         
 #%% ----------------------------------------------------------------

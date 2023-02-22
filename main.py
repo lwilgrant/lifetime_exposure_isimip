@@ -55,7 +55,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'floodedarea' # 0: all
+flags['extr'] = 'heatwavedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -71,7 +71,7 @@ flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['exposure_trends'] = 1       # 0: do not run trend analysis on exposure for identifying regional trends (load pickle)
+flags['exposure_trends'] = 0       # 0: do not run trend analysis on exposure for identifying regional trends (load pickle)
                                    # 1: run trend analysis
 flags['lifetime_exposure'] = 0       # 0: do not process ISIMIP runs to compute exposure (i.e. load exposure pickle)
                                      # 1: process ISIMIP runs to compute exposure (i.e. produce and save exposure as pickle)
@@ -196,8 +196,8 @@ else: # load processed exposure data
         ds_e = pk.load(f)
         
     # load lifetime exposure pickle
-    with open('./data/pickles/exposure_trends_hpc_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
-        ds_e_hpc = pk.load(f)        
+    # with open('./data/pickles/exposure_trends_hpc_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+    #     ds_e_hpc = pk.load(f)        
 
 # --------------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 
@@ -362,12 +362,69 @@ else: # load pickles
     # age emergence           
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
         ds_ae_strj = pk.load(f)       
+
+#%% ----------------------------------------------------------------
+# plot
+# ------------------------------------------------------------------   
+
+from plot import *
+
+if flags['plot']:
     
+    plot_stylized_trajectories(
+        df_GMT_strj,
+        GMT_indices,
+        d_isimip_meta,
+    )    
+    
+    plot_trend(
+        ds_e,
+        flags,
+        gdf_country_borders,
+        df_GMT_strj,
+        GMT_indices,
+    )    
+    
+    plot_le_by_GMT_strj(
+        ds_le,
+        df_GMT_strj,
+        ds_cohorts,
+        flags
+    )   
+    
+    plot_pf_ae_by_lines(
+        ds_pf_strj,
+        ds_ae_strj,
+        df_GMT_strj,
+        ds_cohorts,
+        flags,
+    )                  
+        
+    plot_p_pf_ae_by_heatmap(
+        ds_pf_strj,
+        ds_ae_strj,
+        df_GMT_strj,
+        ds_cohorts,
+        flags,
+    )
+    
+    plot_pf_t_GMT_strj(
+        ds_pf_strj,
+        df_GMT_strj,
+        flags,
+    )        
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing
 # ------------------------------------------------------------------        
 
 if flags['testing']:
+    
+    ds_e_test = calc_exposure_trends_test(
+        d_isimip_meta,
+        grid_area,
+        gdf_country_borders,
+        flags,
+    )
         
     lat = grid_area.lat.values
     lon = grid_area.lon.values
@@ -912,11 +969,9 @@ if flags['testing']:
 #     with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
 #         d_gs_spatial[cntry] = pk.load(f)
 
-#%% ----------------------------------------------------------------
+#----------------------------------------------------------------
 # plot emergence stuff
 # ------------------------------------------------------------------
-
-from plot import *
 
 # plot pop frac and age emergence across GMT for stylized trajectories
 # top panel; (y: frac unprecedented, x: GMT anomaly @ 2100)
@@ -926,56 +981,6 @@ from plot import *
     # so, for e.g. 1970 BY, we need to limit the line up to life expectancy
     # will need cohort weighted mean of life expectancy across countries
     # 
-
-#%% ----------------------------------------------------------------
-# plot
-# ------------------------------------------------------------------   
-    
-# comparison of weighted mean vs pixel scale (some prep required for pop frac from weighted mean)
-if flags['plot']:
-    
-    plot_stylized_trajectories(
-        df_GMT_strj,
-        GMT_indices,
-        d_isimip_meta,
-    )    
-    
-    plot_trend(
-        ds_e,
-        flags,
-        gdf_country_borders,
-        df_GMT_strj,
-        GMT_indices,
-    )    
-    
-    plot_le_by_GMT_strj(
-        ds_le,
-        df_GMT_strj,
-        ds_cohorts,
-        flags
-    )   
-    
-    plot_pf_ae_by_lines(
-        ds_pf_strj,
-        ds_ae_strj,
-        df_GMT_strj,
-        ds_cohorts,
-        flags,
-    )                  
-        
-    plot_pf_ae_by_heatmap(
-        ds_pf_strj,
-        ds_ae_strj,
-        df_GMT_strj,
-        ds_cohorts,
-        flags,
-    )
-    
-    plot_pf_t_GMT_strj(
-        ds_pf_strj,
-        df_GMT_strj,
-        flags,
-    )    
     
     # # add emergence mask since i forgot to do it in gridscale.py (added it there but haven't rerun 10 Jan)
     # for cntry in sample_countries:
