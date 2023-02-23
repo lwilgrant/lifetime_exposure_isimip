@@ -55,7 +55,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'heatwavedarea' # 0: all
+flags['extr'] = 'floodedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -418,6 +418,31 @@ if flags['plot']:
 # ------------------------------------------------------------------        
 
 if flags['testing']:
+    
+    # testing on finding countries with ar6 region
+    med = 'Mediterranean'
+    gdf_ar6 = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
+    gdf_ar6 = gdf_ar6.loc[gdf_ar6['Name']==med]
+    gdf_ar6 = gdf_ar6.loc[:,['Name','geometry']]
+    gdf_ar6 = gdf_ar6.rename(columns={'Name':'name'})
+    country_test = gdf_country_borders.loc[:,'geometry']
+    country_test = country_test.reset_index()
+    country_test.intersects(gdf_ar6['geometry'].iloc[0])
+    med_countries = country_test.loc[country_test.intersects(gdf_ar6['geometry'].iloc[0])]
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values    
+    countries_med_3D = rm.mask_3D_geopandas(med_countries,lon,lat)
+    ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+    med_3D = ar6_regs_3D.isel(region=(ar6_regs_3D.names == 'Mediterranean')).squeeze()
+    for c in med_countries.index():
+        # next line gives nans outside country, 
+        # 1 in parts of country in AR6 Medit
+        # and 0 in parts outside Medit.
+        c_in_med = med_3D.where(countries_med_3D.sel(region=c)==1) 
+        c_area_in_med = c_in_med.weighted(grid_area/10**6)
+        da_AFA_ar6_weighted_sum = da_AFA_step.weighted(ar6_regs_3D*grid_area/10**6).sum(dim=('lat','lon'))
+        
+
     
     ds_e_test = calc_exposure_trends_test(
         d_isimip_meta,

@@ -88,22 +88,66 @@ def plot_trend(
     continents['Australia'] = [39,40,41,42]    
 
     regions = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
-    gpd_continents = gpd.read_file('./data/shapefiles/IPCC_WGII_continental_regions.shp')
+    gdf_continents = gpd.read_file('./data/shapefiles/IPCC_WGII_continental_regions.shp')
     # gpd_continents = gpd_continents[(gpd_continents.Region != 'Antarctica')&(gpd_continents.Region != 'Small Islands')]
-    regions = gpd.clip(regions,gpd_continents)
-    regions['keep'] = [0]*len(regions.Acronym)
+    gdf_basin = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
+    gdf_basin = gdf_basin.loc[:,['NAME','geometry']]    
+    # merge basins with multiple entries in dataframe
+    basins_grouped = []
+    bc = {k:0 for k in gdf_basin['NAME']} # bc for basin counter
+    for b_name in gdf_basin['NAME']:
+        if len(gdf_basin.loc[gdf_basin['NAME']==b_name]) > 1:
+            if bc[b_name]==0:
+                gdf_b = gdf_basin.loc[gdf_basin['NAME']==b_name]
+                basins_grouped.append(gdf_b.dissolve())
+            bc[b_name]+=1
+        else:
+            basins_grouped.append(gdf_basin.loc[gdf_basin['NAME']==b_name])
+    gdf_basin = pd.concat(basins_grouped).reset_index().loc[:,['NAME','geometry']]    
+    
+    gdf_ar6 = gpd.clip(regions,gdf_continents)
+    gdf_ar6['keep'] = [0]*len(gdf_ar6.Acronym)
     for r in ds_e.region.data:
-        regions.loc[r,'keep'] = 1 
-    regions = regions[regions.keep!=0].sort_index()
-    gdf_countries = gdf_country_borders.reset_index()
+        gdf_ar6.loc[r,'keep'] = 1 
+    gdf_ar6 = gdf_ar6[gdf_ar6.keep!=0].sort_index()
+    gdf_country = gdf_country_borders.reset_index()
+    
+    # basins3D only has 220 basins, whereas the original gdf has 226 basins. conversion to raster misses small basins then
+    # therefore need to find the missing ones to remove from gdf_basin
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+    basins_3D = rm.mask_3D_geopandas(gdf_basin,lon,lat)
+    small_basins = []
+    for i,b in enumerate(basins_3D.region.data):
+        if b!= basins_3D.region.data[i-1] + 1:
+            missing_b = np.arange(basins_3D.region.data[i-1],b+1)[1:-1]
+            for m in missing_b:
+                small_basins.append(m)
+    gdf_basin = gdf_basin.loc[~gdf_basin.index.isin(small_basins)]
     
     for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
-        regions[GMT] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':i}].values
-        gdf_countries[GMT] = ds_e['mean_exposure_trend_country'].loc[{'GMT':i}].values
+        for y in ds_e.year.data:
+            gdf_ar6['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            gdf_country['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            gdf_basin['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            
+    gdfs = {
+        'ar6':gdf_ar6,
+        'country':gdf_country,
+        'basin':gdf_basin,
+    }
 
-    samples = regions.loc[:,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')].values.flatten()
-    q90 = np.quantile(samples,0.9)
-    q10 = np.quantile(samples,0.1)
+    trend_cols = []
+    for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+        for y in ds_e.year.data:    
+            trend_cols.append('{}_{}'.format(GMT,y))
+            
+    samples = {}
+    for k in gdfs.keys():
+        samples[k] = gdfs[k].loc[:,trend_cols].values.flatten()
+    
+    q95 = np.quantile(samples,0.95)
+    q15 = np.quantile(samples,0.05)
     if flags['extr'] == 'driedarea':
         cb_end = np.around(q90,-2)
         cb_start = np.around(q10,-2)
@@ -1808,7 +1852,8 @@ def plot_p_pf_ae_by_heatmap(
     gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
     
     # pop
-    p = ds_pf_strj['mean_unprec_all_b_y0'].loc[{
+    p = ds_pf_strj['mean_unprec_all_b_y0'] * 1000 / 10**6
+    p = p.loc[{
         'birth_year':np.arange(1960,2021)
     }].plot(
         x='birth_year',
@@ -1816,7 +1861,7 @@ def plot_p_pf_ae_by_heatmap(
         add_colorbar=True,
         levels=10,
         cbar_kwargs={
-            'label':'Population'
+            'label':'Millions unprecedented'
         }
     ) 
     p.axes.set_yticks(
@@ -1832,13 +1877,17 @@ def plot_p_pf_ae_by_heatmap(
     plt.show()    
     
     # pop frac
+    if flags['extr'] == 'heatwavedarea':
+        levels = np.arange(0,1.01,0.1)
+    else:
+        levels = 10
     p2 = ds_pf_strj['mean_frac_unprec_all_b_y0'].loc[{
         'birth_year':np.arange(1960,2021)
     }].plot(
         x='birth_year',
         y='GMT',
         add_colorbar=True,
-        levels=10,
+        levels=levels,
         cbar_kwargs={
             'label':'Population Fraction'
         }
@@ -1859,7 +1908,7 @@ def plot_p_pf_ae_by_heatmap(
     p3 = ds_ae_strj['age_emergence'].weighted(ds_cohorts['by_y0_weights']).mean(dim=('country','run')).plot(
         x='birth_year',
         y='GMT',
-        # levels=np.arange(10,80,5),
+        levels=10,
         cbar_kwargs={
             'label':'Age Emergence'
         }        
