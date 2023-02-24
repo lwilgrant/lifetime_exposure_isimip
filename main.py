@@ -383,6 +383,7 @@ if flags['plot']:
         gdf_country_borders,
         df_GMT_strj,
         GMT_indices,
+        grid_area,
     )    
     
     plot_le_by_GMT_strj(

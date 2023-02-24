@@ -20,8 +20,10 @@ import matplotlib as mpl
 import mapclassify as mc
 from copy import deepcopy as cp
 import matplotlib.pyplot as plt
+from matplotlib.colors import TwoSlopeNorm
 import numpy as np
 import pandas as pd
+import regionmask as rm
 import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
@@ -67,13 +69,13 @@ def floater(f):
 
 #%% --------------------------------------------------------------------
 # plot trends
-
 def plot_trend(
     ds_e,
     flags,
     gdf_country_borders,
     df_GMT_strj,
     GMT_indices,
+    grid_area,
 ):
 
     #=========================================================================================
@@ -110,6 +112,7 @@ def plot_trend(
     for r in ds_e.region.data:
         gdf_ar6.loc[r,'keep'] = 1 
     gdf_ar6 = gdf_ar6[gdf_ar6.keep!=0].sort_index()
+    gdf_ar6 = gdf_ar6.drop(columns=['keep'])
     gdf_country = gdf_country_borders.reset_index()
     
     # basins3D only has 220 basins, whereas the original gdf has 226 basins. conversion to raster misses small basins then
@@ -125,16 +128,26 @@ def plot_trend(
                 small_basins.append(m)
     gdf_basin = gdf_basin.loc[~gdf_basin.index.isin(small_basins)]
     
+    # separate versions of shapefiles and their data
+    gdf_ar6_data = cp(gdf_ar6)
+    gdf_country_data = cp(gdf_country)
+    gdf_basin_data = cp(gdf_basin)
+    
     for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
         for y in ds_e.year.data:
-            gdf_ar6['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
-            gdf_country['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
-            gdf_basin['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            gdf_ar6_data['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            gdf_country_data['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            gdf_basin_data['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
             
     gdfs = {
         'ar6':gdf_ar6,
         'country':gdf_country,
-        'basin':gdf_basin,
+        'basin':gdf_basin, 
+    }
+    gdfs_data = {
+        'ar6':gdf_ar6_data,
+        'country':gdf_country_data,
+        'basin':gdf_basin_data,
     }
 
     trend_cols = []
@@ -144,183 +157,31 @@ def plot_trend(
             
     samples = {}
     for k in gdfs.keys():
-        samples[k] = gdfs[k].loc[:,trend_cols].values.flatten()
-    
-    q95 = np.quantile(samples,0.95)
-    q15 = np.quantile(samples,0.05)
-    if flags['extr'] == 'driedarea':
-        cb_end = np.around(q90,-2)
-        cb_start = np.around(q10,-2)
-        levels = np.arange(cb_start,cb_end,50).astype('int')
-    elif flags['extr'] == 'floodedarea':
-        cb_end = np.around(q90,-1)
-        cb_start = np.around(q10,-1)
-        levels = np.arange(cb_start,cb_end+1,10).astype('int')
+        samples[k] = gdfs_data[k].loc[:,trend_cols].values.flatten()
         
     # identify colors
-    cmap_whole = plt.cm.get_cmap('RdBu_r')
-    cmap55 = cmap_whole(0.01)
-    cmap50 = cmap_whole(0.05)   #blue
-    cmap45 = cmap_whole(0.1)
-    cmap40 = cmap_whole(0.15)
-    cmap35 = cmap_whole(0.2)
-    cmap30 = cmap_whole(0.25)
-    cmap25 = cmap_whole(0.3)
-    cmap20 = cmap_whole(0.325)
-    cmap10 = cmap_whole(0.4)
-    cmap5 = cmap_whole(0.475)
-    cmap0 = 'gray'
-    cmap_5 = cmap_whole(0.525)
-    cmap_10 = cmap_whole(0.6)
-    cmap_15 = cmap_whole(0.625)
-    cmap_20 = cmap_whole(0.65)
-    cmap_25 = cmap_whole(0.7)
-    cmap_30 = cmap_whole(0.75)
-    cmap_35 = cmap_whole(0.8)
-    cmap_40 = cmap_whole(0.85)
-    cmap_45 = cmap_whole(0.9)
-    cmap_50 = cmap_whole(0.95)  #red
-    cmap_55 = cmap_whole(0.99)
-
-    # need 11 colors for drying
-    if flags['extr'] == 'driedarea':
-        colors = [
-            cmap45,cmap25, # blue for negative drying (wetting)
-            cmap_5,cmap_10,cmap_15,cmap_20,cmap_25,cmap_30,cmap_35,cmap_40,cmap_45, # red for drying
-        ]
-    # need 8 colors for flooding
-    elif flags['extr'] == 'floodedarea':
-        colors = [
-            cmap_45, # red for negative flooding (drying)
-            cmap10,cmap20,cmap25,cmap30,cmap35,cmap40,cmap45, # blue for flooding
-        ]    
-
-    # declare list of colors for discrete colormap of colorbar
-    cmap = mpl.colors.ListedColormap(colors,N=len(colors))
-    if flags['extr'] == 'driedarea':
-        cmap.set_over(cmap_55)
-        cmap.set_under(cmap55)
-    elif flags['extr'] == 'floodedarea':
-        cmap.set_over(cmap55)
-        cmap.set_under(cmap_55)    
-    norm = mpl.colors.BoundaryNorm(levels,cmap.N)
-
-    # cbar location
-    cb_x0 = 0.25
-    cb_y0 = 0.05
-    cb_xlen = 0.5
-    cb_ylen = 0.015
-
-    # cbar stuff
-    col_cbticlbl = '0'   # colorbar color of tick labels
-    col_cbtic = '0.5'   # colorbar color of ticks
-    col_cbedg = '0.9'   # colorbar color of edge
-    cb_ticlen = 3.5   # colorbar length of ticks
-    cb_ticwid = 0.4   # colorbar thickness of ticks
-    cb_edgthic = 0   # colorbar thickness of edges between colors
-
-    # fonts
-    title_font = 14
-    cbtitle_font = 20
-    tick_font = 12
-    legend_font=12
-
-    f,axes = plt.subplots(
-        nrows=2,
-        ncols=3,
-        figsize=(15,5),
-    )
-
-    cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen,])
-
-    for ax,GMT in zip(axes.flatten(),np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
-        regions.plot(
-            ax=ax,
-            column=GMT,
-            cmap=cmap,
+    cmap = 'RdBu'    
+    
+    #========================================================
+    # plot km^2 trends for each spatial scale
+    
+    for k in gdfs.keys():
+        
+        vmin = np.around(np.min(samples[k]),-2)
+        vmax = np.around(np.max(samples[k]),-2)
+        range = vmax - vmin
+        interv = range/10
+        norm = MidpointNormalize(
+            vmin=vmin,
+            vmax=vmax,
+            midpoint=0,
         )
-        
-    for i,ax in enumerate(axes.flatten()):
-        ax.set_yticks([])
-        ax.set_xticks([])
-        ax.set_title(
-            letters[i],
-            loc='left',
-            fontweight='bold',
-            fontsize=10)
-        ax.set_title(
-            '{} °C @ 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_indices].iloc[i],1)),
-            loc='center',
-            fontweight='bold',
-            fontsize=10)          
-        
-    cb = mpl.colorbar.ColorbarBase(
-        ax=cbax, 
-        cmap=cmap,
-        norm=norm,
-        spacing='uniform',
-        orientation='horizontal',
-        extend='both',
-        ticks=levels,
-        drawedges=False
-    )
-    # cb_lu.set_label('LU trends (°C/5-years)',
-    cb.set_label( '{} trends [km^2/year]'.format(flags['extr']))
-    cb.ax.xaxis.set_label_position('top')
-    cb.ax.tick_params(
-        labelcolor=col_cbticlbl,
-        labelsize=tick_font,
-        color=col_cbtic,
-        length=cb_ticlen,
-        width=cb_ticwid,
-        direction='out'
-    )
-    cb.outline.set_edgecolor(col_cbedg)
-    cb.outline.set_linewidth(cb_edgthic)
-    f.savefig('./figures/{}_ar6_trends.png'.format(flags['extr']),dpi=800)
-    
-    #=========================================================================================
-    # plot trends for different 80 year ranges
-
-    continents = {}
-    continents['North America'] = [1,2,3,4,5,6,7]
-    continents['South America'] = [9,10,11,12,13,14,15]
-    continents['Europe'] = [16,17,18,19]
-    continents['Asia'] = [28,29,30,31,32,33,34,35,37,38]
-    continents['Africa'] = [21,22,23,24,25,26]
-    continents['Australia'] = [39,40,41,42]    
-
-    regions = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
-    gpd_continents = gpd.read_file('./data/shapefiles/IPCC_WGII_continental_regions.shp')
-    regions = gpd.clip(regions,gpd_continents)
-    regions['keep'] = [0]*len(regions.Acronym)
-    for r in ds_e.region.data:
-        regions.loc[r,'keep'] = 1 
-    regions = regions[regions.keep!=0].sort_index()
-    gdf_countries = gdf_country_borders.reset_index()
-    
-    for y in np.arange(year_start,year_ref+1,20):
-        
-        for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
-            regions[GMT] = ds_e['mean_exposure_trend_ar6_time_ranges'].loc[{'GMT':i,'year':y}].values
-            gdf_countries[GMT] = ds_e['mean_exposure_trend_country_time_ranges'].loc[{'GMT':i,'year':y}].values
-
-        samples = regions.loc[:,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')].values.flatten()
-        vmin = samples.min()
-        vmax = samples.max()
-
-        # need 11 colors for drying
-        if flags['extr'] == 'driedarea':
-            cmap = 'RdBu_r'
-        elif flags['extr'] == 'floodedarea':
-            cmap = 'RdBu'
-        norm = MidpointNormalize(vmin=vmin,vmax=vmax,midpoint=0)
 
         # cbar location
-        cb_x0 = 0.25
-        cb_y0 = 0.05
-        cb_xlen = 0.5
-        cb_ylen = 0.015
+        cb_x0 = 0.95
+        cb_y0 = 0.2
+        cb_xlen = 0.025
+        cb_ylen = 0.6
 
         # cbar stuff
         col_cbticlbl = '0'   # colorbar color of tick labels
@@ -337,22 +198,46 @@ def plot_trend(
         legend_font=12
 
         f,axes = plt.subplots(
-            nrows=2,
-            ncols=3,
-            figsize=(15,5),
+            nrows=len(ds_e.year.data),
+            ncols=len(GMT_indices),
+            figsize=(20,6.5),
         )
 
         cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen,])
 
-        for ax,GMT in zip(axes.flatten(),np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
-            regions.plot(
-                ax=ax,
-                column=GMT,
-                cmap=cmap,
-                cax=cbax,
-                norm=norm
-            )
-            
+        for row,y in zip(axes,ds_e.year.data):    
+            for ax,GMT in zip(row,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):   
+                gdfs_data[k].plot(
+                    ax=ax,
+                    column='{}_{}'.format(GMT,y),
+                    cmap=cmap,
+                    norm=norm,
+                    cax=cbax,
+                )           
+                gdfs[k].plot(
+                    ax=ax,
+                    color='none', 
+                    edgecolor='black',
+                    linewidth=0.25,
+                )                           
+                if y == 1960:
+                    ax.set_title(
+                        '{} °C @ 2100'.format(GMT),
+                        loc='center',
+                        fontweight='bold',
+                        fontsize=10,
+                    )     
+                if GMT == np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')[0]:
+                    ax.text(
+                        -0.07, 0.55, 
+                        '{}-{}'.format(y,y+80), 
+                        va='bottom', 
+                        ha='center',# # create legend with patche for hsitnolu and lu det/att levels
+                        fontweight='bold',
+                        rotation='vertical', 
+                        rotation_mode='anchor',
+                        transform=ax.transAxes,
+                    )
         for i,ax in enumerate(axes.flatten()):
             ax.set_yticks([])
             ax.set_xticks([])
@@ -360,25 +245,19 @@ def plot_trend(
                 letters[i],
                 loc='left',
                 fontweight='bold',
-                fontsize=10)
-            ax.set_title(
-                '{} °C @ 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_indices].iloc[i],1)),
-                loc='center',
-                fontweight='bold',
-                fontsize=10)          
+                fontsize=10
+            )     
             
         cb = mpl.colorbar.ColorbarBase(
             ax=cbax, 
             cmap=cmap,
             norm=norm,
-            # spacing='uniform',
-            orientation='horizontal',
-            # extend='both',
-            # ticks=levels,
-            drawedges=False
+            orientation='vertical',
+            spacing='uniform',
+            drawedges=False,
         )
         # cb_lu.set_label('LU trends (°C/5-years)',
-        cb.set_label( '{} trends [km^2/year], {}-{}'.format(flags['extr'],str(y),str(y+80)))
+        cb.set_label( '{} trends [km^2/year]'.format(flags['extr']))
         cb.ax.xaxis.set_label_position('top')
         cb.ax.tick_params(
             labelcolor=col_cbticlbl,
@@ -390,7 +269,84 @@ def plot_trend(
         )
         cb.outline.set_edgecolor(col_cbedg)
         cb.outline.set_linewidth(cb_edgthic)
-        f.savefig('./figures/{}_ar6_trends_{}-{}.png'.format(flags['extr'],str(y),str(y+80)),dpi=800)    
+        f.savefig('./figures/{}_{}_trends.png'.format(flags['extr'],k),dpi=800,bbox_inches='tight')
+        plt.show()
+    
+    #========================================================
+    # plot km^2 trends as frac of spatial units for each spatial scale   
+         
+    # country_3D = rm.mask_3D_geopandas(gdf_country.reset_index(),lon,lat)
+    # ar6_3D = rm.mask_3D_geopandas(gdf_ar6.reset_index(),lon,lat)
+    # basin_3D = rm.mask_3D_geopandas(gdf_basin.reset_index(),lon,lat)
+    
+    # # get sums of exposed area per ar6, country & basin, convert m^2 to km^2
+    # country_area = country_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    # ar6_area = ar6_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    # basin_area = basin_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    
+    # # separate versions of shapefiles and their data
+    # gdf_country_frac = cp(gdf_country)
+    # gdf_ar6_frac = cp(gdf_ar6)
+    # gdf_basin_frac = cp(gdf_basin)
+    
+    # for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+    #     for y in ds_e.year.data:
+    #         gdf_country_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / country_area.values
+    #         gdf_ar6_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / ar6_area.values
+    #         gdf_basin_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / basin_area.values
+            
+    # gdfs_frac_data = {
+    #     'ar6':gdf_ar6_frac,
+    #     'country':gdf_country_frac,
+    #     'basin':gdf_basin_frac,
+    # }            
+            
+    # samples = {}
+    # for k in gdfs.keys():
+    #     samples[k] = gdfs_frac_data[k].loc[:,trend_cols].values.flatten()            
+    
+    # cmap_whole = plt.cm.get_cmap(cmap)
+    # cmap55 = cmap_whole(0.01)
+    # cmap50 = cmap_whole(0.05)   #red
+    # cmap45 = cmap_whole(0.1)
+    # cmap40 = cmap_whole(0.15)
+    # cmap35 = cmap_whole(0.2)
+    # cmap30 = cmap_whole(0.25)
+    # cmap25 = cmap_whole(0.3)
+    # cmap20 = cmap_whole(0.325)
+    # cmap10 = cmap_whole(0.4)
+    # cmap5 = cmap_whole(0.475)
+    # cmap0 = 'gray'
+    # cmap_5 = cmap_whole(0.525)
+    # cmap_10 = cmap_whole(0.6)
+    # cmap_20 = cmap_whole(0.625)
+    # cmap_25 = cmap_whole(0.7)
+    # cmap_30 = cmap_whole(0.75)
+    # cmap_35 = cmap_whole(0.8)
+    # cmap_40 = cmap_whole(0.85)
+    # cmap_45 = cmap_whole(0.9)
+    # cmap_50 = cmap_whole(0.95)  #blue
+    # cmap_55 = cmap_whole(0.99)
+
+    # colors = [
+    #     cmap_55,cmap_50,cmap_45,cmap_40,cmap_35,cmap_30,cmap_25,cmap_20,cmap_10,cmap_5,
+    #     cmap0,
+    #     cmap5,cmap10,cmap20,cmap25,cmap30,cmap35,cmap40,cmap45,cmap50,cmap55,
+    # ]
+
+    # # declare list of colors for discrete colormap of colorbar
+    # cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+
+    # # colorbar args
+    # values_frac = [-1,-0.9,-0.8,-0.7,-0.6,-0.5,-0.4,-0.3,-0.2,-0.1,-0.01,0.01,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
+    # tick_locs_frac = [-1,-0.8,-0.6,-0.4,-0.2,0,0.2,0.4,0.6,0.8,1]
+    # tick_labels_frac = ['-1','-0.8','-0.6','-0.4','-0.2','0','0.2','0.4','0.6','0.8','1']
+    # norm_frac = mpl.colors.BoundaryNorm(values_frac,cmap_list_frac.N)        
+    
+    # for k in gdfs.keys():
+        
+        
+        
     
 #%% ----------------------------------------------------------------
 # plot timing and EMF of exceedence of pic-defined extreme
