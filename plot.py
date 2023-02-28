@@ -28,7 +28,6 @@ import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
 import cartopy as cr
-import seaborn as sns
 from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
@@ -160,7 +159,10 @@ def plot_trend(
         samples[k] = gdfs_data[k].loc[:,trend_cols].values.flatten()
         
     # identify colors
-    cmap = 'RdBu'    
+    if flags['extr'] == 'floodedarea':
+        cmap = 'RdBu'
+    elif flags['extr'] == 'driedarea':
+        cmap = 'RdBu_r'
     
     #========================================================
     # plot km^2 trends for each spatial scale
@@ -178,7 +180,7 @@ def plot_trend(
         )
 
         # cbar location
-        cb_x0 = 0.95
+        cb_x0 = 0.925
         cb_y0 = 0.2
         cb_xlen = 0.025
         cb_ylen = 0.6
@@ -275,77 +277,176 @@ def plot_trend(
     #========================================================
     # plot km^2 trends as frac of spatial units for each spatial scale   
          
-    # country_3D = rm.mask_3D_geopandas(gdf_country.reset_index(),lon,lat)
-    # ar6_3D = rm.mask_3D_geopandas(gdf_ar6.reset_index(),lon,lat)
-    # basin_3D = rm.mask_3D_geopandas(gdf_basin.reset_index(),lon,lat)
+    country_3D = rm.mask_3D_geopandas(gdf_country.reset_index(),lon,lat)
+    ar6_3D = rm.mask_3D_geopandas(gdf_ar6.reset_index(),lon,lat)
+    basin_3D = rm.mask_3D_geopandas(gdf_basin.reset_index(),lon,lat)
     
-    # # get sums of exposed area per ar6, country & basin, convert m^2 to km^2
-    # country_area = country_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
-    # ar6_area = ar6_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
-    # basin_area = basin_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    # get sums of exposed area per ar6, country & basin, convert m^2 to km^2
+    country_area = country_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    ar6_area = ar6_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    basin_area = basin_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
     
-    # # separate versions of shapefiles and their data
-    # gdf_country_frac = cp(gdf_country)
-    # gdf_ar6_frac = cp(gdf_ar6)
-    # gdf_basin_frac = cp(gdf_basin)
+    # separate versions of shapefiles and their data
+    gdf_country_frac = cp(gdf_country)
+    gdf_ar6_frac = cp(gdf_ar6)
+    gdf_basin_frac = cp(gdf_basin)
     
-    # for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
-    #     for y in ds_e.year.data:
-    #         gdf_country_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / country_area.values
-    #         gdf_ar6_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / ar6_area.values
-    #         gdf_basin_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / basin_area.values
+    for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+        for y in ds_e.year.data:
+            gdf_country_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / country_area.values
+            gdf_ar6_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / ar6_area.values
+            gdf_basin_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / basin_area.values
             
-    # gdfs_frac_data = {
-    #     'ar6':gdf_ar6_frac,
-    #     'country':gdf_country_frac,
-    #     'basin':gdf_basin_frac,
-    # }            
+    gdfs_frac_data = {
+        'ar6':gdf_ar6_frac,
+        'country':gdf_country_frac,
+        'basin':gdf_basin_frac,
+    }
             
     # samples = {}
     # for k in gdfs.keys():
     #     samples[k] = gdfs_frac_data[k].loc[:,trend_cols].values.flatten()            
     
-    # cmap_whole = plt.cm.get_cmap(cmap)
-    # cmap55 = cmap_whole(0.01)
-    # cmap50 = cmap_whole(0.05)   #red
-    # cmap45 = cmap_whole(0.1)
-    # cmap40 = cmap_whole(0.15)
-    # cmap35 = cmap_whole(0.2)
-    # cmap30 = cmap_whole(0.25)
-    # cmap25 = cmap_whole(0.3)
-    # cmap20 = cmap_whole(0.325)
-    # cmap10 = cmap_whole(0.4)
-    # cmap5 = cmap_whole(0.475)
-    # cmap0 = 'gray'
-    # cmap_5 = cmap_whole(0.525)
-    # cmap_10 = cmap_whole(0.6)
-    # cmap_20 = cmap_whole(0.625)
-    # cmap_25 = cmap_whole(0.7)
-    # cmap_30 = cmap_whole(0.75)
-    # cmap_35 = cmap_whole(0.8)
-    # cmap_40 = cmap_whole(0.85)
-    # cmap_45 = cmap_whole(0.9)
-    # cmap_50 = cmap_whole(0.95)  #blue
-    # cmap_55 = cmap_whole(0.99)
+    cmap_whole = plt.cm.get_cmap(cmap)
+    cmap55 = cmap_whole(0.01)
+    cmap50 = cmap_whole(0.05)   # blue
+    cmap45 = cmap_whole(0.1)
+    cmap40 = cmap_whole(0.15)
+    cmap35 = cmap_whole(0.2)
+    cmap30 = cmap_whole(0.25)
+    cmap25 = cmap_whole(0.3)
+    cmap20 = cmap_whole(0.325)
+    cmap10 = cmap_whole(0.4)
+    cmap5 = cmap_whole(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_whole(0.525)
+    cmap_10 = cmap_whole(0.6)
+    cmap_20 = cmap_whole(0.625)
+    cmap_25 = cmap_whole(0.7)
+    cmap_30 = cmap_whole(0.75)
+    cmap_35 = cmap_whole(0.8)
+    cmap_40 = cmap_whole(0.85)
+    cmap_45 = cmap_whole(0.9)
+    cmap_50 = cmap_whole(0.95)  # red
+    cmap_55 = cmap_whole(0.99)
 
-    # colors = [
-    #     cmap_55,cmap_50,cmap_45,cmap_40,cmap_35,cmap_30,cmap_25,cmap_20,cmap_10,cmap_5,
-    #     cmap0,
-    #     cmap5,cmap10,cmap20,cmap25,cmap30,cmap35,cmap40,cmap45,cmap50,cmap55,
-    # ]
+    colors = [
+        cmap55,cmap50,cmap45,cmap40,cmap35,cmap30,cmap25,cmap20,cmap10,cmap5,
+        cmap0,
+        cmap_5,cmap_10,cmap_20,cmap_25,cmap_30,cmap_35,cmap_40,cmap_45,cmap_50,cmap_55,
+    ]
 
-    # # declare list of colors for discrete colormap of colorbar
-    # cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+    # declare list of colors for discrete colormap of colorbar
+    cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
 
-    # # colorbar args
-    # values_frac = [-1,-0.9,-0.8,-0.7,-0.6,-0.5,-0.4,-0.3,-0.2,-0.1,-0.01,0.01,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
-    # tick_locs_frac = [-1,-0.8,-0.6,-0.4,-0.2,0,0.2,0.4,0.6,0.8,1]
-    # tick_labels_frac = ['-1','-0.8','-0.6','-0.4','-0.2','0','0.2','0.4','0.6','0.8','1']
-    # norm_frac = mpl.colors.BoundaryNorm(values_frac,cmap_list_frac.N)        
+    # colorbar args
+    values_frac = [-0.001,-0.0009,-0.0008,-0.0007,-0.0006,-0.0005,-0.0004,-0.0003,-0.0002,-0.0001,-0.00001,\
+        0.00001,0.0001,0.0002,0.0003,0.0004,0.0005,0.0006,0.0007,0.0008,0.0009,0.001]
+    tick_locs_frac = [-0.001,-0.0008,-0.0006,-0.0004,-0.0002,0,0.0002,0.0004,0.0006,0.0008,0.001]
+    tick_labels_frac = ['-0.001','-0.0008','-0.0006','-0.0004','-0.0002','0','0.0002','0.0004','0.0006','0.0008','0.001']
+    norm_frac = mpl.colors.BoundaryNorm(values_frac,cmap_list_frac.N)        
     
-    # for k in gdfs.keys():
+    for k in gdfs.keys():
         
-        
+        # cbar location
+        cb_x0 = 0.925
+        cb_y0 = 0.2
+        cb_xlen = 0.025
+        cb_ylen = 0.6
+
+        # cbar stuff
+        col_cbticlbl = '0'   # colorbar color of tick labels
+        col_cbtic = '0.5'   # colorbar color of ticks
+        col_cbedg = '0.9'   # colorbar color of edge
+        cb_ticlen = 3.5   # colorbar length of ticks
+        cb_ticwid = 0.4   # colorbar thickness of ticks
+        cb_edgthic = 0   # colorbar thickness of edges between colors
+
+        # fonts
+        title_font = 14
+        cbtitle_font = 20
+        tick_font = 12
+        legend_font=12
+
+        f,axes = plt.subplots(
+            nrows=len(ds_e.year.data),
+            ncols=len(GMT_indices),
+            figsize=(20,6.5),
+        )
+
+        cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen,])
+
+        for row,y in zip(axes,ds_e.year.data):    
+            for ax,GMT in zip(row,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):   
+                gdfs_frac_data[k].plot(
+                    ax=ax,
+                    column='{}_{}'.format(GMT,y),
+                    cmap=cmap_list_frac,
+                    norm=norm_frac,
+                    cax=cbax,
+                )           
+                gdfs[k].plot(
+                    ax=ax,
+                    color='none', 
+                    edgecolor='black',
+                    linewidth=0.25,
+                )                           
+                if y == 1960:
+                    ax.set_title(
+                        '{} °C @ 2100'.format(GMT),
+                        loc='center',
+                        fontweight='bold',
+                        fontsize=10,
+                    )     
+                if GMT == np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')[0]:
+                    ax.text(
+                        -0.07, 0.55, 
+                        '{}-{}'.format(y,y+80), 
+                        va='bottom', 
+                        ha='center',# # create legend with patche for hsitnolu and lu det/att levels
+                        fontweight='bold',
+                        rotation='vertical', 
+                        rotation_mode='anchor',
+                        transform=ax.transAxes,
+                    )
+        for i,ax in enumerate(axes.flatten()):
+            ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_title(
+                letters[i],
+                loc='left',
+                fontweight='bold',
+                fontsize=10
+            )     
+            
+        cb = mpl.colorbar.ColorbarBase(
+            ax=cbax, 
+            cmap=cmap_list_frac,
+            norm=norm_frac,
+            orientation='vertical',
+            spacing='uniform',
+            ticks=tick_locs_frac,
+            drawedges=False,
+        )
+        # cb_lu.set_label('LU trends (°C/5-years)',
+        cb.set_label( '{} trends [fraction/year]'.format(flags['extr']))
+        cb.ax.xaxis.set_label_position('top')
+        cb.ax.tick_params(
+            labelcolor=col_cbticlbl,
+            labelsize=tick_font,
+            color=col_cbtic,
+            length=cb_ticlen,
+            width=cb_ticwid,
+            direction='out'
+        )
+        cb.ax.set_yticklabels(
+            tick_labels_frac,
+            # rotation=45    
+        )        
+        cb.outline.set_edgecolor(col_cbedg)
+        cb.outline.set_linewidth(cb_edgthic)
+        f.savefig('./figures/{}_{}_trends_frac.png'.format(flags['extr'],k),dpi=800,bbox_inches='tight')
+        plt.show()        
         
     
 #%% ----------------------------------------------------------------
@@ -1829,7 +1930,7 @@ def plot_p_pf_ae_by_heatmap(
     )    
     p.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p.axes.set_xlabel('Birth year')
-    p.axes.figure.savefig('./figures/p_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p.axes.figure.savefig('./figures/p_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()    
     
     # pop frac
@@ -1857,7 +1958,7 @@ def plot_p_pf_ae_by_heatmap(
     )    
     p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p2.axes.set_xlabel('Birth year')
-    p2.axes.figure.savefig('./figures/pf_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p2.axes.figure.savefig('./figures/pf_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()
     
     # age emergence
@@ -1875,7 +1976,7 @@ def plot_p_pf_ae_by_heatmap(
     )
     p3.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p3.axes.set_xlabel('Birth year')
-    p3.axes.figure.savefig('./figures/ae_by_heatmap_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
+    p3.axes.figure.savefig('./figures/ae_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
 
         
 #%% ----------------------------------------------------------------

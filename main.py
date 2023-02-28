@@ -55,7 +55,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'floodedarea' # 0: all
+flags['extr'] = 'driedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -85,7 +85,7 @@ flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birt
                                     # 1: run calc_birthyear_align with birth years from 1960-2100
 flags['regional_emergence'] = 0     # 0: do not run regional emergence analysis
                                     # 1: run regional emergence analysis                                     
-flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
+flags['gridscale'] = 1      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
 flags['testing'] = 0                           
 flags['plot'] = 0
@@ -361,7 +361,109 @@ else: # load pickles
     
     # age emergence           
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
-        ds_ae_strj = pk.load(f)       
+        ds_ae_strj = pk.load(f)    
+                 
+# %% ----------------------------------------------------------------
+# grid scale
+# ------------------------------------------------------------------
+
+from gridscale import *
+
+if flags['gridscale']:
+    
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values  
+    
+    # countries in Mediterranean for drought
+    if flags['extr'] == 'driedarea': 
+        
+        med = 'Mediterranean'
+        gdf_ar6 = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
+        gdf_ar6 = gdf_ar6.loc[gdf_ar6['Name']==med]
+        gdf_ar6 = gdf_ar6.loc[:,['Name','geometry']]
+        gdf_ar6 = gdf_ar6.rename(columns={'Name':'name'})
+        gdf_country = gdf_country_borders.loc[:,'geometry']
+        gdf_country = gdf_country.reset_index()
+        gdf_med_countries = gdf_country.loc[gdf_country.intersects(gdf_ar6['geometry'].iloc[0])]
+        countries_med_3D = rm.mask_3D_geopandas(gdf_med_countries,lon,lat)
+        ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+        med_3D = ar6_regs_3D.isel(region=(ar6_regs_3D.names == 'Mediterranean')).squeeze()
+        
+        c_valid = []
+        for c in gdf_med_countries.index:
+            # next line gives nans outside country, 
+            # 1 in parts of country in AR6 Medit
+            # and 0 in parts outside Medit.
+            c_in_med = med_3D.where(countries_med_3D.sel(region=c)==1) 
+            c_area_in_med = c_in_med.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area = countries_med_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area_frac = c_area_in_med.item() / c_area.item()
+            if c_area_frac > 0.5:
+                c_valid.append(c)
+        countries_med_3D = countries_med_3D.loc[{'region':c_valid}]
+        gdf_med_countries = gdf_med_countries.loc[c_valid]
+        list_countries = gdf_med_countries['name']
+        
+    # countries in the Nile for floods
+    elif flags['extr'] == 'floodedarea':
+        
+        basin = 'Nile'
+        gdf_basins = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
+        gdf_basins = gdf_basins.loc[:,['NAME','geometry']]
+        gdf_basin = gdf_basins.loc[gdf_basins['NAME']==basin]
+        gdf_basin = gdf_basin.rename(columns={'Name':'name'})
+        if len(gdf_basin.index) > 1:
+            gdf_basin = gdf_basin.dissolve()
+        gdf_country = gdf_country_borders.loc[:,'geometry']
+        gdf_country = gdf_country.reset_index()
+        gdf_basin_countries = gdf_country.loc[gdf_country.intersects(gdf_basin['geometry'].iloc[0])]
+        countries_basin_3D = rm.mask_3D_geopandas(gdf_basin_countries,lon,lat)
+        basin_3D = rm.mask_3D_geopandas(gdf_basin,lon,lat)
+        
+        c_valid = []
+        for c in gdf_basin_countries.index:
+            # next line gives nans outside country, 
+            # 1 in parts of country in basin
+            # and 0 in parts outside basin.
+            c_in_basin = basin_3D.where(countries_basin_3D.sel(region=c)==1) 
+            c_area_in_basin = c_in_basin.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area = countries_basin_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area_frac = c_area_in_basin.item() / c_area.item()
+            if c_area_frac > 0.5:
+                c_valid.append(c)
+        countries_basin_3D = countries_basin_3D.loc[{'region':c_valid}]
+        gdf_basin_countries = gdf_basin_countries.loc[c_valid]
+        list_countries = gdf_basin_countries['name']
+    
+    ds_le_gs, ds_ae_gs, ds_pf_gs = grid_scale_emergence(
+        d_isimip_meta,
+        d_pic_meta,
+        flags['extr'],
+        list_countries,
+        da_cohort_size,
+        countries_regions,
+        countries_mask,
+        df_life_expectancy_5,
+        GMT_indices,
+        da_population,
+    )
+    
+else:
+    
+    # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
+    with open('./data/pickles/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr']), 'rb') as f:
+        ds_le_gs = pk.load(f)
+    with open('./data/pickles/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr']), 'rb') as f:
+        ds_ae_gs = pk.load(f)
+    with open('./data/pickles/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr']), 'rb') as f:
+        ds_pf_gs = pk.load(f)
+
+# load spatially explicit datasets
+d_gs_spatial = {}
+for cntry in sample_countries:
+    with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
+        d_gs_spatial[cntry] = pk.load(f)
+
 
 #%% ----------------------------------------------------------------
 # plot
@@ -420,29 +522,38 @@ if flags['plot']:
 
 if flags['testing']:
     
-    # testing on finding countries with ar6 region
+    # testing on finding countries with ar6 region  
     med = 'Mediterranean'
     gdf_ar6 = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
     gdf_ar6 = gdf_ar6.loc[gdf_ar6['Name']==med]
     gdf_ar6 = gdf_ar6.loc[:,['Name','geometry']]
     gdf_ar6 = gdf_ar6.rename(columns={'Name':'name'})
-    country_test = gdf_country_borders.loc[:,'geometry']
-    country_test = country_test.reset_index()
-    country_test.intersects(gdf_ar6['geometry'].iloc[0])
-    med_countries = country_test.loc[country_test.intersects(gdf_ar6['geometry'].iloc[0])]
+    gdf_country = gdf_country_borders.loc[:,'geometry']
+    gdf_country = gdf_country.reset_index()
+    gdf_country.intersects(gdf_ar6['geometry'].iloc[0])
+    gdf_med_countries = gdf_country.loc[gdf_country.intersects(gdf_ar6['geometry'].iloc[0])]
     lat = grid_area.lat.values
     lon = grid_area.lon.values    
-    countries_med_3D = rm.mask_3D_geopandas(med_countries,lon,lat)
+    countries_med_3D = rm.mask_3D_geopandas(gdf_med_countries,lon,lat)
     ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
     med_3D = ar6_regs_3D.isel(region=(ar6_regs_3D.names == 'Mediterranean')).squeeze()
-    for c in med_countries.index():
+    c_valid = []
+    for c in gdf_med_countries.index:
         # next line gives nans outside country, 
         # 1 in parts of country in AR6 Medit
         # and 0 in parts outside Medit.
         c_in_med = med_3D.where(countries_med_3D.sel(region=c)==1) 
-        c_area_in_med = c_in_med.weighted(grid_area/10**6)
-        da_AFA_ar6_weighted_sum = da_AFA_step.weighted(ar6_regs_3D*grid_area/10**6).sum(dim=('lat','lon'))
-        
+        c_area_in_med = c_in_med.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+        # c_area_out_med = xr.where(c_in_med==0,1,0).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+        c_area = countries_med_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+        c_area_frac = c_area_in_med.item() / c_area.item()
+        if c_area_frac > 0.5:
+            c_valid.append(c)
+    countries_med_3D = countries_med_3D.loc[{'region':c_valid}]
+    gdf_med_countries = gdf_med_countries.loc[c_valid]
+    
+    da_med_p = ds_pf_strj['unprec_country_b_y0'].loc[{'country':gdf_med_countries['name'].values}].mean(dim='run')
+    da_med_pf = da_med_p.sum(dim='country') / ds_cohorts['by_population_y0'].loc[{'country':da_med_p.country.data}].sum(dim='country')
 
     
     ds_e_test = calc_exposure_trends_test(

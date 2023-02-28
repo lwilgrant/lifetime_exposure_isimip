@@ -62,6 +62,7 @@ def grid_scale_emergence(
     d_isimip_meta,
     d_pic_meta,
     flag_extr,
+    list_countries,
     da_cohort_size,
     countries_regions,
     countries_mask,
@@ -76,20 +77,20 @@ def grid_scale_emergence(
             'lifetime_exposure_popweight': (
                 ['country','run','GMT','birth_year'],
                 np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),
             'lifetime_exposure_latweight': (
                 ['country','run','GMT','birth_year'],
                 np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
             )            
         },
         coords={
-            'country': ('country', sample_countries),
+            'country': ('country', list_countries),
             'birth_year': ('birth_year', birth_years),
             'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
             'GMT': ('GMT', GMT_labels)
@@ -103,20 +104,20 @@ def grid_scale_emergence(
             'age_emergence_popweight': (
                 ['country','run','GMT','birth_year'],
                 np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),
             'age_emergence_latweight': (
                 ['country','run','GMT','birth_year'],
                 np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
             )            
         },
         coords={
-            'country': ('country', sample_countries),
+            'country': ('country', list_countries),
             'birth_year': ('birth_year', birth_years),
             'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
             'GMT': ('GMT', GMT_labels)
@@ -129,27 +130,27 @@ def grid_scale_emergence(
             'unprec': (
                 ['country','run','GMT','birth_year'],
                 np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),
             'unprec_fraction': (
                 ['country','run','GMT','birth_year'],
                 np.full(
-                    (len(sample_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
+                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
                     fill_value=np.nan,
                 ),
             )        
         },
         coords={
-            'country': ('country', sample_countries),
+            'country': ('country', list_countries),
             'birth_year': ('birth_year', birth_years),
             'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
             'GMT': ('GMT', GMT_labels)
         }
     )
 
-    for cntry in sample_countries:
+    for cntry in list_countries:
 
         print(cntry)
         da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
@@ -341,14 +342,14 @@ def grid_scale_emergence(
                     # check for pickle of gridscale lifetime exposure (da_le); process if not existing
                     if not os.path.isfile('./data/pickles/gridscale_le_{}_{}_{}_{}.pkl'.format(flag_extr,cntry,i,step)):
                         
-                        da_AFA = da_AFA.reindex(
+                        da_AFA_step = da_AFA.reindex(
                             {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                         ).assign_coords({'time':year_range}) 
                             
                         # simple lifetime exposure sum
                         da_le = xr.concat(
-                            [(da_AFA.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
-                            da_AFA.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
+                            [(da_AFA_step.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
+                            da_AFA_step.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
                             (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
                             for by in birth_years],
                             dim='birth_year',
@@ -386,7 +387,7 @@ def grid_scale_emergence(
                             'GMT':step,
                             'birth_year':birth_years,
                         }
-                    ] = da_le.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon'))
+                    ] = da_le.weighted(ds_dmg['population_by'].fillna(0)).mean(('lat','lon')) # why is there a fillna here?
                     
                     # assign lat weighted mean exposure to dataset
                     ds_le['lifetime_exposure_latweight'].loc[
@@ -398,7 +399,7 @@ def grid_scale_emergence(
                         }
                     ] = da_le.weighted(lat_weights).mean(('lat','lon'))                    
                         
-                    da_exp_py_pa = da_AFA * xr.full_like(ds_dmg['population'],1)
+                    da_exp_py_pa = da_AFA_step * xr.full_like(ds_dmg['population'],1)
                     bys = []
             
                     # to be new func, per birth year, make (year,age) selections
@@ -412,13 +413,13 @@ def grid_scale_emergence(
                         data = data.assign_coords({'birth_year':by}).drop_vars('age')
                         data.loc[
                             {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
-                        ] = da_AFA.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
+                        ] = da_AFA_step.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
                             (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
                         bys.append(data)
             
                     da_exp_py_pa = xr.concat(bys,dim='birth_year')
                             
-                    # cumulative sum per birthyear
+                    # cumulative sum per birthyear (in emergence.py, this cumsum then has .where(==0), should I add this here too?)
                     da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
                 
                     # check for pickles of gridscale exposure emergence mask and age emergence
