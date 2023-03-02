@@ -3669,4 +3669,221 @@ def gridscale_spatial(
     plt.show()
 
     f.savefig('./figures/gridscale_{}_{}.png'.format(flag_extr,analysis),dpi=300)    
-# %%
+# %% ----------------------------------------------------------------
+def boxplot_cs_vs_gs_p(
+    ds_pf_strj,
+    ds_pf_gs,
+    df_GMT_strj,
+    flags,
+    list_countries,
+):
+
+    # country scale pop emerginug
+    da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
+        'GMT':GMT_indices_plot,
+        'country':list_countries,
+        'birth_year':sample_birth_years,
+    }]#.mean(dim='run')
+    df_p_plot = da_p_plot.to_dataframe().reset_index()
+    df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    # df_p_plot['GMT'] = df_p_plot['GMT'].astype('str')
+
+    # grid scale pop emerging
+    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        'GMT':GMT_indices_plot,
+        'birth_year':sample_birth_years,
+    }]#.mean(dim='run')
+    df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
+    # df_p_gs_plot['GMT'] = df_p_gs_plot['GMT'].astype('str')
+    df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+
+    # plot settings
+    tick_font = 12
+    axis_font = 12
+    x=20
+    y=5
+
+    for cntry in list_countries:
+
+        f,(ax1,ax2) = plt.subplots(
+            nrows=1, # variables
+            ncols=2, # countries
+            figsize=(x,y)
+        )
+        colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
+        # colors = {
+        #     '28':'darkred',
+        #     '19':'firebrick',
+        #     # 'NDC':'darkorange',
+        #     '10':'yellow',
+        #     # '1.5':'steelblue',
+        #     '0':'darkblue',
+        # }
+
+        # pop
+        sns.boxplot(
+            data=df_p_plot[df_p_plot['country']==cntry],
+            x='birth_year',
+            y='unprec_country_b_y0',
+            hue='GMT_label',
+            palette=colors,
+            ax=ax1,
+        )
+        sns.boxplot(
+            data=df_p_gs_plot[(df_p_gs_plot['country']==cntry)&(df_p_gs_plot['unprec']!=0)],
+            x='birth_year',
+            y='unprec',
+            hue='GMT_label',
+            palette=colors,
+            ax=ax2,
+        )        
+        
+        ax1.set_title(
+            'country scale',
+            loc='center',
+            fontweight='bold'
+        )
+        ax2.set_title(
+            'grid scale',
+            loc='center',
+            fontweight='bold'
+        )    
+        ax1.set_ylabel(
+            'Unprecedented population {}'.format(cntry), 
+            va='center', 
+            rotation='vertical', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )
+        ax2.set_ylabel(
+            None, 
+            va='center', 
+            rotation='horizontal', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )    
+        
+        for ax in (ax1,ax2):
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+            ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+            ax.set_xlabel(
+                'Birth year', 
+                va='center', 
+                rotation='horizontal', 
+                fontsize=axis_font, 
+                labelpad=10,
+            )               
+            
+        f.savefig('./figures/testing/boxplots_cs_vs_gs_{}_{}.png'.format(flags['extr'],cntry))
+        
+# %% ----------------------------------------------------------------
+def boxplot_cs_vs_gs_pf(
+    ds_pf_strj,
+    ds_pf_gs,
+    df_GMT_strj,
+    ds_cohorts,
+    flags,
+    list_countries,
+):
+
+    # country scale pop emerginug
+    da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
+        'GMT':GMT_indices_plot,
+        'country':list_countries,
+        'birth_year':sample_birth_years,
+    }]#.mean(dim='run')
+    df_p_plot = da_p_plot.to_dataframe().reset_index()
+    df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    # df_p_plot['GMT'] = df_p_plot['GMT'].astype('str')
+
+    # grid scale pop emerging
+    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        'GMT':GMT_indices_plot,
+        'birth_year':sample_birth_years,
+    }]#.mean(dim='run')
+    df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
+    # df_p_gs_plot['GMT'] = df_p_gs_plot['GMT'].astype('str')
+    df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+
+    # plot settings
+    tick_font = 12
+    axis_font = 12
+    x=20
+    y=5
+
+    for cntry in list_countries:
+
+        f,(ax1,ax2) = plt.subplots(
+            nrows=1, # variables
+            ncols=2, # countries
+            figsize=(x,y)
+        )
+        colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
+        # colors = {
+        #     '28':'darkred',
+        #     '19':'firebrick',
+        #     # 'NDC':'darkorange',
+        #     '10':'yellow',
+        #     # '1.5':'steelblue',
+        #     '0':'darkblue',
+        # }
+
+        # pop
+        sns.boxplot(
+            data=df_p_plot[df_p_plot['country']==cntry],
+            x='birth_year',
+            y='unprec_country_b_y0',
+            hue='GMT_label',
+            palette=colors,
+            ax=ax1,
+        )
+        sns.boxplot(
+            data=df_p_gs_plot[(df_p_gs_plot['country']==cntry)&(df_p_gs_plot['unprec']!=0)],
+            x='birth_year',
+            y='unprec',
+            hue='GMT_label',
+            palette=colors,
+            ax=ax2,
+        )        
+        
+        ax1.set_title(
+            'country scale',
+            loc='center',
+            fontweight='bold'
+        )
+        ax2.set_title(
+            'grid scale',
+            loc='center',
+            fontweight='bold'
+        )    
+        ax1.set_ylabel(
+            'Unprecedented population {}'.format(cntry), 
+            va='center', 
+            rotation='vertical', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )
+        ax2.set_ylabel(
+            None, 
+            va='center', 
+            rotation='horizontal', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )    
+        
+        for ax in (ax1,ax2):
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+            ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+            ax.set_xlabel(
+                'Birth year', 
+                va='center', 
+                rotation='horizontal', 
+                fontsize=axis_font, 
+                labelpad=10,
+            )               
+            
+        f.savefig('./figures/testing/boxplots_cs_vs_gs_{}_{}.png'.format(flags['extr'],cntry))        

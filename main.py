@@ -85,7 +85,7 @@ flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birt
                                     # 1: run calc_birthyear_align with birth years from 1960-2100
 flags['regional_emergence'] = 0     # 0: do not run regional emergence analysis
                                     # 1: run regional emergence analysis                                     
-flags['gridscale'] = 1      # 0: do not process grid scale analysis, load pickles
+flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
 flags['testing'] = 0                           
 flags['plot'] = 0
@@ -369,76 +369,77 @@ else: # load pickles
 
 from gridscale import *
 
+lat = grid_area.lat.values
+lon = grid_area.lon.values  
+
+# countries in Mediterranean for drought
+if flags['extr'] == 'driedarea': 
+    
+    med = 'Mediterranean'
+    gdf_ar6 = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
+    gdf_ar6 = gdf_ar6.loc[gdf_ar6['Name']==med]
+    gdf_ar6 = gdf_ar6.loc[:,['Name','geometry']]
+    gdf_ar6 = gdf_ar6.rename(columns={'Name':'name'})
+    gdf_country = gdf_country_borders.loc[:,'geometry']
+    gdf_country = gdf_country.reset_index()
+    gdf_med_countries = gdf_country.loc[gdf_country.intersects(gdf_ar6['geometry'].iloc[0])]
+    countries_med_3D = rm.mask_3D_geopandas(gdf_med_countries,lon,lat)
+    ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+    med_3D = ar6_regs_3D.isel(region=(ar6_regs_3D.names == 'Mediterranean')).squeeze()
+    
+    c_valid = []
+    for c in gdf_med_countries.index:
+        # next line gives nans outside country, 
+        # 1 in parts of country in AR6 Medit
+        # and 0 in parts outside Medit.
+        c_in_med = med_3D.where(countries_med_3D.sel(region=c)==1) 
+        c_area_in_med = c_in_med.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+        c_area = countries_med_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+        c_area_frac = c_area_in_med.item() / c_area.item()
+        if c_area_frac > 0.5:
+            c_valid.append(c)
+    countries_med_3D = countries_med_3D.loc[{'region':c_valid}]
+    gdf_med_countries = gdf_med_countries.loc[c_valid]
+    list_countries = gdf_med_countries['name'].values
+    
+# countries in the Nile for floods
+elif flags['extr'] == 'floodedarea':
+    
+    basin = 'Nile'
+    gdf_basins = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
+    gdf_basins = gdf_basins.loc[:,['NAME','geometry']]
+    gdf_basin = gdf_basins.loc[gdf_basins['NAME']==basin]
+    gdf_basin = gdf_basin.rename(columns={'Name':'name'})
+    if len(gdf_basin.index) > 1:
+        gdf_basin = gdf_basin.dissolve()
+    gdf_country = gdf_country_borders.loc[:,'geometry']
+    gdf_country = gdf_country.reset_index()
+    gdf_basin_countries = gdf_country.loc[gdf_country.intersects(gdf_basin['geometry'].iloc[0])]
+    countries_basin_3D = rm.mask_3D_geopandas(gdf_basin_countries,lon,lat)
+    basin_3D = rm.mask_3D_geopandas(gdf_basin,lon,lat)
+    
+    c_valid = []
+    for c in gdf_basin_countries.index:
+        # next line gives nans outside country, 
+        # 1 in parts of country in basin
+        # and 0 in parts outside basin.
+        c_in_basin = basin_3D.where(countries_basin_3D.sel(region=c)==1) 
+        c_area_in_basin = c_in_basin.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+        c_area = countries_basin_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+        c_area_frac = c_area_in_basin.item() / c_area.item()
+        if c_area_frac > 0.3:
+            c_valid.append(c)
+    countries_basin_3D = countries_basin_3D.loc[{'region':c_valid}]
+    gdf_basin_countries = gdf_basin_countries.loc[c_valid]
+    list_countries = gdf_basin_countries['name'].values
+    list_countries = np.sort(np.insert(list_countries,-1,'Egypt'))
+
 if flags['gridscale']:
-    
-    lat = grid_area.lat.values
-    lon = grid_area.lon.values  
-    
-    # countries in Mediterranean for drought
-    if flags['extr'] == 'driedarea': 
-        
-        med = 'Mediterranean'
-        gdf_ar6 = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
-        gdf_ar6 = gdf_ar6.loc[gdf_ar6['Name']==med]
-        gdf_ar6 = gdf_ar6.loc[:,['Name','geometry']]
-        gdf_ar6 = gdf_ar6.rename(columns={'Name':'name'})
-        gdf_country = gdf_country_borders.loc[:,'geometry']
-        gdf_country = gdf_country.reset_index()
-        gdf_med_countries = gdf_country.loc[gdf_country.intersects(gdf_ar6['geometry'].iloc[0])]
-        countries_med_3D = rm.mask_3D_geopandas(gdf_med_countries,lon,lat)
-        ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
-        med_3D = ar6_regs_3D.isel(region=(ar6_regs_3D.names == 'Mediterranean')).squeeze()
-        
-        c_valid = []
-        for c in gdf_med_countries.index:
-            # next line gives nans outside country, 
-            # 1 in parts of country in AR6 Medit
-            # and 0 in parts outside Medit.
-            c_in_med = med_3D.where(countries_med_3D.sel(region=c)==1) 
-            c_area_in_med = c_in_med.weighted(grid_area/10**6).sum(dim=('lat','lon'))
-            c_area = countries_med_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
-            c_area_frac = c_area_in_med.item() / c_area.item()
-            if c_area_frac > 0.5:
-                c_valid.append(c)
-        countries_med_3D = countries_med_3D.loc[{'region':c_valid}]
-        gdf_med_countries = gdf_med_countries.loc[c_valid]
-        list_countries = gdf_med_countries['name']
-        
-    # countries in the Nile for floods
-    elif flags['extr'] == 'floodedarea':
-        
-        basin = 'Nile'
-        gdf_basins = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
-        gdf_basins = gdf_basins.loc[:,['NAME','geometry']]
-        gdf_basin = gdf_basins.loc[gdf_basins['NAME']==basin]
-        gdf_basin = gdf_basin.rename(columns={'Name':'name'})
-        if len(gdf_basin.index) > 1:
-            gdf_basin = gdf_basin.dissolve()
-        gdf_country = gdf_country_borders.loc[:,'geometry']
-        gdf_country = gdf_country.reset_index()
-        gdf_basin_countries = gdf_country.loc[gdf_country.intersects(gdf_basin['geometry'].iloc[0])]
-        countries_basin_3D = rm.mask_3D_geopandas(gdf_basin_countries,lon,lat)
-        basin_3D = rm.mask_3D_geopandas(gdf_basin,lon,lat)
-        
-        c_valid = []
-        for c in gdf_basin_countries.index:
-            # next line gives nans outside country, 
-            # 1 in parts of country in basin
-            # and 0 in parts outside basin.
-            c_in_basin = basin_3D.where(countries_basin_3D.sel(region=c)==1) 
-            c_area_in_basin = c_in_basin.weighted(grid_area/10**6).sum(dim=('lat','lon'))
-            c_area = countries_basin_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
-            c_area_frac = c_area_in_basin.item() / c_area.item()
-            if c_area_frac > 0.5:
-                c_valid.append(c)
-        countries_basin_3D = countries_basin_3D.loc[{'region':c_valid}]
-        gdf_basin_countries = gdf_basin_countries.loc[c_valid]
-        list_countries = gdf_basin_countries['name']
     
     ds_le_gs, ds_ae_gs, ds_pf_gs = grid_scale_emergence(
         d_isimip_meta,
         d_pic_meta,
-        flags['extr'],
+        flags,
         list_countries,
         da_cohort_size,
         countries_regions,
@@ -460,9 +461,182 @@ else:
 
 # load spatially explicit datasets
 d_gs_spatial = {}
-for cntry in sample_countries:
+for cntry in list_countries:
     with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
         d_gs_spatial[cntry] = pk.load(f)
+        
+        
+# testing with plots
+# need to lambda convert these gmt indices to labels for the legend
+# need country label
+# need samples and not just means for boxes
+# need to convert numbers by multiplying 1000 and dividing by 10**6
+# need country vs grid scale labels at panel tops
+# see if magnitude is settled by choosing all_b_y0 instead of exposed
+# after countries, need final version with sums across mediterranean selection
+
+import seaborn as sns
+
+def boxplot_cs_vs_gs_p(
+    ds_pf_strj,
+    ds_pf_gs,
+    df_GMT_strj,
+    flags,
+    list_countries,
+):
+
+    # country scale pop emerginug
+    da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
+        'GMT':GMT_indices_plot,
+        'country':list_countries,
+        'birth_year':sample_birth_years,
+    }]#.mean(dim='run')
+    df_p_plot = da_p_plot.to_dataframe().reset_index()
+    df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    # df_p_plot['GMT'] = df_p_plot['GMT'].astype('str')
+
+    # grid scale pop emerging
+    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        'GMT':GMT_indices_plot,
+        'birth_year':sample_birth_years,
+    }]#.mean(dim='run')
+    df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
+    # df_p_gs_plot['GMT'] = df_p_gs_plot['GMT'].astype('str')
+    df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+
+    # plot settings
+    tick_font = 12
+    axis_font = 12
+    x=20
+    y=5
+
+    for cntry in list_countries:
+
+        f,(ax1,ax2) = plt.subplots(
+            nrows=1, # variables
+            ncols=2, # countries
+            figsize=(x,y)
+        )
+        colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
+        # colors = {
+        #     '28':'darkred',
+        #     '19':'firebrick',
+        #     # 'NDC':'darkorange',
+        #     '10':'yellow',
+        #     # '1.5':'steelblue',
+        #     '0':'darkblue',
+        # }
+
+        # pop
+        sns.boxplot(
+            data=df_p_plot[df_p_plot['country']==cntry],
+            x='birth_year',
+            y='unprec_country_b_y0',
+            hue='GMT_label',
+            palette=colors,
+            ax=ax1,
+        )
+        sns.boxplot(
+            data=df_p_gs_plot[(df_p_gs_plot['country']==cntry)&(df_p_gs_plot['unprec']!=0)],
+            x='birth_year',
+            y='unprec',
+            hue='GMT_label',
+            palette=colors,
+            ax=ax2,
+        )        
+        
+        ax1.set_title(
+            'country scale',
+            loc='center',
+            fontweight='bold'
+        )
+        ax2.set_title(
+            'grid scale',
+            loc='center',
+            fontweight='bold'
+        )    
+        ax1.set_ylabel(
+            'Unprecedented population {}'.format(cntry), 
+            va='center', 
+            rotation='vertical', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )
+        ax2.set_ylabel(
+            None, 
+            va='center', 
+            rotation='horizontal', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )    
+        
+        for ax in (ax1,ax2):
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+            ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+            ax.set_xlabel(
+                'Birth year', 
+                va='center', 
+                rotation='horizontal', 
+                fontsize=axis_font, 
+                labelpad=10,
+            )               
+            
+        f.savefig('./figures/testing/boxplots_cs_vs_gs_{}_{}.png'.format(flags['extr'],cntry))
+# da_pf_gs_plot = ds_pf_gs['unprec_fraction'].loc[{
+#     'GMT':GMT_indices_plot,
+#     'birth_year':sample_birth_years,
+# }]
+# da_ae_gs_plot = ds_ae_gs['age_emergence'].loc[{
+#     'GMT':GMT_indices_plot,
+#     'birth_year':sample_birth_years,
+# }]
+# da_le_gs_plot = ds_le_gs['lifetime_exposure'].loc[{
+#     'GMT':GMT_indices_plot,
+#     'birth_year':sample_birth_years,
+# }]
+
+# # lifetime exposure dataframes for plotting
+# df_le_plot = da_le_plot.to_dataframe().drop(columns=['quantile']).reset_index() # so there are no series inside a cell (breaks up birth year and lifetime exposure to individual rows)
+# df_le_plot['GMT'] = df_le_plot['GMT'].astype('str') # so hue is a string
+# df_le_gs_plot = da_le_gs_plot.to_dataframe().reset_index() 
+# df_le_gs_plot['GMT'] = df_le_gs_plot['GMT'].astype('str')
+
+
+
+# # age emergence dataframes for plotting
+# df_ae_plot = da_ae_plot.to_dataframe().reset_index()
+# df_ae_plot['GMT'] = df_ae_plot['GMT'].astype('str')
+# df_ae_gs_plot = da_ae_gs_plot.to_dataframe().reset_index()
+# df_ae_gs_plot['GMT'] = df_ae_gs_plot['GMT'].astype('str')
+
+# # pop frac dataframes for plotting
+# df_pf_plot = ds_pf_plot['unprec_exposed_fraction'].to_dataframe().reset_index()
+# df_pf_plot['GMT'] = df_pf_plot['GMT'].astype('str')
+# df_pf_gs_plot = da_pf_gs_plot.to_dataframe().reset_index()
+# df_pf_gs_plot['GMT'] = df_pf_gs_plot['GMT'].astype('str')
+
+import seaborn as sns
+
+
+wm_vs_gs_boxplots(
+    d_isimip_meta,
+    ds_ae_strj,
+    ds_le,
+    ds_pf_gs,
+    ds_ae_gs,
+    ds_le_gs,
+)
+gridscale_spatial(
+    d_le_gs_spatial,
+    analysis,
+    countries_mask,
+    countries_regions,
+    flag_extr,
+)
+
+
 
 
 #%% ----------------------------------------------------------------
@@ -515,6 +689,23 @@ if flags['plot']:
         ds_pf_strj,
         df_GMT_strj,
         flags,
+    )        
+    
+    boxplot_cs_vs_gs_p(
+        ds_pf_strj,
+        ds_pf_gs,
+        df_GMT_strj,
+        flags,
+        list_countries,
+    )    
+    
+    boxplot_cs_vs_gs_pf(
+        ds_pf_strj,
+        ds_pf_gs,
+        df_GMT_strj,
+        ds_cohorts,
+        flags,
+        list_countries,
     )        
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing

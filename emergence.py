@@ -284,6 +284,8 @@ def calc_unprec_exposure(
     ds_pop_frac = xr.Dataset(
         data_vars={
             'unprec_exposed_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
+            'unprec_country_exposed_b': (['country','birth_year'], np.empty((len(ds_cohorts.country.data),len(ds_exposure_cohort.birth_year.data)))),
+            'unprec_country_exposed_b_y0': (['country','birth_year'], np.empty((len(ds_cohorts.country.data),len(ds_exposure_cohort.birth_year.data)))),
             'unprec_all_b': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
             'unprec_all_b_y0': (['birth_year'], np.empty((len(ds_exposure_cohort.birth_year.data)))),
             'unprec_country_b_y0': (['country','birth_year'], np.empty((len(ds_cohorts.country.data),len(ds_exposure_cohort.birth_year.data)))),
@@ -301,7 +303,16 @@ def calc_unprec_exposure(
     
     # keep people exposed during birth year's timesteps if cumulative exposure exceeds pic defined extreme
     unprec_exposed = ds_exposure_cohort['exposure'].where(da_emergence_mask==1)
-    unprec_exposed = unprec_exposed.sum(dim=['time','country'])
+    unprec_country_exposed_b = unprec_exposed.sum(dim='time')
+    da_times=xr.DataArray(ds_pop_frac.birth_year.data,dims='birth_year')
+    da_birth_years=xr.DataArray(ds_pop_frac.birth_year.data,dims='birth_year')   
+    unprec_country_exposed_b_y0 = unprec_exposed.sel(time=da_times,birth_year=da_birth_years)
+    unprec_exposed_b = unprec_exposed.sum(dim=['time','country'])
+    # for stylized trajectories this "were" avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
+    ds_pop_frac['unprec_exposed_b'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = unprec_exposed_b.where(unprec_exposed_b!=0)    
+    ds_pop_frac['unprec_country_exposed_b'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = unprec_country_exposed_b.where(unprec_country_exposed_b!=0)    
+    ds_pop_frac['unprec_country_exposed_b_y0'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = unprec_country_exposed_b_y0.where(unprec_country_exposed_b_y0!=0)    
+    
     
     # keep all people/members of birth year cohort if birth year's timesteps cum exposure exceeds pic extreme
     da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0)
@@ -311,8 +322,7 @@ def calc_unprec_exposure(
     ds_pop_frac['unprec_all_b_y0'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = ds_cohorts['by_population_y0'].where(da_birthyear_emergence_mask==1).sum(dim='country')
     # keep absolute numbers per country that emerge
     ds_pop_frac['unprec_country_b_y0'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = ds_cohorts['by_population_y0'].where(da_birthyear_emergence_mask==1)
-    # for stylized trajectories this avoids including a bunch of 0 pop frac runs that got calc'd from nans from checking maxdiff criteria
-    ds_pop_frac['unprec_exposed_b'].loc[{'birth_year':ds_exposure_cohort.birth_year.data}] = unprec_exposed.where(unprec_exposed!=0)
+   
     
     # -------------------------------------------
     # time based pop frac
@@ -329,11 +339,27 @@ def pop_frac_stats(
     ds_cohorts,
 ):
     
+                #     # exposed population experiencing unprecedented exposure at the country level
+                # ds_pop_frac['unprec_country_exposed_b'].loc[{
+                #     'run':i,
+                #     'country':ds_cohorts.country.data,
+                #     'birth_year':by_emergence,
+                #     'GMT':step,
+                # }] = ds_pop_frac_run_step['unprec_country_exposed_b']
+    
     # stats on population emergence types
     ds_pop_frac['mean_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].mean(dim='run')
     ds_pop_frac['max_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].max(dim='run')
     ds_pop_frac['min_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].min(dim='run')
     ds_pop_frac['std_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].std(dim='run')
+    ds_pop_frac['mean_unprec_country_exposed_b'] = ds_pop_frac['unprec_country_exposed_b'].mean(dim='run')
+    ds_pop_frac['max_unprec_country_exposed_b'] = ds_pop_frac['unprec_country_exposed_b'].max(dim='run')
+    ds_pop_frac['min_unprec_country_exposed_b'] = ds_pop_frac['unprec_country_exposed_b'].min(dim='run')
+    ds_pop_frac['std_unprec_country_exposed_b'] = ds_pop_frac['unprec_country_exposed_b'].std(dim='run')    
+    ds_pop_frac['mean_unprec_country_exposed_b_y0'] = ds_pop_frac['unprec_country_exposed_b_y0'].mean(dim='run')
+    ds_pop_frac['max_unprec_country_exposed_b_y0'] = ds_pop_frac['unprec_country_exposed_b_y0'].max(dim='run')
+    ds_pop_frac['min_unprec_country_exposed_b_y0'] = ds_pop_frac['unprec_country_exposed_b_y0'].min(dim='run')
+    ds_pop_frac['std_unprec_country_exposed_b_y0'] = ds_pop_frac['unprec_country_exposed_b_y0'].std(dim='run')        
     ds_pop_frac['mean_unprec_all_b'] = ds_pop_frac['unprec_all_b'].mean(dim='run')
     ds_pop_frac['mean_unprec_all_b_y0'] = ds_pop_frac['unprec_all_b_y0'].mean(dim='run')
     ds_pop_frac['max_unprec_all_b'] = ds_pop_frac['unprec_all_b'].max(dim='run')
@@ -350,7 +376,8 @@ def pop_frac_stats(
     
     # unprecedented exposure as fraction of total population estimate
     ds_pop_frac['frac_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'] / ds_cohorts['by_population'].sum(dim=['country'])
-    # ds_pop_frac['mean_frac_unprec_exposed'] = ds_pop_frac['frac_unprec_exposed'].mean(dim='run')
+    ds_pop_frac['frac_unprec_country_exposed_b'] = ds_pop_frac['unprec_country_exposed_b'] / ds_cohorts['by_population'].sum(dim=['country'])
+    ds_pop_frac['frac_unprec_country_exposed_b_y0'] = ds_pop_frac['unprec_country_exposed_b_y0'] / ds_cohorts['by_population_y0'].sum(dim=['country'])
     ds_pop_frac['mean_frac_unprec_exposed_b'] = ds_pop_frac['mean_unprec_exposed_b'] / ds_cohorts['by_population'].sum(dim=['country'])
     ds_pop_frac['std_frac_unprec_exposed_b'] = ds_pop_frac['frac_unprec_exposed_b'].std(dim='run')
     ds_pop_frac['frac_unprec_all_b'] = ds_pop_frac['unprec_all_b'] / ds_cohorts['by_population'].sum(dim=['country'])
@@ -424,6 +451,20 @@ def strj_emergence(
                     fill_value=np.nan,
                 ),
             ),
+            'unprec_country_exposed_b': (
+                ['run','country','birth_year','GMT'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(ds_cohorts.country.data),len(by_emergence),len(GMT_labels)),
+                    fill_value=np.nan,
+                ),
+            ),            
+            'unprec_country_exposed_b_y0': (
+                ['run','country','birth_year','GMT'],
+                np.full(
+                    (len(list(d_isimip_meta.keys())),len(ds_cohorts.country.data),len(by_emergence),len(GMT_labels)),
+                    fill_value=np.nan,
+                ),
+            ),                       
             'unprec_all_b': (
                 ['run','birth_year','GMT'],
                 np.full(
@@ -607,6 +648,22 @@ def strj_emergence(
                     'birth_year':by_emergence,
                     'GMT':step,
                 }] = ds_pop_frac_run_step['unprec_exposed_b']
+                
+                # exposed population experiencing unprecedented exposure at the country level
+                ds_pop_frac['unprec_country_exposed_b'].loc[{
+                    'run':i,
+                    'country':ds_cohorts.country.data,
+                    'birth_year':by_emergence,
+                    'GMT':step,
+                }] = ds_pop_frac_run_step['unprec_country_exposed_b']
+                
+                # exposed population experiencing unprecedented exposure at the country level
+                ds_pop_frac['unprec_country_exposed_b_y0'].loc[{
+                    'run':i,
+                    'country':ds_cohorts.country.data,
+                    'birth_year':by_emergence,
+                    'GMT':step,
+                }] = ds_pop_frac_run_step['unprec_country_exposed_b_y0']                
                 
                 # population experiencing unprecedented exposure using birth-year lumping approach and summing birth year cohort sizes over time
                 ds_pop_frac['unprec_all_b'].loc[{
