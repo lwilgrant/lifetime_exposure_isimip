@@ -397,7 +397,7 @@ def load_population(
 
     # if needed, repeat last year until entire period of interest is covered
     if np.nanmax(da_population.time) < year_end:
-        population_10y_mean = da_population.loc[-10:,:,:].mean(dim='time').expand_dims(dim='time',axis=0) # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
+        population_10y_mean = da_population[-10:,:,:].mean(dim='time').expand_dims(dim='time',axis=0) # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
         for year in range(np.nanmax(da_population.time)+1,year_end+1): 
             da_population = xr.concat([da_population,population_10y_mean.assign_coords(time = [year])], dim='time')
 
