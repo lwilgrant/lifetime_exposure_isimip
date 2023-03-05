@@ -20,6 +20,7 @@ import matplotlib as mpl
 import mapclassify as mc
 from copy import deepcopy as cp
 import matplotlib.pyplot as plt
+import regionmask as rm
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -54,11 +55,95 @@ def resample(
     smp_da[resample_dim] = np.arange(1960,1960+life_extent)
     return smp_da
 
+
+#%% ----------------------------------------------------------------
+# function for returning countries for grid scale analysis
+# ------------------------------------------------------------------
+
+def get_gridscale_regions(
+    grid_area,
+    flags,
+    gdf_country_borders,
+):
+
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values  
+    
+    # take all countries for heatwavedarea
+    if flags['extr'] == 'heatwavedarea':
+        
+        gdf_country = gdf_country_borders.loc[:,'geometry']
+        list_countries = gdf_country.index.values
+
+    # countries in Mediterranean for drought
+    elif flags['extr'] == 'driedarea': 
+        
+        med = 'Mediterranean'
+        gdf_ar6 = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
+        gdf_ar6 = gdf_ar6.loc[gdf_ar6['Name']==med]
+        gdf_ar6 = gdf_ar6.loc[:,['Name','geometry']]
+        gdf_ar6 = gdf_ar6.rename(columns={'Name':'name'})
+        gdf_country = gdf_country_borders.loc[:,'geometry']
+        gdf_country = gdf_country.reset_index()
+        gdf_med_countries = gdf_country.loc[gdf_country.intersects(gdf_ar6['geometry'].iloc[0])]
+        countries_med_3D = rm.mask_3D_geopandas(gdf_med_countries,lon,lat)
+        ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+        med_3D = ar6_regs_3D.isel(region=(ar6_regs_3D.names == 'Mediterranean')).squeeze()
+        
+        c_valid = []
+        for c in gdf_med_countries.index:
+            # next line gives nans outside country, 
+            # 1 in parts of country in AR6 Medit
+            # and 0 in parts outside Medit.
+            c_in_med = med_3D.where(countries_med_3D.sel(region=c)==1) 
+            c_area_in_med = c_in_med.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area = countries_med_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area_frac = c_area_in_med.item() / c_area.item()
+            if c_area_frac > 0.5:
+                c_valid.append(c)
+        countries_med_3D = countries_med_3D.loc[{'region':c_valid}]
+        gdf_med_countries = gdf_med_countries.loc[c_valid]
+        list_countries = gdf_med_countries['name'].values
+        
+    # countries in the Nile for floods
+    elif flags['extr'] == 'floodedarea':
+        
+        basin = 'Nile'
+        gdf_basins = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
+        gdf_basins = gdf_basins.loc[:,['NAME','geometry']]
+        gdf_basin = gdf_basins.loc[gdf_basins['NAME']==basin]
+        gdf_basin = gdf_basin.rename(columns={'Name':'name'})
+        if len(gdf_basin.index) > 1:
+            gdf_basin = gdf_basin.dissolve()
+        gdf_country = gdf_country_borders.loc[:,'geometry']
+        gdf_country = gdf_country.reset_index()
+        gdf_basin_countries = gdf_country.loc[gdf_country.intersects(gdf_basin['geometry'].iloc[0])]
+        countries_basin_3D = rm.mask_3D_geopandas(gdf_basin_countries,lon,lat)
+        basin_3D = rm.mask_3D_geopandas(gdf_basin,lon,lat)
+        
+        c_valid = []
+        for c in gdf_basin_countries.index:
+            # next line gives nans outside country, 
+            # 1 in parts of country in basin
+            # and 0 in parts outside basin.
+            c_in_basin = basin_3D.where(countries_basin_3D.sel(region=c)==1) 
+            c_area_in_basin = c_in_basin.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area = countries_basin_3D.sel(region=c).weighted(grid_area/10**6).sum(dim=('lat','lon'))
+            c_area_frac = c_area_in_basin.item() / c_area.item()
+            if c_area_frac > 0.3:
+                c_valid.append(c)
+        countries_basin_3D = countries_basin_3D.loc[{'region':c_valid}]
+        gdf_basin_countries = gdf_basin_countries.loc[c_valid]
+        list_countries = gdf_basin_countries['name'].values
+        list_countries = np.sort(np.insert(list_countries,-1,'Egypt'))
+        
+    return list_countries
+
 #%% ----------------------------------------------------------------
 # grid scale
 # ------------------------------------------------------------------
 
-def grid_scale_emergence(
+def gridscale_emergence(
     d_isimip_meta,
     d_pic_meta,
     flags,
@@ -204,12 +289,13 @@ def grid_scale_emergence(
             }
         )
         
+        # weights for latitude (probably won't use but will use population instead)
+        lat_weights = np.cos(np.deg2rad(da_cntry.lat))
+        lat_weights.name = "weights"        
+        
         # check for demography pickle file
         if not os.path.isfile('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry)):
             
-            # weights for latitude (probably won't use but will use population instead)
-            lat_weights = np.cos(np.deg2rad(da_cntry.lat))
-            lat_weights.name = "weights"
             da_smple_pop = da_population.where(da_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
 
             # demography dataset
@@ -273,26 +359,26 @@ def grid_scale_emergence(
             with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
                 ds_dmg = pk.load(f)                      
         
-        # pic dataset
-        ds_pic = xr.Dataset(
-            data_vars={
-                'lifetime_exposure': (
-                    ['lifetimes','lat','lon'],
-                    np.full(
-                        (len(list(d_pic_meta.keys())*nboots),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
-                        fill_value=np.nan,
-                    ),
-                )
-            },
-            coords={
-                'lat': ('lat', da_cntry.lat.data),
-                'lon': ('lon', da_cntry.lon.data),
-                'lifetimes': ('lifetimes', np.arange(len(list(d_pic_meta.keys())*nboots))),
-            }
-        )
-        
         # check for PIC pickle file (for ds_pic); process and dump pickle if not already existing
         if not os.path.isfile('./data/pickles/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],cntry)):
+            
+            # pic dataset
+            ds_pic = xr.Dataset(
+                data_vars={
+                    'lifetime_exposure': (
+                        ['lifetimes','lat','lon'],
+                        np.full(
+                            (len(list(d_pic_meta.keys())*nboots),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    )
+                },
+                coords={
+                    'lat': ('lat', da_cntry.lat.data),
+                    'lon': ('lon', da_cntry.lon.data),
+                    'lifetimes': ('lifetimes', np.arange(len(list(d_pic_meta.keys())*nboots))),
+                }
+            )            
             
             # loop over PIC simulations
             c = 0
@@ -316,7 +402,7 @@ def grid_scale_emergence(
                 da_pic_le = da_exposure_pic.loc[
                     {'time':np.arange(pic_by,ds_dmg['death_year'].sel(birth_year=pic_by).item()+1)}
                 ].sum(dim='time') +\
-                    da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()+1}].drop('time') *\
+                    da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()}].drop('time') *\
                         (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
                         
                 ds_pic['lifetime_exposure'].loc[
@@ -370,7 +456,7 @@ def grid_scale_emergence(
                         # simple lifetime exposure sum
                         da_le = xr.concat(
                             [(da_AFA_step.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
-                            da_AFA_step.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()+1).drop('time') *\
+                            da_AFA_step.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()).drop('time') *\
                             (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
                             for by in birth_years],
                             dim='birth_year',
@@ -442,8 +528,8 @@ def grid_scale_emergence(
                                 data = data.expand_dims(dim={scoord:1},axis=a_pos).copy()
                         data = data.assign_coords({'birth_year':by}).drop_vars('age')
                         data.loc[
-                            {'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}
-                        ] = da_AFA_step.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()+1}] *\
+                            {'time':ds_dmg['death_year'].sel(birth_year=by).item()}
+                        ] = da_AFA_step.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()}] *\
                             (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
                         bys.append(data)
             
