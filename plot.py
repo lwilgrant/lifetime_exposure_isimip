@@ -27,7 +27,9 @@ import regionmask as rm
 import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
+import seaborn as sns
 import cartopy as cr
+import cartopy.feature as feature
 from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
@@ -448,6 +450,443 @@ def plot_trend(
         f.savefig('./figures/{}_{}_trends_frac.png'.format(flags['extr'],k),dpi=800,bbox_inches='tight')
         plt.show()        
         
+
+#%% --------------------------------------------------------------------
+# plot trends
+def plot_gridscale_se_p(
+    flags,
+    gdf_country_borders,
+    list_countries,
+    sim_labels,
+    d_gs_spatial,
+    df_GMT_strj,
+    GMT_indices,
+    grid_area,
+):
+
+    #=========================================================================================
+    # plot trends for 1960-2113
+    
+    df_data = gdf_country_borders.loc[list_countries].reset_index()
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+    mask = rm.mask_geopandas(df_data,lon,lat)
+    max_lat = mask.lat.where(mask.notnull()).max().item()+1
+    min_lat = mask.lat.where(mask.notnull()).min().item()-1
+    max_lon = mask.lon.where(mask.notnull()).max().item()+1
+    min_lon = mask.lon.where(mask.notnull()).min().item()-1
+    mask = mask.sel(lat=slice(max_lat,min_lat),lon=slice(min_lon,max_lon),drop=True)
+    da_data_region = mask.expand_dims(
+        {'GMT':GMT_indices_plot, 'birth_year':sample_birth_years},
+        axis=(0,1)
+    ).copy()
+    
+    # da_cntrys = []
+    for cntry in d_gs_spatial.keys():
+        da_data = d_gs_spatial[cntry]['population_emergence']
+        da_data = xr.where(da_data.isnull(),0,da_data)
+        da_steps = []
+        for step in GMT_indices_plot:
+            da_data_step = da_data.loc[{
+                'GMT':step,
+                'run':sim_labels[step],
+            }].mean(dim='run')
+            da_steps.append(da_data_step)
+        da_data_mean = xr.concat(da_steps,dim='GMT')
+        # da_cntrys.append(da_data_mean)
+        da_data_region.loc[{
+            'GMT':GMT_indices_plot,
+            'birth_year':sample_birth_years,
+            'lat':da_data_mean.lat.data,
+            'lon':da_data_mean.lon.data,
+        }] = da_data_mean
+        
+    da_data_region = da_data_region.where(da_data_region!=0)
+    
+    p = da_data_region.plot(
+        figsize=()
+        transform=ccrs.PlateCarree(),
+        row='GMT',
+        col='birth_year',
+        subplot_kws={"projection": ccrs.PlateCarree()}
+    )
+    for ax in p.axes.flat:
+        df_data.plot(
+            ax=ax,
+            color='none', 
+            edgecolor='black',
+            linewidth=0.25,
+        )
+        ax.add_feature(
+            feature.OCEAN,
+            facecolor='lightsteelblue'
+        )        
+        ax.coastlines(linewidth=0.25)
+    
+    # da_data_cntrys = xr.concat(da_cntrys,dim='country').assign_coords({'country':list(d_gs_spatial.keys())})
+        
+        
+    regions = gpd.read_file('./data/shapefiles/IPCC-WGI-reference-regions-v4.shp')
+    gdf_continents = gpd.read_file('./data/shapefiles/IPCC_WGII_continental_regions.shp')
+    # gpd_continents = gpd_continents[(gpd_continents.Region != 'Antarctica')&(gpd_continents.Region != 'Small Islands')]
+    gdf_basin = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
+    gdf_basin = gdf_basin.loc[:,['NAME','geometry']]    
+    # merge basins with multiple entries in dataframe
+    basins_grouped = []
+    bc = {k:0 for k in gdf_basin['NAME']} # bc for basin counter
+    for b_name in gdf_basin['NAME']:
+        if len(gdf_basin.loc[gdf_basin['NAME']==b_name]) > 1:
+            if bc[b_name]==0:
+                gdf_b = gdf_basin.loc[gdf_basin['NAME']==b_name]
+                basins_grouped.append(gdf_b.dissolve())
+            bc[b_name]+=1
+        else:
+            basins_grouped.append(gdf_basin.loc[gdf_basin['NAME']==b_name])
+    gdf_basin = pd.concat(basins_grouped).reset_index().loc[:,['NAME','geometry']]    
+    
+    gdf_ar6 = gpd.clip(regions,gdf_continents)
+    gdf_ar6['keep'] = [0]*len(gdf_ar6.Acronym)
+    for r in ds_e.region.data:
+        gdf_ar6.loc[r,'keep'] = 1 
+    gdf_ar6 = gdf_ar6[gdf_ar6.keep!=0].sort_index()
+    gdf_ar6 = gdf_ar6.drop(columns=['keep'])
+    gdf_country = gdf_country_borders.reset_index()
+    
+    # basins3D only has 220 basins, whereas the original gdf has 226 basins. conversion to raster misses small basins then
+    # therefore need to find the missing ones to remove from gdf_basin
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+    basins_3D = rm.mask_3D_geopandas(gdf_basin,lon,lat)
+    small_basins = []
+    for i,b in enumerate(basins_3D.region.data):
+        if b!= basins_3D.region.data[i-1] + 1:
+            missing_b = np.arange(basins_3D.region.data[i-1],b+1)[1:-1]
+            for m in missing_b:
+                small_basins.append(m)
+    gdf_basin = gdf_basin.loc[~gdf_basin.index.isin(small_basins)]
+    
+    # separate versions of shapefiles and their data
+    gdf_ar6_data = cp(gdf_ar6)
+    gdf_country_data = cp(gdf_country)
+    gdf_basin_data = cp(gdf_basin)
+    
+    for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+        for y in ds_e.year.data:
+            gdf_ar6_data['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            gdf_country_data['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            gdf_basin_data['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values
+            
+    gdfs = {
+        'ar6':gdf_ar6,
+        'country':gdf_country,
+        'basin':gdf_basin, 
+    }
+    gdfs_data = {
+        'ar6':gdf_ar6_data,
+        'country':gdf_country_data,
+        'basin':gdf_basin_data,
+    }
+
+    trend_cols = []
+    for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+        for y in ds_e.year.data:    
+            trend_cols.append('{}_{}'.format(GMT,y))
+            
+    samples = {}
+    for k in gdfs.keys():
+        samples[k] = gdfs_data[k].loc[:,trend_cols].values.flatten()
+        
+    # identify colors
+    if flags['extr'] == 'floodedarea':
+        cmap = 'RdBu'
+    elif flags['extr'] == 'driedarea':
+        cmap = 'RdBu_r'
+    
+    #========================================================
+    # plot km^2 trends for each spatial scale
+    
+    for k in gdfs.keys():
+        
+        vmin = np.around(np.min(samples[k]),-2)
+        vmax = np.around(np.max(samples[k]),-2)
+        range = vmax - vmin
+        interv = range/10
+        norm = MidpointNormalize(
+            vmin=vmin,
+            vmax=vmax,
+            midpoint=0,
+        )
+
+        # cbar location
+        cb_x0 = 0.925
+        cb_y0 = 0.2
+        cb_xlen = 0.025
+        cb_ylen = 0.6
+
+        # cbar stuff
+        col_cbticlbl = '0'   # colorbar color of tick labels
+        col_cbtic = '0.5'   # colorbar color of ticks
+        col_cbedg = '0.9'   # colorbar color of edge
+        cb_ticlen = 3.5   # colorbar length of ticks
+        cb_ticwid = 0.4   # colorbar thickness of ticks
+        cb_edgthic = 0   # colorbar thickness of edges between colors
+
+        # fonts
+        title_font = 14
+        cbtitle_font = 20
+        tick_font = 12
+        legend_font=12
+
+        f,axes = plt.subplots(
+            nrows=len(ds_e.year.data),
+            ncols=len(GMT_indices),
+            figsize=(20,6.5),
+        )
+
+        cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen,])
+
+        for row,y in zip(axes,ds_e.year.data):    
+            for ax,GMT in zip(row,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):   
+                gdfs_data[k].plot(
+                    ax=ax,
+                    column='{}_{}'.format(GMT,y),
+                    cmap=cmap,
+                    norm=norm,
+                    cax=cbax,
+                )           
+                gdfs[k].plot(
+                    ax=ax,
+                    color='none', 
+                    edgecolor='black',
+                    linewidth=0.25,
+                )                           
+                if y == 1960:
+                    ax.set_title(
+                        '{} °C @ 2100'.format(GMT),
+                        loc='center',
+                        fontweight='bold',
+                        fontsize=10,
+                    )     
+                if GMT == np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')[0]:
+                    ax.text(
+                        -0.07, 0.55, 
+                        '{}-{}'.format(y,y+80), 
+                        va='bottom', 
+                        ha='center',# # create legend with patche for hsitnolu and lu det/att levels
+                        fontweight='bold',
+                        rotation='vertical', 
+                        rotation_mode='anchor',
+                        transform=ax.transAxes,
+                    )
+        for i,ax in enumerate(axes.flatten()):
+            ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_title(
+                letters[i],
+                loc='left',
+                fontweight='bold',
+                fontsize=10
+            )     
+            
+        cb = mpl.colorbar.ColorbarBase(
+            ax=cbax, 
+            cmap=cmap,
+            norm=norm,
+            orientation='vertical',
+            spacing='uniform',
+            drawedges=False,
+        )
+        # cb_lu.set_label('LU trends (°C/5-years)',
+        cb.set_label( '{} trends [km^2/year]'.format(flags['extr']))
+        cb.ax.xaxis.set_label_position('top')
+        cb.ax.tick_params(
+            labelcolor=col_cbticlbl,
+            labelsize=tick_font,
+            color=col_cbtic,
+            length=cb_ticlen,
+            width=cb_ticwid,
+            direction='out'
+        )
+        cb.outline.set_edgecolor(col_cbedg)
+        cb.outline.set_linewidth(cb_edgthic)
+        f.savefig('./figures/{}_{}_trends.png'.format(flags['extr'],k),dpi=800,bbox_inches='tight')
+        plt.show()
+    
+    #========================================================
+    # plot km^2 trends as frac of spatial units for each spatial scale   
+         
+    country_3D = rm.mask_3D_geopandas(gdf_country.reset_index(),lon,lat)
+    ar6_3D = rm.mask_3D_geopandas(gdf_ar6.reset_index(),lon,lat)
+    basin_3D = rm.mask_3D_geopandas(gdf_basin.reset_index(),lon,lat)
+    
+    # get sums of exposed area per ar6, country & basin, convert m^2 to km^2
+    country_area = country_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    ar6_area = ar6_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    basin_area = basin_3D.weighted(grid_area/10**6).sum(dim=('lat','lon'))
+    
+    # separate versions of shapefiles and their data
+    gdf_country_frac = cp(gdf_country)
+    gdf_ar6_frac = cp(gdf_ar6)
+    gdf_basin_frac = cp(gdf_basin)
+    
+    for i,GMT in enumerate(np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):
+        for y in ds_e.year.data:
+            gdf_country_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_country'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / country_area.values
+            gdf_ar6_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_ar6'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / ar6_area.values
+            gdf_basin_frac['{}_{}'.format(GMT,y)] = ds_e['mean_exposure_trend_basin'].loc[{'GMT':int(GMT_indices[i]),'year':y}].values / basin_area.values
+            
+    gdfs_frac_data = {
+        'ar6':gdf_ar6_frac,
+        'country':gdf_country_frac,
+        'basin':gdf_basin_frac,
+    }
+            
+    # samples = {}
+    # for k in gdfs.keys():
+    #     samples[k] = gdfs_frac_data[k].loc[:,trend_cols].values.flatten()            
+    
+    cmap_whole = plt.cm.get_cmap(cmap)
+    cmap55 = cmap_whole(0.01)
+    cmap50 = cmap_whole(0.05)   # blue
+    cmap45 = cmap_whole(0.1)
+    cmap40 = cmap_whole(0.15)
+    cmap35 = cmap_whole(0.2)
+    cmap30 = cmap_whole(0.25)
+    cmap25 = cmap_whole(0.3)
+    cmap20 = cmap_whole(0.325)
+    cmap10 = cmap_whole(0.4)
+    cmap5 = cmap_whole(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_whole(0.525)
+    cmap_10 = cmap_whole(0.6)
+    cmap_20 = cmap_whole(0.625)
+    cmap_25 = cmap_whole(0.7)
+    cmap_30 = cmap_whole(0.75)
+    cmap_35 = cmap_whole(0.8)
+    cmap_40 = cmap_whole(0.85)
+    cmap_45 = cmap_whole(0.9)
+    cmap_50 = cmap_whole(0.95)  # red
+    cmap_55 = cmap_whole(0.99)
+
+    colors = [
+        cmap55,cmap50,cmap45,cmap40,cmap35,cmap30,cmap25,cmap20,cmap10,cmap5,
+        cmap0,
+        cmap_5,cmap_10,cmap_20,cmap_25,cmap_30,cmap_35,cmap_40,cmap_45,cmap_50,cmap_55,
+    ]
+
+    # declare list of colors for discrete colormap of colorbar
+    cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+
+    # colorbar args
+    values_frac = [-0.001,-0.0009,-0.0008,-0.0007,-0.0006,-0.0005,-0.0004,-0.0003,-0.0002,-0.0001,-0.00001,\
+        0.00001,0.0001,0.0002,0.0003,0.0004,0.0005,0.0006,0.0007,0.0008,0.0009,0.001]
+    tick_locs_frac = [-0.001,-0.0008,-0.0006,-0.0004,-0.0002,0,0.0002,0.0004,0.0006,0.0008,0.001]
+    tick_labels_frac = ['-0.001','-0.0008','-0.0006','-0.0004','-0.0002','0','0.0002','0.0004','0.0006','0.0008','0.001']
+    norm_frac = mpl.colors.BoundaryNorm(values_frac,cmap_list_frac.N)        
+    
+    for k in gdfs.keys():
+        
+        # cbar location
+        cb_x0 = 0.925
+        cb_y0 = 0.2
+        cb_xlen = 0.025
+        cb_ylen = 0.6
+
+        # cbar stuff
+        col_cbticlbl = '0'   # colorbar color of tick labels
+        col_cbtic = '0.5'   # colorbar color of ticks
+        col_cbedg = '0.9'   # colorbar color of edge
+        cb_ticlen = 3.5   # colorbar length of ticks
+        cb_ticwid = 0.4   # colorbar thickness of ticks
+        cb_edgthic = 0   # colorbar thickness of edges between colors
+
+        # fonts
+        title_font = 14
+        cbtitle_font = 20
+        tick_font = 12
+        legend_font=12
+
+        f,axes = plt.subplots(
+            nrows=len(ds_e.year.data),
+            ncols=len(GMT_indices),
+            figsize=(20,6.5),
+        )
+
+        cbax = f.add_axes([cb_x0,cb_y0,cb_xlen,cb_ylen,])
+
+        for row,y in zip(axes,ds_e.year.data):    
+            for ax,GMT in zip(row,np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')):   
+                gdfs_frac_data[k].plot(
+                    ax=ax,
+                    column='{}_{}'.format(GMT,y),
+                    cmap=cmap_list_frac,
+                    norm=norm_frac,
+                    cax=cbax,
+                )           
+                gdfs[k].plot(
+                    ax=ax,
+                    color='none', 
+                    edgecolor='black',
+                    linewidth=0.25,
+                )                           
+                if y == 1960:
+                    ax.set_title(
+                        '{} °C @ 2100'.format(GMT),
+                        loc='center',
+                        fontweight='bold',
+                        fontsize=10,
+                    )     
+                if GMT == np.round(df_GMT_strj.loc[2100,GMT_indices],1).values.astype('str')[0]:
+                    ax.text(
+                        -0.07, 0.55, 
+                        '{}-{}'.format(y,y+80), 
+                        va='bottom', 
+                        ha='center',# # create legend with patche for hsitnolu and lu det/att levels
+                        fontweight='bold',
+                        rotation='vertical', 
+                        rotation_mode='anchor',
+                        transform=ax.transAxes,
+                    )
+        for i,ax in enumerate(axes.flatten()):
+            ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_title(
+                letters[i],
+                loc='left',
+                fontweight='bold',
+                fontsize=10
+            )     
+            
+        cb = mpl.colorbar.ColorbarBase(
+            ax=cbax, 
+            cmap=cmap_list_frac,
+            norm=norm_frac,
+            orientation='vertical',
+            spacing='uniform',
+            ticks=tick_locs_frac,
+            drawedges=False,
+        )
+        # cb_lu.set_label('LU trends (°C/5-years)',
+        cb.set_label( '{} trends [fraction/year]'.format(flags['extr']))
+        cb.ax.xaxis.set_label_position('top')
+        cb.ax.tick_params(
+            labelcolor=col_cbticlbl,
+            labelsize=tick_font,
+            color=col_cbtic,
+            length=cb_ticlen,
+            width=cb_ticwid,
+            direction='out'
+        )
+        cb.ax.set_yticklabels(
+            tick_labels_frac,
+            # rotation=45    
+        )        
+        cb.outline.set_edgecolor(col_cbedg)
+        cb.outline.set_linewidth(cb_edgthic)
+        f.savefig('./figures/{}_{}_regional_gs.png'.format(flags['extr'],k),dpi=800,bbox_inches='tight')
+        plt.show()        
+        
+    
     
 #%% ----------------------------------------------------------------
 # plot timing and EMF of exceedence of pic-defined extreme
@@ -1930,7 +2369,7 @@ def plot_p_pf_ae_by_heatmap(
     )    
     p.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p.axes.set_xlabel('Birth year')
-    p.axes.figure.savefig('./figures/p_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    # p.axes.figure.savefig('./figures/p_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()    
     
     # pop frac
@@ -1958,7 +2397,7 @@ def plot_p_pf_ae_by_heatmap(
     )    
     p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p2.axes.set_xlabel('Birth year')
-    p2.axes.figure.savefig('./figures/pf_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    # p2.axes.figure.savefig('./figures/pf_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()
     
     # age emergence
@@ -1976,7 +2415,7 @@ def plot_p_pf_ae_by_heatmap(
     )
     p3.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p3.axes.set_xlabel('Birth year')
-    p3.axes.figure.savefig('./figures/ae_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
+    # p3.axes.figure.savefig('./figures/ae_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
 
         
 #%% ----------------------------------------------------------------
@@ -3675,27 +4114,58 @@ def boxplot_cs_vs_gs_p(
     ds_pf_gs,
     df_GMT_strj,
     flags,
+    sim_labels,
     list_countries,
 ):
 
+    # # country scale pop emerginug
+    # da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
+    #     'GMT':GMT_indices_plot,
+    #     'country':list_countries,
+    #     'birth_year':sample_birth_years,
+    # }] * 1000
+    # df_p_plot = da_p_plot.to_dataframe().reset_index()
+    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+
+    # # grid scale pop emerging
+    # da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+    #     'GMT':GMT_indices_plot,
+    #     'birth_year':sample_birth_years,
+    # }
+    # df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
+    # df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    
     # country scale pop emerginug
     da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
         'GMT':GMT_indices_plot,
         'country':list_countries,
         'birth_year':sample_birth_years,
-    }]#.mean(dim='run')
-    df_p_plot = da_p_plot.to_dataframe().reset_index()
-    df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    # df_p_plot['GMT'] = df_p_plot['GMT'].astype('str')
+    }] * 1000
+    df_list = []
+    for step in GMT_indices_plot:
+        da_p_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        df_p_plot_step = da_p_plot_step.to_dataframe().reset_index()
+        df_p_plot_step = df_p_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list.append(df_p_plot_step)
+    df_p_plot = pd.concat(df_list)
+    df_p_plot['unprec_country_b_y0'] = df_p_plot['unprec_country_b_y0'].fillna(0)
+    # df_p_plot = da_p_plot.to_dataframe().reset_index()
+    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    # df_p_plot = df_p_plot[df_p_plot['unprec_country_b_y0'].notnull()]
 
     # grid scale pop emerging
     da_p_gs_plot = ds_pf_gs['unprec'].loc[{
         'GMT':GMT_indices_plot,
         'birth_year':sample_birth_years,
-    }]#.mean(dim='run')
-    df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
-    # df_p_gs_plot['GMT'] = df_p_gs_plot['GMT'].astype('str')
-    df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    }]
+    df_list_gs = []
+    for step in GMT_indices_plot:
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
+        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list_gs.append(df_p_gs_plot_step)
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['unprec'] = df_p_gs_plot['unprec'].fillna(0)
 
     # plot settings
     tick_font = 12
@@ -3776,7 +4246,122 @@ def boxplot_cs_vs_gs_p(
                 labelpad=10,
             )               
             
-        f.savefig('./figures/testing/boxplots_cs_vs_gs_{}_{}.png'.format(flags['extr'],cntry))
+        f.savefig('./figures/testing/boxplots_p_cs_vs_gs_{}_{}_selrungmt.png'.format(flags['extr'],cntry))
+        plt.show()
+        
+    # final plot summing across countries---------------------------------------------------------------
+    
+    # country scale pop emerging
+    da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
+        'GMT':GMT_indices_plot,
+        'country':list_countries,
+        'birth_year':sample_birth_years,
+    }] * 1000
+    da_p_plot = da_p_plot.sum(dim='country')#.where(da_p_plot!=0)
+    # da_p_plot = da_p_plot.where(da_p_plot!=0)
+    df_list = []
+    for step in GMT_indices_plot:
+        da_p_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        df_p_plot_step = da_p_plot_step.to_dataframe().reset_index()
+        df_p_plot_step = df_p_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list.append(df_p_plot_step)
+    df_p_plot = pd.concat(df_list)
+    df_p_plot['unprec_country_b_y0'] = df_p_plot['unprec_country_b_y0'].fillna(0)
+    # df_p_plot = da_p_plot.to_dataframe().reset_index()
+    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    # df_p_plot = df_p_plot[df_p_plot['unprec_country_b_y0'].notnull()]
+
+    # grid scale pop emerging
+    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        'GMT':GMT_indices_plot,
+        'birth_year':sample_birth_years,
+    }]
+    df_list_gs = []
+    da_p_gs_plot = da_p_gs_plot.sum(dim='country')#.where(da_p_gs_plot!=0)
+    for step in GMT_indices_plot:
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
+        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list_gs.append(df_p_gs_plot_step)
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['unprec'] = df_p_gs_plot['unprec'].fillna(0)
+    # da_p_gs_plot = da_p_gs_plot.where(da_p_gs_plot!=0)
+    # df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
+    # df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    # df_p_gs_plot = df_p_gs_plot[df_p_gs_plot['unprec'].notnull()]
+        
+    f,(ax1,ax2) = plt.subplots(
+        nrows=1, # variables
+        ncols=2, # countries
+        figsize=(x,y)
+    )
+    colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
+    # colors = {
+    #     '28':'darkred',
+    #     '19':'firebrick',
+    #     # 'NDC':'darkorange',
+    #     '10':'yellow',
+    #     # '1.5':'steelblue',
+    #     '0':'darkblue',
+    # }
+
+    # pop
+    sns.boxplot(
+        data=df_p_plot,
+        x='birth_year',
+        y='unprec_country_b_y0',
+        hue='GMT_label',
+        palette=colors,
+        ax=ax1,
+    )
+    sns.boxplot(
+        data=df_p_gs_plot,
+        x='birth_year',
+        y='unprec',
+        hue='GMT_label',
+        palette=colors,
+        ax=ax2,
+    )        
+    
+    ax1.set_title(
+        'country scale',
+        loc='center',
+        fontweight='bold'
+    )
+    ax2.set_title(
+        'grid scale',
+        loc='center',
+        fontweight='bold'
+    )    
+    ax1.set_ylabel(
+        'Unprecedented population', 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+    ax2.set_ylabel(
+        None, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+    
+    for ax in (ax1,ax2):
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+        ax.set_xlabel(
+            'Birth year', 
+            va='center', 
+            rotation='horizontal', 
+            fontsize=axis_font, 
+            labelpad=10,
+        )               
+        
+    f.savefig('./figures/testing/boxplots_p_cs_vs_gs_{}_selgmtruns.png'.format(flags['extr']))        
         
 # %% ----------------------------------------------------------------
 def boxplot_cs_vs_gs_pf(
@@ -3886,4 +4471,5 @@ def boxplot_cs_vs_gs_pf(
                 labelpad=10,
             )               
             
-        f.savefig('./figures/testing/boxplots_cs_vs_gs_{}_{}.png'.format(flags['extr'],cntry))        
+        # f.savefig('./figures/testing/boxplots_cs_vs_gs_{}_{}.png'.format(flags['extr'],cntry))        
+# %%

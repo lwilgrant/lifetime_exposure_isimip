@@ -339,14 +339,6 @@ def pop_frac_stats(
     ds_cohorts,
 ):
     
-                #     # exposed population experiencing unprecedented exposure at the country level
-                # ds_pop_frac['unprec_country_exposed_b'].loc[{
-                #     'run':i,
-                #     'country':ds_cohorts.country.data,
-                #     'birth_year':by_emergence,
-                #     'GMT':step,
-                # }] = ds_pop_frac_run_step['unprec_country_exposed_b']
-    
     # stats on population emergence types
     ds_pop_frac['mean_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].mean(dim='run')
     ds_pop_frac['max_unprec_exposed_b'] = ds_pop_frac['unprec_exposed_b'].max(dim='run')
