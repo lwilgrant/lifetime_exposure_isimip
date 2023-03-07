@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'driedarea' # 0: all
+flags['extr'] = 'floodedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -469,6 +469,7 @@ if flags['plot']:
         flags,
     )        
     
+    # plotting unprecedented population totals between country level and gridscale level for given region 
     boxplot_cs_vs_gs_p(
         ds_pf_strj,
         ds_pf_gs,
@@ -478,14 +479,33 @@ if flags['plot']:
         gridscale_countries,
     )    
     
+    # plotting unprecedented population fracs between country and gridscale levels for given region
     boxplot_cs_vs_gs_pf(
+        ds_cohorts,
+        da_population,
         ds_pf_strj,
         ds_pf_gs,
         df_GMT_strj,
-        ds_cohorts,
         flags,
+        sim_labels,
         gridscale_countries,
-    )        
+    )    
+    
+    # plotting the pf and ae per sim for given GMT and birth year    
+    scatter_pf_ae(
+        ds_ae_strj,
+        ds_cohorts,
+        df_GMT_strj,
+        ds_pf_strj,
+        flags,
+    )    
+    
+    # plotting the number of simulations available per GMT step for flags['extr']    
+    lineplot_simcounts(
+        d_isimip_meta,
+        flags,
+    )
+    
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing
 # ------------------------------------------------------------------        
