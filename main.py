@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'floodedarea' # 0: all
+flags['extr'] = 'heatwavedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -83,11 +83,13 @@ flags['lifetime_exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute 
 flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birth years from 1960-2020
-                                    # 1: run calc_birthyear_align with birth years from 1960-2100
-flags['regional_emergence'] = 0     # 0: do not run regional emergence analysis
-                                    # 1: run regional emergence analysis                                     
+                                    # 1: run calc_birthyear_align with birth years from 1960-2100                             
 flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
+flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all countries
+                                           # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
+flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
+                                               # 1: load those^ pickles
 flags['testing'] = 0                           
 flags['plot'] = 0
 
@@ -194,11 +196,7 @@ else: # load processed exposure data
 
     # load lifetime exposure pickle
     with open('./data/pickles/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
-        ds_e = pk.load(f)
-        
-    # load lifetime exposure pickle
-    # with open('./data/pickles/exposure_trends_hpc_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
-    #     ds_e_hpc = pk.load(f)        
+        ds_e = pk.load(f)  
 
 # --------------------------------------------------------------------
 # convert Area Fraction Affected (AFA) to 
@@ -402,17 +400,15 @@ else:
         ds_pf_gs = pk.load(f)
 
 # load spatially explicit datasets
-d_gs_spatial = {}
-for cntry in gridscale_countries:
-    with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
-        d_gs_spatial[cntry] = pk.load(f)
-        
+if flags['gridscale_spatially_explicit']:
+    d_gs_spatial = {}
+    for cntry in gridscale_countries:
+        with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
+            d_gs_spatial[cntry] = pk.load(f)
 
 #%% ----------------------------------------------------------------
 # plot
 # ------------------------------------------------------------------   
-
-from plot import *
 
 # not sure if this is at the correct place, but dictionary of valid runs per GMT step
 sim_labels = {}
@@ -424,6 +420,8 @@ for step in GMT_labels:
             sim_labels[step].append(i)
 
 if flags['plot']:
+    
+    from plot import *
     
     plot_stylized_trajectories(
         df_GMT_strj,
@@ -454,14 +452,29 @@ if flags['plot']:
         ds_cohorts,
         flags,
     )                  
-        
-    plot_p_pf_ae_by_heatmap(
+    
+    # heatmap of p, pf and ae for country-scale (gmt vs by)
+    plot_p_pf_ae_cs_heatmap(
         ds_pf_strj,
         ds_ae_strj,
         df_GMT_strj,
         ds_cohorts,
         flags,
     )
+    
+    # same heatmap for for grid scale (gmt vs by)
+    plot_p_pf_ae_gs_heatmap(
+        ds_pf_gs,
+        ds_ae_gs,
+        df_GMT_strj,
+        gridscale_countries,
+        da_cohort_size,
+        da_population,
+        countries_mask,
+        countries_regions,
+        df_life_expectancy_5,
+        flags,
+    )    
     
     plot_pf_t_GMT_strj(
         ds_pf_strj,
@@ -482,7 +495,11 @@ if flags['plot']:
     # plotting unprecedented population fracs between country and gridscale levels for given region
     boxplot_cs_vs_gs_pf(
         ds_cohorts,
+        da_cohort_size,
         da_population,
+        countries_mask,
+        countries_regions,
+        df_life_expectancy_5,
         ds_pf_strj,
         ds_pf_gs,
         df_GMT_strj,

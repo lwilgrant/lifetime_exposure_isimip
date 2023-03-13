@@ -2326,7 +2326,7 @@ def plot_pf_ae_by_lines(
     
 #%% ----------------------------------------------------------------
 # plotting pop frac
-def plot_p_pf_ae_by_heatmap(
+def plot_p_pf_ae_cs_heatmap(
     ds_pf_strj,
     ds_ae_strj,
     df_GMT_strj,
@@ -2369,7 +2369,7 @@ def plot_p_pf_ae_by_heatmap(
     )    
     p.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p.axes.set_xlabel('Birth year')
-    # p.axes.figure.savefig('./figures/p_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p.axes.figure.savefig('./figures/p_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()    
     
     # pop frac
@@ -2397,7 +2397,7 @@ def plot_p_pf_ae_by_heatmap(
     )    
     p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p2.axes.set_xlabel('Birth year')
-    # p2.axes.figure.savefig('./figures/pf_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p2.axes.figure.savefig('./figures/pf_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()
     
     # age emergence
@@ -2415,7 +2415,176 @@ def plot_p_pf_ae_by_heatmap(
     )
     p3.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p3.axes.set_xlabel('Birth year')
-    # p3.axes.figure.savefig('./figures/ae_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
+    p3.axes.figure.savefig('./figures/ae_by_heatmap_cs_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
+
+#%% ----------------------------------------------------------------
+# plotting pop frac
+def plot_p_pf_ae_gs_heatmap(
+    ds_pf_gs,
+    ds_ae_gs,
+    df_GMT_strj,
+    list_countries,
+    da_cohort_size,
+    da_population,
+    countries_mask,
+    countries_regions,
+    df_life_expectancy_5,
+    flags,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    
+    # --------------------------------------------------------------------
+    # heatmap version
+    
+    # labels for GMT ticks
+    gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
+    
+    # pop
+    p = ds_pf_gs['unprec'].sum(dim='country')
+    # summing across countries gives 0s for nan runs in some GMTs (should check country scale for this accidental feature, too)
+    p = p.where(p!=0).mean(dim='run') / 10**6
+    p = p.loc[{
+        'birth_year':np.arange(1960,2021)
+    }].plot(
+        x='birth_year',
+        y='GMT',
+        add_colorbar=True,
+        levels=10,
+        cbar_kwargs={
+            'label':'Millions unprecedented'
+        }
+    ) 
+    p.axes.set_yticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100
+    )
+    p.axes.set_xticks(
+        ticks=np.arange(1960,2025,10),
+    )    
+    p.axes.set_ylabel('GMT anomaly at 2100 [°C]')
+    p.axes.set_xlabel('Birth year')
+    p.axes.figure.savefig('./figures/p_by_heatmap_gs_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    plt.show()    
+    
+    # pop frac
+    if flags['extr'] == 'heatwavedarea':
+        levels = np.arange(0,1.01,0.1)
+    else:
+        levels = 10
+        
+    # need denominator for pf @ grid scale, which is not just wcde data in ds_cohorts, but rather isimip pop data x fractions in ds_cohorts
+    cntry_pops = []
+    for cntry in list_countries:
+    
+        print(cntry)
+        da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
+        da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='ages') # cohort relative sizes in sample country
+        da_cntry = xr.DataArray(
+            np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+            dims=countries_mask.dims,
+            coords=countries_mask.coords,
+        )
+        da_cntry = da_cntry.where(da_cntry,drop=True)
+        da_smple_pop = da_population.where(da_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
+
+        # demography dataset
+        ds_dmg = xr.Dataset(
+            data_vars={
+                'life_expectancy': (
+                    ['birth_year'],
+                    df_life_expectancy_5[cntry].values
+                ),
+                'death_year': (
+                    ['birth_year'],
+                    np.floor(df_life_expectancy_5[cntry].values + df_life_expectancy_5[cntry].index).astype('int')
+                ),
+                'population': (
+                    ['time','lat','lon','age'],
+                    da_smple_pop.data
+                ),
+                'country_extent': (
+                    ['lat','lon'],
+                    da_cntry.data
+                ),                
+            },
+            coords={
+                'birth_year': ('birth_year', birth_years),
+                'time': ('time', da_population.time.data),
+                'lat': ('lat', da_cntry.lat.data),
+                'lon': ('lon', da_cntry.lon.data),
+                'age': ('age', np.arange(100,-1,-1)),
+            }
+        )
+
+        # get birthyear aligned population for unprecedented calculation (by_population), also use for weighted mean of lifetime exposure and age emergence
+        bys = []
+        for by in birth_years:
+                
+            time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
+            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
+            data = ds_dmg['population'].sel(time=time,age=ages) # paired selections
+            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
+            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
+            data = data.assign_coords({'birth_year':by}).drop_vars('age')
+            bys.append(data)
+
+        ds_dmg['by_population_y0'] = xr.concat(bys,dim='birth_year').where(ds_dmg['country_extent']==1)
+        da_times=xr.DataArray(ds_dmg.birth_year.data,dims='birth_year')
+        da_birth_years=xr.DataArray(ds_dmg.birth_year.data,dims='birth_year')        
+        ds_dmg['by_population_y0'] = ds_dmg['by_population_y0'].sel(time=da_times,birth_year=da_birth_years)
+        ds_dmg['by_population_y0'] = ds_dmg['by_population_y0'].transpose('birth_year','lat','lon')     
+        cntry_pops.append(ds_dmg['by_population_y0'].sum(dim=('lat','lon')))   
+    
+    da_cntry_pops = xr.concat(cntry_pops,dim='country').assign_coords({'country':list_countries})
+        
+    p2 = ds_pf_gs['unprec'].loc[{
+        'birth_year':np.arange(1960,2021)
+    }].sum(dim='country')
+    p2 = p2.where(p2!=0).mean(dim='run') / da_cntry_pops.sum(dim='country')
+    p2 = p2.plot(
+        x='birth_year',
+        y='GMT',
+        add_colorbar=True,
+        levels=levels,
+        cbar_kwargs={
+            'label':'Population Fraction'
+        }
+    )
+    p2.axes.set_yticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100
+    )
+    p2.axes.set_xticks(
+        ticks=np.arange(1960,2025,10),
+    )    
+    p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
+    p2.axes.set_xlabel('Birth year')
+    p2.axes.figure.savefig('./figures/pf_by_heatmap_gs_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    plt.show()
+    
+    # age emergence
+    # p3 = ds_ae_gs['age_emergence_popweight'].weighted(ds_cohorts['by_y0_weights']).mean(dim=('country','run')).plot(
+    p3 = ds_ae_gs['age_emergence_popweight'].weighted(da_cntry_pops / da_cntry_pops.sum(dim='country')).mean(dim=('country','run')).plot(
+        x='birth_year',
+        y='GMT',
+        levels=10,
+        cbar_kwargs={
+            'label':'Age Emergence'
+        }        
+    )
+    p3.axes.set_yticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100
+    )
+    p3.axes.set_ylabel('GMT anomaly at 2100 [°C]')
+    p3.axes.set_xlabel('Birth year')
+    p3.axes.figure.savefig('./figures/ae_by_heatmap_gs_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))        
 
         
 #%% ----------------------------------------------------------------
@@ -4117,25 +4286,8 @@ def boxplot_cs_vs_gs_p(
     sim_labels,
     list_countries,
 ):
-
-    # # country scale pop emerginug
-    # da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
-    #     'GMT':GMT_indices_plot,
-    #     'country':list_countries,
-    #     'birth_year':sample_birth_years,
-    # }] * 1000
-    # df_p_plot = da_p_plot.to_dataframe().reset_index()
-    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-
-    # # grid scale pop emerging
-    # da_p_gs_plot = ds_pf_gs['unprec'].loc[{
-    #     'GMT':GMT_indices_plot,
-    #     'birth_year':sample_birth_years,
-    # }
-    # df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
-    # df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
     
-    # country scale pop emerginug
+    # country scale pop emerging ---------------------------------------------------------------
     da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
         'GMT':GMT_indices_plot,
         'country':list_countries,
@@ -4150,11 +4302,8 @@ def boxplot_cs_vs_gs_p(
         df_list.append(df_p_plot_step)
     df_p_plot = pd.concat(df_list)
     df_p_plot['unprec_country_b_y0'] = df_p_plot['unprec_country_b_y0'].fillna(0)
-    # df_p_plot = da_p_plot.to_dataframe().reset_index()
-    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    # df_p_plot = df_p_plot[df_p_plot['unprec_country_b_y0'].notnull()]
 
-    # grid scale pop emerging
+    # grid scale pop emerging ---------------------------------------------------------------
     da_p_gs_plot = ds_pf_gs['unprec'].loc[{
         'GMT':GMT_indices_plot,
         'birth_year':sample_birth_years,
@@ -4174,81 +4323,73 @@ def boxplot_cs_vs_gs_p(
     x=20
     y=5
 
-    for cntry in list_countries:
+    # for cntry in list_countries:
 
-        f,(ax1,ax2) = plt.subplots(
-            nrows=1, # variables
-            ncols=2, # countries
-            figsize=(x,y)
-        )
-        colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
-        # colors = {
-        #     '28':'darkred',
-        #     '19':'firebrick',
-        #     # 'NDC':'darkorange',
-        #     '10':'yellow',
-        #     # '1.5':'steelblue',
-        #     '0':'darkblue',
-        # }
+    #     f,(ax1,ax2) = plt.subplots(
+    #         nrows=1, # variables
+    #         ncols=2, # countries
+    #         figsize=(x,y)
+    #     )
+    #     colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
 
-        # pop
-        sns.boxplot(
-            data=df_p_plot[df_p_plot['country']==cntry],
-            x='birth_year',
-            y='unprec_country_b_y0',
-            hue='GMT_label',
-            palette=colors,
-            ax=ax1,
-        )
-        sns.boxplot(
-            data=df_p_gs_plot[(df_p_gs_plot['country']==cntry)&(df_p_gs_plot['unprec']!=0)],
-            x='birth_year',
-            y='unprec',
-            hue='GMT_label',
-            palette=colors,
-            ax=ax2,
-        )        
+    #     # pop
+    #     sns.boxplot(
+    #         data=df_p_plot[df_p_plot['country']==cntry],
+    #         x='birth_year',
+    #         y='unprec_country_b_y0',
+    #         hue='GMT_label',
+    #         palette=colors,
+    #         ax=ax1,
+    #     )
+    #     sns.boxplot(
+    #         data=df_p_gs_plot[(df_p_gs_plot['country']==cntry)&(df_p_gs_plot['unprec']!=0)],
+    #         x='birth_year',
+    #         y='unprec',
+    #         hue='GMT_label',
+    #         palette=colors,
+    #         ax=ax2,
+    #     )        
         
-        ax1.set_title(
-            'country scale',
-            loc='center',
-            fontweight='bold'
-        )
-        ax2.set_title(
-            'grid scale',
-            loc='center',
-            fontweight='bold'
-        )    
-        ax1.set_ylabel(
-            'Unprecedented population {}'.format(cntry), 
-            va='center', 
-            rotation='vertical', 
-            fontsize=axis_font, 
-            labelpad=10,
-        )
-        ax2.set_ylabel(
-            None, 
-            va='center', 
-            rotation='horizontal', 
-            fontsize=axis_font, 
-            labelpad=10,
-        )    
+    #     ax1.set_title(
+    #         'country scale',
+    #         loc='center',
+    #         fontweight='bold'
+    #     )
+    #     ax2.set_title(
+    #         'grid scale',
+    #         loc='center',
+    #         fontweight='bold'
+    #     )    
+    #     ax1.set_ylabel(
+    #         'Unprecedented population {}'.format(cntry), 
+    #         va='center', 
+    #         rotation='vertical', 
+    #         fontsize=axis_font, 
+    #         labelpad=10,
+    #     )
+    #     ax2.set_ylabel(
+    #         None, 
+    #         va='center', 
+    #         rotation='horizontal', 
+    #         fontsize=axis_font, 
+    #         labelpad=10,
+    #     )    
         
-        for ax in (ax1,ax2):
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
-            ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
-            ax.set_xlabel(
-                'Birth year', 
-                va='center', 
-                rotation='horizontal', 
-                fontsize=axis_font, 
-                labelpad=10,
-            )               
+    #     for ax in (ax1,ax2):
+    #         ax.spines['right'].set_visible(False)
+    #         ax.spines['top'].set_visible(False)
+    #         ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+    #         ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+    #         ax.set_xlabel(
+    #             'Birth year', 
+    #             va='center', 
+    #             rotation='horizontal', 
+    #             fontsize=axis_font, 
+    #             labelpad=10,
+    #         )               
             
-        f.savefig('./figures/testing/boxplots_p_cs_vs_gs_{}_{}_selrungmt.png'.format(flags['extr'],cntry))
-        plt.show()
+    #     f.savefig('./figures/testing/boxplots_p_cs_vs_gs_{}_{}_selrungmt.png'.format(flags['extr'],cntry))
+    #     plt.show()
         
     # final plot summing across countries---------------------------------------------------------------
     
@@ -4258,8 +4399,7 @@ def boxplot_cs_vs_gs_p(
         'country':list_countries,
         'birth_year':sample_birth_years,
     }] * 1000
-    da_p_plot = da_p_plot.sum(dim='country')#.where(da_p_plot!=0)
-    # da_p_plot = da_p_plot.where(da_p_plot!=0)
+    da_p_plot = da_p_plot.sum(dim='country')
     df_list = []
     for step in GMT_indices_plot:
         da_p_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}]
@@ -4268,9 +4408,6 @@ def boxplot_cs_vs_gs_p(
         df_list.append(df_p_plot_step)
     df_p_plot = pd.concat(df_list)
     df_p_plot['unprec_country_b_y0'] = df_p_plot['unprec_country_b_y0'].fillna(0)
-    # df_p_plot = da_p_plot.to_dataframe().reset_index()
-    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    # df_p_plot = df_p_plot[df_p_plot['unprec_country_b_y0'].notnull()]
 
     # grid scale pop emerging
     da_p_gs_plot = ds_pf_gs['unprec'].loc[{
@@ -4278,7 +4415,7 @@ def boxplot_cs_vs_gs_p(
         'birth_year':sample_birth_years,
     }]
     df_list_gs = []
-    da_p_gs_plot = da_p_gs_plot.sum(dim='country')#.where(da_p_gs_plot!=0)
+    da_p_gs_plot = da_p_gs_plot.sum(dim='country')
     for step in GMT_indices_plot:
         da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}]
         df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
@@ -4286,10 +4423,6 @@ def boxplot_cs_vs_gs_p(
         df_list_gs.append(df_p_gs_plot_step)
     df_p_gs_plot = pd.concat(df_list_gs)
     df_p_gs_plot['unprec'] = df_p_gs_plot['unprec'].fillna(0)
-    # da_p_gs_plot = da_p_gs_plot.where(da_p_gs_plot!=0)
-    # df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
-    # df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    # df_p_gs_plot = df_p_gs_plot[df_p_gs_plot['unprec'].notnull()]
         
     f,(ax1,ax2) = plt.subplots(
         nrows=1, # variables
@@ -4297,14 +4430,6 @@ def boxplot_cs_vs_gs_p(
         figsize=(x,y)
     )
     colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
-    # colors = {
-    #     '28':'darkred',
-    #     '19':'firebrick',
-    #     # 'NDC':'darkorange',
-    #     '10':'yellow',
-    #     # '1.5':'steelblue',
-    #     '0':'darkblue',
-    # }
 
     # pop
     sns.boxplot(
@@ -4368,7 +4493,7 @@ def boxplot_cs_vs_gs_p(
 def boxplot_cs_vs_gs_pf(
     ds_cohorts,
     da_cohort_size,
-    da_population,,
+    da_population,
     countries_mask,
     countries_regions,
     df_life_expectancy_5,
@@ -4379,23 +4504,6 @@ def boxplot_cs_vs_gs_pf(
     sim_labels,
     list_countries,
 ):
-
-    # # country scale pop emerginug
-    # da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
-    #     'GMT':GMT_indices_plot,
-    #     'country':list_countries,
-    #     'birth_year':sample_birth_years,
-    # }] * 1000
-    # df_p_plot = da_p_plot.to_dataframe().reset_index()
-    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-
-    # # grid scale pop emerging
-    # da_p_gs_plot = ds_pf_gs['unprec'].loc[{
-    #     'GMT':GMT_indices_plot,
-    #     'birth_year':sample_birth_years,
-    # }
-    # df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
-    # df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
     
     # country scale pop emerging --------------------------------------------------------
     da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
@@ -4484,8 +4592,6 @@ def boxplot_cs_vs_gs_pf(
     
     da_cntry_pops = xr.concat(cntry_pops,dim='country').assign_coords({'country':list_countries})
         
-        
-        
     df_list_gs = []
     for step in GMT_indices_plot:
         da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0) / da_cntry_pops
@@ -4500,143 +4606,128 @@ def boxplot_cs_vs_gs_pf(
     x=20
     y=5
 
-    for cntry in list_countries:
+    # for cntry in list_countries:
 
-        f,(ax1,ax2) = plt.subplots(
-            nrows=1, # variables
-            ncols=2, # countries
-            figsize=(x,y)
-        )
-        colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
+    #     f,(ax1,ax2) = plt.subplots(
+    #         nrows=1, # variables
+    #         ncols=2, # countries
+    #         figsize=(x,y)
+    #     )
+    #     colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
 
-        # pf
-        sns.boxplot(
-            data=df_pf_plot[df_pf_plot['country']==cntry],
-            x='birth_year',
-            y='pf',
-            hue='GMT_label',
-            palette=colors,
-            ax=ax1,
-        )
-        sns.boxplot(
-            data=df_pf_gs_plot[df_pf_gs_plot['country']==cntry],
-            x='birth_year',
-            y='pf',
-            hue='GMT_label',
-            palette=colors,
-            ax=ax2,
-        )        
+    #     # pf
+    #     sns.boxplot(
+    #         data=df_pf_plot[df_pf_plot['country']==cntry],
+    #         x='birth_year',
+    #         y='pf',
+    #         hue='GMT_label',
+    #         palette=colors,
+    #         ax=ax1,
+    #     )
+    #     sns.boxplot(
+    #         data=df_pf_gs_plot[df_pf_gs_plot['country']==cntry],
+    #         x='birth_year',
+    #         y='pf',
+    #         hue='GMT_label',
+    #         palette=colors,
+    #         ax=ax2,
+    #     )        
         
-        ax1.set_title(
-            'country scale',
-            loc='center',
-            fontweight='bold'
-        )
-        ax2.set_title(
-            'grid scale',
-            loc='center',
-            fontweight='bold'
-        )    
-        ax1.set_ylabel(
-            'Unprecedented population {}'.format(cntry), 
-            va='center', 
-            rotation='vertical', 
-            fontsize=axis_font, 
-            labelpad=10,
-        )
-        ax2.set_ylabel(
-            None, 
-            va='center', 
-            rotation='horizontal', 
-            fontsize=axis_font, 
-            labelpad=10,
-        )    
+    #     ax1.set_title(
+    #         'country scale',
+    #         loc='center',
+    #         fontweight='bold'
+    #     )
+    #     ax2.set_title(
+    #         'grid scale',
+    #         loc='center',
+    #         fontweight='bold'
+    #     )    
+    #     ax1.set_ylabel(
+    #         'Unprecedented population fraction {}'.format(cntry), 
+    #         va='center', 
+    #         rotation='vertical', 
+    #         fontsize=axis_font, 
+    #         labelpad=10,
+    #     )
+    #     ax2.set_ylabel(
+    #         None, 
+    #         va='center', 
+    #         rotation='horizontal', 
+    #         fontsize=axis_font, 
+    #         labelpad=10,
+    #     )    
         
-        for ax in (ax1,ax2):
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
-            ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
-            ax.set_xlabel(
-                'Birth year', 
-                va='center', 
-                rotation='horizontal', 
-                fontsize=axis_font, 
-                labelpad=10,
-            )               
+    #     for ax in (ax1,ax2):
+    #         ax.spines['right'].set_visible(False)
+    #         ax.spines['top'].set_visible(False)
+    #         ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+    #         ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+    #         ax.set_xlabel(
+    #             'Birth year', 
+    #             va='center', 
+    #             rotation='horizontal', 
+    #             fontsize=axis_font, 
+    #             labelpad=10,
+    #         )               
             
-        f.savefig('./figures/testing/boxplots_pf_cs_vs_gs_{}_{}_selrungmt.png'.format(flags['extr'],cntry))
-        plt.show()
+    #     f.savefig('./figures/testing/boxplots_pf_cs_vs_gs_{}_{}_selrungmt.png'.format(flags['extr'],cntry))
+    #     plt.show()
         
     # final plot summing across countries---------------------------------------------------------------
     
-    # country scale pop emerging
-    da_p_plot = ds_pf_strj['pf'].loc[{
+    # country scale pop emerging --------------------------------------------------------
+    da_p_plot = ds_pf_strj['unprec_country_b_y0'].loc[{
         'GMT':GMT_indices_plot,
         'country':list_countries,
         'birth_year':sample_birth_years,
     }] * 1000
-    da_p_plot = da_p_plot.sum(dim='country')#.where(da_p_plot!=0)
-    # da_p_plot = da_p_plot.where(da_p_plot!=0)
     df_list = []
+    
+    # this loop is done to make sure that for each GMT, we only include sims with valid mapping (and not unecessary nans that skew distribution and denominator when turned to 0)
     for step in GMT_indices_plot:
-        da_p_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}]
-        df_p_plot_step = da_p_plot_step.to_dataframe().reset_index()
-        df_p_plot_step = df_p_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-        df_list.append(df_p_plot_step)
-    df_p_plot = pd.concat(df_list)
-    df_p_plot['unprec_country_b_y0'] = df_p_plot['unprec_country_b_y0'].fillna(0)
-    # df_p_plot = da_p_plot.to_dataframe().reset_index()
-    # df_p_plot = df_p_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    # df_p_plot = df_p_plot[df_p_plot['unprec_country_b_y0'].notnull()]
+        da_pf_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0).sum(dim='country') \
+            / (ds_cohorts['by_population_y0'].loc[{'country':list_countries,'birth_year':sample_birth_years}].sum(dim='country') * 1000)
+        df_pf_plot_step = da_pf_plot_step.to_dataframe(name='pf').reset_index()
+        df_pf_plot_step = df_pf_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list.append(df_pf_plot_step)
+    df_pf_plot = pd.concat(df_list)
 
-    # grid scale pop emerging
+    # grid scale pop emerging --------------------------------------------------------
     da_p_gs_plot = ds_pf_gs['unprec'].loc[{
         'GMT':GMT_indices_plot,
         'birth_year':sample_birth_years,
     }]
-    df_list_gs = []
-    da_p_gs_plot = da_p_gs_plot.sum(dim='country')#.where(da_p_gs_plot!=0)
-    for step in GMT_indices_plot:
-        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}]
-        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
-        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-        df_list_gs.append(df_p_gs_plot_step)
-    df_p_gs_plot = pd.concat(df_list_gs)
-    df_p_gs_plot['unprec'] = df_p_gs_plot['unprec'].fillna(0)
-    # da_p_gs_plot = da_p_gs_plot.where(da_p_gs_plot!=0)
-    # df_p_gs_plot = da_p_gs_plot.to_dataframe().reset_index()
-    # df_p_gs_plot = df_p_gs_plot.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    # df_p_gs_plot = df_p_gs_plot[df_p_gs_plot['unprec'].notnull()]
         
+    df_list_gs = []
+    for step in GMT_indices_plot:
+        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0).sum(dim='country') / da_cntry_pops.sum(dim='country')
+        df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_pf_gs_plot_step = df_pf_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))        
+        df_list_gs.append(df_pf_gs_plot_step)
+    df_pf_gs_plot = pd.concat(df_list_gs)
+    
+    
     f,(ax1,ax2) = plt.subplots(
         nrows=1, # variables
         ncols=2, # countries
         figsize=(x,y)
     )
     colors = dict(zip(np.round(df_GMT_strj.loc[2100,GMT_indices_plot],1).values.astype('str'),['darkblue','yellow','firebrick','darkred']))
-    # colors = {
-    #     '28':'darkred',
-    #     '19':'firebrick',
-    #     # 'NDC':'darkorange',
-    #     '10':'yellow',
-    #     # '1.5':'steelblue',
-    #     '0':'darkblue',
-    # }
 
-    # pop
+    # pf
     sns.boxplot(
-        data=df_p_plot,
+        data=df_pf_plot,
         x='birth_year',
-        y='unprec_country_b_y0',
+        y='pf',
         hue='GMT_label',
         palette=colors,
         ax=ax1,
     )
     sns.boxplot(
-        data=df_p_gs_plot,
+        data=df_pf_gs_plot,
         x='birth_year',
-        y='unprec',
+        y='pf',
         hue='GMT_label',
         palette=colors,
         ax=ax2,
@@ -4653,7 +4744,7 @@ def boxplot_cs_vs_gs_pf(
         fontweight='bold'
     )    
     ax1.set_ylabel(
-        'Unprecedented population', 
+        'Unprecedented population frac', 
         va='center', 
         rotation='vertical', 
         fontsize=axis_font, 
