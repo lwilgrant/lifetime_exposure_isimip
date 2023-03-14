@@ -88,7 +88,7 @@ flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickle
                             # 1: process grid scale analysis
 flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all countries
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
-flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
+flags['gridscale_spatially_explicit'] = 1      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
                                                # 1: load those^ pickles
 flags['testing'] = 0                           
 flags['plot'] = 0
@@ -362,7 +362,7 @@ else: # load pickles
     with open('./data/pickles/age_emergence_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
         ds_ae_strj = pk.load(f)    
                  
-# %% ----------------------------------------------------------------
+#%% ----------------------------------------------------------------
 # grid scale
 # ------------------------------------------------------------------
 
@@ -401,6 +401,7 @@ else:
 
 # load spatially explicit datasets
 if flags['gridscale_spatially_explicit']:
+    
     d_gs_spatial = {}
     for cntry in gridscale_countries:
         with open('./data/pickles/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
@@ -508,14 +509,29 @@ if flags['plot']:
         gridscale_countries,
     )    
     
-    # plotting the pf and ae per sim for given GMT and birth year    
-    scatter_pf_ae(
+    # plotting the pf and ae per sim for given GMT and birth year (using country scale)
+    scatter_pf_ae_cs(
         ds_ae_strj,
         ds_cohorts,
         df_GMT_strj,
         ds_pf_strj,
         flags,
     )    
+    
+    # plotting the pf and ae per sim for given GMT and birth year (using grid scale)
+    scatter_pf_ae_gs(
+        ds_ae_gs,
+        df_GMT_strj,
+        ds_pf_gs,
+        gridscale_countries,
+        ds_cohorts,
+        da_cohort_size,
+        da_population,
+        countries_mask,
+        countries_regions,
+        df_life_expectancy_5,
+        flags,
+    )        
     
     # plotting the number of simulations available per GMT step for flags['extr']    
     lineplot_simcounts(
