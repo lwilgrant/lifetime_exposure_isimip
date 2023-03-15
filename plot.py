@@ -50,7 +50,7 @@ class MidpointNormalize(mpl.colors.Normalize):
 # test colors for plotting
 
 def c(x):
-    col = plt.cm.cividis(x)
+    col = plt.cm.Reds(x)
     fig, ax = plt.subplots(figsize=(1,1))
     fig.set_facecolor(col)
     ax.axis("off")
@@ -4785,147 +4785,149 @@ def scatter_pf_ae_cs(
     # scatter plots of country-mean ae and global pf per run
     gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
 
-    for by in sample_birth_years:
-        for step in GMT_labels:
+    # for by in sample_birth_years:
+    # for step in GMT_labels:
+    by=2020
+    step=24
             
-            # initiate plotting axes
-            f,((ax1,ax2),(ax3,ax4)) = plt.subplots(
-                nrows=2,
-                ncols=2,
-                figsize=(10,7),
-            )
+    # initiate plotting axes
+    f,((ax1,ax2),(ax3,ax4)) = plt.subplots(
+        nrows=2,
+        ncols=2,
+        figsize=(10,7),
+    )
 
-            # age emergence in ax 1 and 2
-            ds_plt = ds_ae_strj['age_emergence']                             
-            ds_plt_gmt = ds_plt.loc[{'birth_year':by}]
-            ds_plt_gmt = ds_plt_gmt.weighted(ds_cohorts['by_y0_weights'].loc[{'birth_year':by}]).mean(dim='country')
-            p = ds_plt_gmt.to_dataframe().reset_index(level="run")
-            x = p.index.values
-            y = p['age_emergence'].values
-            ax1.scatter(
-                x,
-                y,
-                s=markersize,
-            )
-            ax1.plot(
-                GMT_labels,
-                ds_plt_gmt.mean(dim='run').values,
-                marker='_',
-                markersize=markersize/2,
-                linestyle='',
-                color='r'
-            )
-            ax1.set_title(
-                '{} birth cohort'.format(str(by)),
-                loc='center',
-                fontweight='bold',
-            )
-            ax1.set_ylabel(
-                'age emergence', 
-                va='center', 
-                rotation='vertical',
-                labelpad=10,
-            )                                               
-            ax1.set_xticks(
-                ticks=[0,5,10,15,20,25],
-                labels=None,
-            )
+    # age emergence in ax 1 and 2
+    ds_plt = ds_ae_strj['age_emergence']                             
+    ds_plt_gmt = ds_plt.loc[{'birth_year':by}]
+    ds_plt_gmt = ds_plt_gmt.weighted(ds_cohorts['by_y0_weights'].loc[{'birth_year':by}]).mean(dim='country')
+    p = ds_plt_gmt.to_dataframe().reset_index(level="run")
+    x = p.index.values
+    y = p['age_emergence'].values
+    ax1.scatter(
+        x,
+        y,
+        s=markersize,
+    )
+    ax1.plot(
+        GMT_labels,
+        ds_plt_gmt.mean(dim='run').values,
+        marker='_',
+        markersize=markersize/2,
+        linestyle='',
+        color='r'
+    )
+    ax1.set_title(
+        '{} birth cohort'.format(str(by)),
+        loc='center',
+        fontweight='bold',
+    )
+    ax1.set_ylabel(
+        'age emergence', 
+        va='center', 
+        rotation='vertical',
+        labelpad=10,
+    )                                               
+    ax1.set_xticks(
+        ticks=[0,5,10,15,20,25],
+        labels=None,
+    )
 
-            ds_plt_by = ds_plt.loc[{'GMT':step}]
-            ds_plt_by = ds_plt_by.weighted(ds_cohorts['by_y0_weights']).mean(dim='country')
-            p = ds_plt_by.to_dataframe().reset_index(level="run")
-            x = p.index.values
-            y = p['age_emergence'].values
-            ax2.scatter(
-                x,
-                y,
-                s=markersize,
-            )
-            ax2.plot(
-                birth_years,
-                ds_plt_by.mean(dim='run').values,
-                marker='_',
-                markersize=markersize/2,
-                linestyle='',
-                color='r'
-            )   
-            ax2.set_title(
-                '{} @ 2100 [°C]'.format(str(np.round(df_GMT_strj.loc[2100,step],1))),
-                loc='center',
-                fontweight='bold',
-            )       
+    ds_plt_by = ds_plt.loc[{'GMT':step}]
+    ds_plt_by = ds_plt_by.weighted(ds_cohorts['by_y0_weights']).mean(dim='country')
+    p = ds_plt_by.to_dataframe().reset_index(level="run")
+    x = p.index.values
+    y = p['age_emergence'].values
+    ax2.scatter(
+        x,
+        y,
+        s=markersize,
+    )
+    ax2.plot(
+        birth_years,
+        ds_plt_by.mean(dim='run').values,
+        marker='_',
+        markersize=markersize/2,
+        linestyle='',
+        color='r'
+    )   
+    ax2.set_title(
+        '{} @ 2100 [°C]'.format(str(np.round(df_GMT_strj.loc[2100,step],1))),
+        loc='center',
+        fontweight='bold',
+    )       
 
-            # pf in ax 3 and 4
-            ds_plt = ds_pf_strj['frac_unprec_all_b_y0']                                                   
-            ds_plt_gmt = ds_plt.loc[{'birth_year':by}]
-            p = ds_plt_gmt.to_dataframe().reset_index(level="run")
-            x = p.index.values
-            y = p['frac_unprec_all_b_y0'].values
-            ax3.scatter(
-                x,
-                y,
-                s=markersize,
-            )
-            ax3.plot(
-                GMT_labels,
-                ds_plt_gmt.mean(dim='run').values,
-                marker='_',
-                markersize=markersize/2,
-                linestyle='',
-                color='r'
-            )
-            ax3.set_ylabel(
-                'population fraction', 
-                va='center', 
-                rotation='vertical',
-                labelpad=10,
-            )          
-            ax3.set_xlabel(
-                'GMT anomaly at 2100 [°C]', 
-                va='center', 
-                labelpad=10,
-            )                                           
-            ax3.set_xticks(
-                ticks=[0,5,10,15,20,25],
-                labels=gmts2100,
-            )
+    # pf in ax 3 and 4
+    ds_plt = ds_pf_strj['frac_unprec_all_b_y0']                                                   
+    ds_plt_gmt = ds_plt.loc[{'birth_year':by}]
+    p = ds_plt_gmt.to_dataframe().reset_index(level="run")
+    x = p.index.values
+    y = p['frac_unprec_all_b_y0'].values
+    ax3.scatter(
+        x,
+        y,
+        s=markersize,
+    )
+    ax3.plot(
+        GMT_labels,
+        ds_plt_gmt.mean(dim='run').values,
+        marker='_',
+        markersize=markersize/2,
+        linestyle='',
+        color='r'
+    )
+    ax3.set_ylabel(
+        'population fraction', 
+        va='center', 
+        rotation='vertical',
+        labelpad=10,
+    )          
+    ax3.set_xlabel(
+        'GMT anomaly at 2100 [°C]', 
+        va='center', 
+        labelpad=10,
+    )                                           
+    ax3.set_xticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100,
+    )
 
-            ds_plt_by = ds_plt.loc[{'GMT':step}]
-            p = ds_plt_by.to_dataframe().reset_index(level="run")
-            x = p.index.values
-            y = p['frac_unprec_all_b_y0'].values
-            ax4.scatter(
-                x,
-                y,
-                s=markersize,
-            )
-            ax4.plot(
-                birth_years,
-                ds_plt_by.mean(dim='run').values,
-                marker='_',
-                markersize=markersize/2,
-                linestyle='',
-                color='r'
-            )   
-            ax4.set_xlabel(
-                'Birth year', 
-                va='center', 
-                labelpad=10,
-            )         
-                    
-            # ax stuff
-            for n,ax in enumerate((ax1,ax2,ax3,ax4)):
-                ax.set_title(
-                    letters[n],
-                    loc='left',
-                    fontweight='bold',
-                )
-                ax.spines['right'].set_visible(False)
-                ax.spines['top'].set_visible(False)                 
-                if n < 3:
-                    ax.tick_params(labelbottom=False)        
-            plt.show()
-            f.savefig('./figures/testing/ae_pf_scatterplots_cs_{}_{}_{}.png'.format(step,by,flags['extr']),dpi=400)
+    ds_plt_by = ds_plt.loc[{'GMT':step}]
+    p = ds_plt_by.to_dataframe().reset_index(level="run")
+    x = p.index.values
+    y = p['frac_unprec_all_b_y0'].values
+    ax4.scatter(
+        x,
+        y,
+        s=markersize,
+    )
+    ax4.plot(
+        birth_years,
+        ds_plt_by.mean(dim='run').values,
+        marker='_',
+        markersize=markersize/2,
+        linestyle='',
+        color='r'
+    )   
+    ax4.set_xlabel(
+        'Birth year', 
+        va='center', 
+        labelpad=10,
+    )         
+            
+    # ax stuff
+    for n,ax in enumerate((ax1,ax2,ax3,ax4)):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)                 
+        if n < 2:
+            ax.tick_params(labelbottom=False)        
+    plt.show()
+    f.savefig('./figures/testing/ae_pf_scatterplots_cs_{}_{}_{}.png'.format(step,by,flags['extr']),dpi=400)
 
 # %% ----------------------------------------------------------------
 def scatter_pf_ae_gs(
@@ -5159,7 +5161,7 @@ def scatter_pf_ae_gs(
         )
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)                 
-        if n < 3:
+        if n < 2:
             ax.tick_params(labelbottom=False)        
     plt.show()
     f.savefig('./figures/testing/ae_pf_scatterplots_gs_{}_{}_{}.png'.format(step,by,flags['extr']),dpi=400)
