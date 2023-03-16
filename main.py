@@ -368,11 +368,34 @@ else: # load pickles
 
 from gridscale import *
 
+# list of countries to run gridscale analysis on (sometimes doing subsets across basiss/regions in floods/droughts)
 gridscale_countries = get_gridscale_regions(
     grid_area,
     flags,
     gdf_country_borders,
 )
+
+# birth year aligned cohort sizes for gridscale analysis
+if not os.path.isfile('./data/pickles/gs_cohort_sizes.pkl'):
+
+    da_gs_popdenom = get_gridscale_popdenom(
+        gridscale_countries,
+        da_cohort_size,
+        countries_mask,
+        countries_regions,
+        da_population,
+        df_life_expectancy_5,
+    )
+
+    # pickle birth year aligned cohort sizes for gridscale analysis
+    with open('./data/pickles/gs_cohort_sizes.pkl', 'wb') as f:
+        pk.dump(ds_cohorts,f)  
+        
+else:
+    
+    # load pickle birth year aligned cohort sizes for gridscale analysis
+    with open('./data/pickles/gs_cohort_sizes.pkl', 'rb') as f:
+        da_gs_popdenom = pk.load(f)               
 
 if flags['gridscale']:
     
@@ -468,12 +491,7 @@ if flags['plot']:
         ds_pf_gs,
         ds_ae_gs,
         df_GMT_strj,
-        gridscale_countries,
-        da_cohort_size,
-        da_population,
-        countries_mask,
-        countries_regions,
-        df_life_expectancy_5,
+        da_gs_popdenom,
         flags,
     )    
     
@@ -496,11 +514,7 @@ if flags['plot']:
     # plotting unprecedented population fracs between country and gridscale levels for given region
     boxplot_cs_vs_gs_pf(
         ds_cohorts,
-        da_cohort_size,
-        da_population,
-        countries_mask,
-        countries_regions,
-        df_life_expectancy_5,
+        da_gs_popdenom,
         ds_pf_strj,
         ds_pf_gs,
         df_GMT_strj,
@@ -523,13 +537,7 @@ if flags['plot']:
         ds_ae_gs,
         df_GMT_strj,
         ds_pf_gs,
-        gridscale_countries,
-        ds_cohorts,
-        da_cohort_size,
-        da_population,
-        countries_mask,
-        countries_regions,
-        df_life_expectancy_5,
+        da_gs_popdenom,
         flags,
     )        
     
@@ -539,70 +547,27 @@ if flags['plot']:
         flags,
     )
     
-    # need denominator for pf @ grid scale, which is not just wcde data in ds_cohorts, but rather isimip pop data x fractions in ds_cohorts
-    cntry_pops = []
-    for cntry in list_countries:
+    # plot of heatwave heatmap, scatter plot and maps of 1, 2 and 3 degree pop unprecedented across countries
+    combined_plot_hw_p(
+        df_GMT_strj,
+        ds_pf_gs,
+        da_gs_popdenom,
+        gdf_country_borders,
+        sim_labels,
+        flags,
+    )    
     
-        print(cntry)
-        da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
-        da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='ages') # cohort relative sizes in sample country
-        da_cntry = xr.DataArray(
-            np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
-            dims=countries_mask.dims,
-            coords=countries_mask.coords,
-        )
-        da_cntry = da_cntry.where(da_cntry,drop=True)
-        da_smple_pop = da_population.where(da_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
-
-        # demography dataset
-        ds_dmg = xr.Dataset(
-            data_vars={
-                'life_expectancy': (
-                    ['birth_year'],
-                    df_life_expectancy_5[cntry].values
-                ),
-                'death_year': (
-                    ['birth_year'],
-                    np.floor(df_life_expectancy_5[cntry].values + df_life_expectancy_5[cntry].index).astype('int')
-                ),
-                'population': (
-                    ['time','lat','lon','age'],
-                    da_smple_pop.data
-                ),
-                'country_extent': (
-                    ['lat','lon'],
-                    da_cntry.data
-                ),                
-            },
-            coords={
-                'birth_year': ('birth_year', birth_years),
-                'time': ('time', da_population.time.data),
-                'lat': ('lat', da_cntry.lat.data),
-                'lon': ('lon', da_cntry.lon.data),
-                'age': ('age', np.arange(100,-1,-1)),
-            }
-        )
-
-        # get birthyear aligned population for unprecedented calculation (by_population), also use for weighted mean of lifetime exposure and age emergence
-        bys = []
-        for by in birth_years:
-                
-            time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
-            ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-            data = ds_dmg['population'].sel(time=time,age=ages) # paired selections
-            data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
-            data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-            data = data.assign_coords({'birth_year':by}).drop_vars('age')
-            bys.append(data)
-
-        ds_dmg['by_population_y0'] = xr.concat(bys,dim='birth_year').where(ds_dmg['country_extent']==1)
-        da_times=xr.DataArray(ds_dmg.birth_year.data,dims='birth_year')
-        da_birth_years=xr.DataArray(ds_dmg.birth_year.data,dims='birth_year')        
-        ds_dmg['by_population_y0'] = ds_dmg['by_population_y0'].sel(time=da_times,birth_year=da_birth_years)
-        ds_dmg['by_population_y0'] = ds_dmg['by_population_y0'].transpose('birth_year','lat','lon')     
-        cntry_pops.append(ds_dmg['by_population_y0'].sum(dim=('lat','lon')))   
+    # plot of heatwave heatmap, scatter plot and maps of 1, 2 and 3 degree pop frac unprecedented across countries
+    combined_plot_hw_pf(
+        df_GMT_strj,
+        ds_pf_gs,
+        da_gs_popdenom,
+        gdf_country_borders,
+        sim_labels,
+        flags,
+    )        
     
-    da_cntry_pops = xr.concat(cntry_pops,dim='country').assign_coords({'country':list_countries})    
+
     
     list_countries=gridscale_countries
 
@@ -611,273 +576,280 @@ if flags['plot']:
 # ------------------------------------------------------------------     
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
-x=12
-y=10
-markersize=10
-tick_font = 12
-# cbar stuff
-col_cbticlbl = '0'   # colorbar color of tick labels
-col_cbtic = '0.5'   # colorbar color of ticks
-col_cbedg = '0.9'   # colorbar color of edge
-cb_ticlen = 3.5   # colorbar length of ticks
-cb_ticwid = 0.4   # colorbar thickness of ticks
-cb_edgthic = 0   # colorbar thickness of edges between colors    
 
-f = plt.figure(figsize=(x,y))    
-gs0 = gridspec.GridSpec(4,4)
-gs0.update(hspace=0.8,wspace=0.8)
-ax00 = f.add_subplot(gs0[0:2,0:2]) # heatmap
-ax10 = f.add_subplot(gs0[2:,0:2]) # scatterplot for 2020 by
-gs00 = gridspec.GridSpecFromSubplotSpec(
-    3,
-    1, 
-    subplot_spec=gs0[:4,2:],
-)
-ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
-ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
-ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
-pos00 = ax00.get_position()
-cax00 = f.add_axes([
-    pos00.x0,
-    pos00.y0+0.4,
-    pos00.width,
-    pos00.height*0.1
-])
-pos01 = ax01.get_position()
-caxn1 = f.add_axes([
-    pos01.x0-0.0775,
-    pos00.y0+0.4,
-    pos00.width,
-    pos00.height*0.1
-])    
+def combined_plot_hw(
+    df_GMT_strj,
+    ds_pf_gs,
+    gdf_country_borders,
+    flags,
+):
+    x=12
+    y=10
+    markersize=10
+    tick_font = 12
+    # cbar stuff
+    col_cbticlbl = '0'   # colorbar color of tick labels
+    col_cbtic = '0.5'   # colorbar color of ticks
+    col_cbedg = '0.9'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors    
 
-# pop frac heatmap ----------------------------------------------------------
-gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
-
-if flags['extr'] == 'heatwavedarea':
-    levels = np.arange(0,1.01,0.1)
-else:
-    levels = 10
-    
-p2 = ds_pf_gs['unprec'].loc[{
-    'birth_year':np.arange(1960,2021)
-}].sum(dim='country')
-p2 = p2.where(p2!=0).mean(dim='run') / da_cntry_pops.sum(dim='country')
-p2 = p2.plot(
-    x='birth_year',
-    y='GMT',
-    ax=ax00,
-    add_colorbar=True,
-    levels=levels,
-    cbar_kwargs={
-        'label':'Population fraction',
-        'cax':cax00,
-        'orientation':'horizontal'
-    }
-)
-p2.axes.set_yticks(
-    ticks=[0,5,10,15,20,25],
-    labels=gmts2100
-)
-p2.axes.set_xticks(
-    ticks=np.arange(1960,2025,10),
-)    
-p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
-p2.axes.set_xlabel('Birth year')
-cax00.xaxis.set_label_position('top')
-
-# add rectangle to 2020 series
-ax00.add_patch(Rectangle(
-    (2020-0.5,0-0.5),1,29,
-    facecolor='none',
-    ec='k',
-    lw=0.8
-))
-# bracket connecting 2020 in heatmap to scatter plot panel
-
-# pop frac scatter ----------------------------------------------------------
-
-da_plt = ds_pf_gs['unprec'].sum(dim='country') # summing converts nans from invalid GMT/run combos to 0, use where below to remove these
-da_plt_gmt = da_plt.loc[{'birth_year':by}].where(da_plt.loc[{'birth_year':by}]!=0)
-da_plt_gmt = da_plt_gmt / da_cntry_pops.loc[{'birth_year':by}].sum(dim='country')
-p = da_plt_gmt.to_dataframe(name='pf').reset_index(level="run")
-x = p.index.values
-y = p['pf'].values
-ax10.scatter(
-    x,
-    y,
-    s=markersize,
-    c='steelblue'
-)
-ax10.plot(
-    GMT_labels,
-    da_plt_gmt.mean(dim='run').values,
-    marker='_',
-    markersize=markersize/2,
-    linestyle='',
-    color='r'
-)
-ax10.set_ylabel(
-    'Population fraction', 
-    va='center', 
-    rotation='vertical',
-    labelpad=10,
-)          
-ax10.set_xlabel(
-    'GMT anomaly at 2100 [°C]', 
-    va='center', 
-    labelpad=10,
-)                                           
-ax10.set_xticks(
-    ticks=[0,5,10,15,20,25],
-    labels=gmts2100,
-)    
-ax10.spines['right'].set_visible(False)
-ax10.spines['top'].set_visible(False)    
-
-handles = [
-    Line2D([0],[0],linestyle='None',marker='o',color='steelblue'),
-    Line2D([0],[0],marker='_',color='r'),
-        
-]
-labels= [
-    'Simulations',
-    'Mean',     
-]    
-x0 = 0.55 # bbox for legend
-y0 = 0.25
-xlen = 0.2
-ylen = 0.2    
-legend_font = 10        
-ax10.legend(
-    handles, 
-    labels, 
-    bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
-    loc=3,
-    ncol=1,
-    fontsize=legend_font, 
-    mode="expand", 
-    borderaxespad=0.,
-    frameon=False, 
-    columnspacing=0.05, 
-)       
-
-# pop emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------
-
-cmap_whole = plt.cm.get_cmap('Reds')
-cmap55 = cmap_whole(0.01)
-cmap50 = cmap_whole(0.05)   # blue
-cmap45 = cmap_whole(0.1)
-cmap40 = cmap_whole(0.15)
-cmap35 = cmap_whole(0.2)
-cmap30 = cmap_whole(0.25)
-cmap25 = cmap_whole(0.3)
-cmap20 = cmap_whole(0.325)
-cmap10 = cmap_whole(0.4)
-cmap5 = cmap_whole(0.475)
-cmap0 = 'gray'
-cmap_5 = cmap_whole(0.525)
-cmap_10 = cmap_whole(0.6)
-cmap_20 = cmap_whole(0.625)
-cmap_25 = cmap_whole(0.7)
-cmap_30 = cmap_whole(0.75)
-cmap_35 = cmap_whole(0.8)
-cmap_40 = cmap_whole(0.85)
-cmap_45 = cmap_whole(0.9)
-cmap_50 = cmap_whole(0.95)  # red
-cmap_55 = cmap_whole(0.99)
-
-colors = [
-    cmap0, # gray for 0 unprecedented
-    cmap45,cmap35,cmap25,cmap20,cmap5, # 100,000s
-    cmap_5,cmap_20,cmap_25,cmap_35,cmap_45,cmap_55, # millions
-]
-
-# declare list of colors for discrete colormap of colorbar
-cmap_list_p = mpl.colors.ListedColormap(colors,N=len(colors))
-
-# colorbar args
-values_p = [
-    -0.1, 0.1,
-    2*10**5,4*10**5,6*10**5,8*10**5,
-    10**6,2*10**6,4*10**6,6*10**6,8*10**6,
-    10**7,2*10**7,
-]
-tick_locs_p = [
-    0,1,
-    2*10**5,4*10**5,6*10**5,8*10**5,
-    10**6,2*10**6,4*10**6,6*10**6,8*10**6,
-    10**7,2*10**7,        
-]
-tick_labels_p = [
-    '0',None,
-    '200,000','400,000','600,000','800,000',
-    '10e6','2x10e6','4x10e6','6x10e6','8x10e6',
-    '10e7','2x10e7',
-]
-norm_p = mpl.colors.BoundaryNorm(values_p,cmap_list_p.N)         
-
-gmt_indices_123 = [0,10,19]
-da_p_gs_plot = ds_pf_gs['unprec'].loc[{
-    'GMT':gmt_indices_123,
-    'birth_year':2020,
-}]
-df_list_gs = []
-for step in gmt_indices_123:
-    da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].mean(dim='run')
-    df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
-    df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    df_list_gs.append(df_p_gs_plot_step)
-df_p_gs_plot = pd.concat(df_list_gs)
-df_p_gs_plot['unprec'] = df_p_gs_plot['unprec'].fillna(0)  
-gdf = cp(gdf_country_borders.reset_index())
-gdf_p = cp(gdf_country_borders.reset_index())
-robinson = ccrs.Robinson().proj4_init
-
-for ax,step in zip((ax01,ax11,ax21),gmt_indices_123):
-    gdf_p['unprec']=df_p_gs_plot['unprec'][df_p_gs_plot['GMT']==step].values
-    gdf_p.to_crs(robinson).plot(
-        ax=ax,
-        column='unprec',
-        cmap=cmap_list_p,
-        norm=norm_p,
-        cax=caxn1,
-    )           
-    gdf.to_crs(robinson).plot(
-        ax=ax,
-        color='none', 
-        edgecolor='black',
-        linewidth=0.25,
-    ) 
-    
-    cb = mpl.colorbar.ColorbarBase(
-        ax=caxn1, 
-        cmap=cmap_list_p,
-        norm=norm_p,
-        orientation='horizontal',
-        spacing='uniform',
-        drawedges=False,
-        ticks=tick_locs_p,
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(4,4)
+    gs0.update(hspace=0.8,wspace=0.8)
+    ax00 = f.add_subplot(gs0[0:2,0:2]) # heatmap
+    ax10 = f.add_subplot(gs0[2:,0:2]) # scatterplot for 2020 by
+    gs00 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        1, 
+        subplot_spec=gs0[:4,2:],
     )
+    ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+    ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+    ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+    pos00 = ax00.get_position()
+    cax00 = f.add_axes([
+        pos00.x0,
+        pos00.y0+0.4,
+        pos00.width,
+        pos00.height*0.1
+    ])
+    pos01 = ax01.get_position()
+    caxn1 = f.add_axes([
+        pos01.x0-0.0775,
+        pos00.y0+0.4,
+        pos00.width,
+        pos00.height*0.1
+    ])    
 
-cb.set_label('Unprecedented population')
-cb.ax.xaxis.set_label_position('top')
-cb.ax.tick_params(
-    labelcolor=col_cbticlbl,
-    color=col_cbtic,
-    length=cb_ticlen,
-    width=cb_ticwid,
-    direction='out'
-)
-cb.ax.set_xticklabels(
-    tick_labels_p,
-    rotation=45,
-)    
-cb.outline.set_edgecolor(col_cbedg)
-cb.outline.set_linewidth(cb_edgthic)                         
+    # pop frac heatmap ----------------------------------------------------------
+    gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
 
-f.savefig('./figures/combined_heatmap_scatter_mapsofp_{}.png'.format(flags['extr']),dpi=900)
-plt.show()        
+    if flags['extr'] == 'heatwavedarea':
+        levels = np.arange(0,1.01,0.1)
+    else:
+        levels = 10
+        
+    p2 = ds_pf_gs['unprec'].loc[{
+        'birth_year':np.arange(1960,2021)
+    }].sum(dim='country')
+    p2 = p2.where(p2!=0).mean(dim='run') / da_cntry_pops.sum(dim='country')
+    p2 = p2.plot(
+        x='birth_year',
+        y='GMT',
+        ax=ax00,
+        add_colorbar=True,
+        levels=levels,
+        cbar_kwargs={
+            'label':'Population fraction',
+            'cax':cax00,
+            'orientation':'horizontal'
+        }
+    )
+    p2.axes.set_yticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100
+    )
+    p2.axes.set_xticks(
+        ticks=np.arange(1960,2025,10),
+    )    
+    p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
+    p2.axes.set_xlabel('Birth year')
+    cax00.xaxis.set_label_position('top')
+
+    # add rectangle to 2020 series
+    ax00.add_patch(Rectangle(
+        (2020-0.5,0-0.5),1,29,
+        facecolor='none',
+        ec='k',
+        lw=0.8
+    ))
+    # bracket connecting 2020 in heatmap to scatter plot panel
+
+    # pop frac scatter ----------------------------------------------------------
+
+    da_plt = ds_pf_gs['unprec'].sum(dim='country') # summing converts nans from invalid GMT/run combos to 0, use where below to remove these
+    da_plt_gmt = da_plt.loc[{'birth_year':by}].where(da_plt.loc[{'birth_year':by}]!=0)
+    da_plt_gmt = da_plt_gmt / da_cntry_pops.loc[{'birth_year':by}].sum(dim='country')
+    p = da_plt_gmt.to_dataframe(name='pf').reset_index(level="run")
+    x = p.index.values
+    y = p['pf'].values
+    ax10.scatter(
+        x,
+        y,
+        s=markersize,
+        c='steelblue'
+    )
+    ax10.plot(
+        GMT_labels,
+        da_plt_gmt.mean(dim='run').values,
+        marker='_',
+        markersize=markersize/2,
+        linestyle='',
+        color='r'
+    )
+    ax10.set_ylabel(
+        'Population fraction', 
+        va='center', 
+        rotation='vertical',
+        labelpad=10,
+    )          
+    ax10.set_xlabel(
+        'GMT anomaly at 2100 [°C]', 
+        va='center', 
+        labelpad=10,
+    )                                           
+    ax10.set_xticks(
+        ticks=[0,5,10,15,20,25],
+        labels=gmts2100,
+    )    
+    ax10.spines['right'].set_visible(False)
+    ax10.spines['top'].set_visible(False)    
+
+    handles = [
+        Line2D([0],[0],linestyle='None',marker='o',color='steelblue'),
+        Line2D([0],[0],marker='_',color='r'),
+            
+    ]
+    labels= [
+        'Simulations',
+        'Mean',     
+    ]    
+    x0 = 0.55 # bbox for legend
+    y0 = 0.25
+    xlen = 0.2
+    ylen = 0.2    
+    legend_font = 10        
+    ax10.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+    )       
+
+    # pop emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------
+
+    cmap_whole = plt.cm.get_cmap('Reds')
+    cmap55 = cmap_whole(0.01)
+    cmap50 = cmap_whole(0.05)   # blue
+    cmap45 = cmap_whole(0.1)
+    cmap40 = cmap_whole(0.15)
+    cmap35 = cmap_whole(0.2)
+    cmap30 = cmap_whole(0.25)
+    cmap25 = cmap_whole(0.3)
+    cmap20 = cmap_whole(0.325)
+    cmap10 = cmap_whole(0.4)
+    cmap5 = cmap_whole(0.475)
+    cmap0 = 'gray'
+    cmap_5 = cmap_whole(0.525)
+    cmap_10 = cmap_whole(0.6)
+    cmap_20 = cmap_whole(0.625)
+    cmap_25 = cmap_whole(0.7)
+    cmap_30 = cmap_whole(0.75)
+    cmap_35 = cmap_whole(0.8)
+    cmap_40 = cmap_whole(0.85)
+    cmap_45 = cmap_whole(0.9)
+    cmap_50 = cmap_whole(0.95)  # red
+    cmap_55 = cmap_whole(0.99)
+
+    colors = [
+        cmap0, # gray for 0 unprecedented
+        cmap45,cmap35,cmap25,cmap20,cmap5, # 100,000s
+        cmap_5,cmap_20,cmap_25,cmap_35,cmap_45,cmap_55, # millions
+    ]
+
+    # declare list of colors for discrete colormap of colorbar
+    cmap_list_p = mpl.colors.ListedColormap(colors,N=len(colors))
+
+    # colorbar args
+    values_p = [
+        -0.1, 0.1,
+        2*10**5,4*10**5,6*10**5,8*10**5,
+        10**6,2*10**6,4*10**6,6*10**6,8*10**6,
+        10**7,2*10**7,
+    ]
+    tick_locs_p = [
+        0,1,
+        2*10**5,4*10**5,6*10**5,8*10**5,
+        10**6,2*10**6,4*10**6,6*10**6,8*10**6,
+        10**7,2*10**7,        
+    ]
+    tick_labels_p = [
+        '0',None,
+        '200,000','400,000','600,000','800,000',
+        '10e6','2x10e6','4x10e6','6x10e6','8x10e6',
+        '10e7','2x10e7',
+    ]
+    norm_p = mpl.colors.BoundaryNorm(values_p,cmap_list_p.N)         
+
+    gmt_indices_123 = [0,10,19]
+    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        'GMT':gmt_indices_123,
+        'birth_year':2020,
+    }]
+    df_list_gs = []
+    for step in gmt_indices_123:
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].mean(dim='run')
+        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
+        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list_gs.append(df_p_gs_plot_step)
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['unprec'] = df_p_gs_plot['unprec'].fillna(0)  
+    gdf = cp(gdf_country_borders.reset_index())
+    gdf_p = cp(gdf_country_borders.reset_index())
+    robinson = ccrs.Robinson().proj4_init
+
+    for ax,step in zip((ax01,ax11,ax21),gmt_indices_123):
+        gdf_p['unprec']=df_p_gs_plot['unprec'][df_p_gs_plot['GMT']==step].values
+        gdf_p.to_crs(robinson).plot(
+            ax=ax,
+            column='unprec',
+            cmap=cmap_list_p,
+            norm=norm_p,
+            cax=caxn1,
+        )           
+        gdf.to_crs(robinson).plot(
+            ax=ax,
+            color='none', 
+            edgecolor='black',
+            linewidth=0.25,
+        ) 
+        
+        cb = mpl.colorbar.ColorbarBase(
+            ax=caxn1, 
+            cmap=cmap_list_p,
+            norm=norm_p,
+            orientation='horizontal',
+            spacing='uniform',
+            drawedges=False,
+            ticks=tick_locs_p,
+        )
+
+    cb.set_label('Unprecedented population')
+    cb.ax.xaxis.set_label_position('top')
+    cb.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )
+    cb.ax.set_xticklabels(
+        tick_labels_p,
+        rotation=45,
+    )    
+    cb.outline.set_edgecolor(col_cbedg)
+    cb.outline.set_linewidth(cb_edgthic)                         
+
+    f.savefig('./figures/combined_heatmap_scatter_mapsofp_{}.png'.format(flags['extr']),dpi=900)
+    plt.show()        
 
 
     
