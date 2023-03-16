@@ -19,6 +19,7 @@ from matplotlib.lines import Line2D
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
+from matplotlib.patches import ConnectionPatch
 import mapclassify as mc
 from copy import deepcopy as cp
 import matplotlib.pyplot as plt
@@ -5275,7 +5276,7 @@ def combined_plot_hw_pf(
     x=12
     y=10
     markersize=10
-    tick_font = 12
+    # tick_font = 12
     # cbar stuff
     col_cbticlbl = '0'   # colorbar color of tick labels
     col_cbtic = '0.5'   # colorbar color of ticks
@@ -5304,13 +5305,19 @@ def combined_plot_hw_pf(
         pos00.width * 2.25,
         pos00.height*0.1
     ])
-    pos01 = ax01.get_position()
-    # caxn1 = f.add_axes([
-    #     pos01.x0-0.0775,
-    #     pos00.y0+0.4,
-    #     pos00.width,
-    #     pos00.height*0.1
-    # ])    
+    pos01 = ax01.get_position()  
+    
+    i = 0 # letter indexing
+    
+    # colorbar stuff ------------------------------------------------------------
+    
+    cmap_whole = plt.cm.get_cmap('Reds')
+    levels = np.arange(0,1.01,0.05)
+    colors = [cmap_whole(i) for i in levels[:-1]]
+    cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+    ticks = np.arange(0,1.01,0.1)
+    norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
+
 
     # pop frac heatmap ----------------------------------------------------------
     gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
@@ -5319,7 +5326,7 @@ def combined_plot_hw_pf(
         levels = np.arange(0,1.01,0.05)
     else:
         levels = 10
-    cmap = plt.cm.get_cmap('Reds')        
+      
     norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
     p2 = ds_pf_gs['unprec'].loc[{
         'birth_year':np.arange(1960,2021)
@@ -5329,16 +5336,10 @@ def combined_plot_hw_pf(
         x='birth_year',
         y='GMT',
         ax=ax00,
-        add_colorbar=True,
+        add_colorbar=False,
         levels=levels,
         norm=norm,
-        cmap=cmap,
-        cbar_kwargs={
-            'label':'Population fraction',
-            'cax':cax00,
-            'ticks':np.arange(0,1.01,0.1),
-            'orientation':'horizontal',
-        }
+        cmap=cmap_list_frac,
     )
     p2.axes.set_yticks(
         ticks=[0,5,10,15,20,25],
@@ -5349,16 +5350,76 @@ def combined_plot_hw_pf(
     )    
     p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p2.axes.set_xlabel('Birth year')
-    cax00.xaxis.set_label_position('top')
+    
+    ax00.set_title(
+        letters[i],
+        loc='left',
+        fontweight='bold',
+        fontsize=10
+    )    
+    i+=1
 
     # add rectangle to 2020 series
     ax00.add_patch(Rectangle(
         (2020-0.5,0-0.5),1,29,
         facecolor='none',
-        ec='k',
+        ec='gray',
         lw=0.8
     ))
-    # bracket connecting 2020 in heatmap to scatter plot panel
+    
+    
+    # bracket connecting 2020 in heatmap to scatter plot panel ------------------
+    
+    # vertical line
+    x_h=2020
+    y_h=-1
+    x_s=29.25
+    y_s=1.025
+    con = ConnectionPatch(
+        xyA=(x_h,y_h),
+        xyB=(x_s,y_s),
+        coordsA=ax00.transData,
+        coordsB=ax10.transData,
+        color='gray'
+    )
+    ax00.add_artist(con)         
+    
+    # horizontal line
+    x_s2=0
+    y_s2=1.025
+    con = ConnectionPatch(
+        xyA=(x_s,y_s),
+        xyB=(x_s2,y_s2),
+        coordsA=ax10.transData,
+        coordsB=ax10.transData,
+        color='gray'
+    )
+    ax00.add_artist(con)    
+    
+    # brace outliers
+    # left 
+    x_s3=x_s2-0.5
+    y_s3=y_s2-0.05  
+    con = ConnectionPatch(
+        xyA=(x_s2,y_s2),
+        xyB=(x_s3,y_s3),
+        coordsA=ax10.transData,
+        coordsB=ax10.transData,
+        color='gray'
+    )
+    ax10.add_artist(con)       
+    
+    # right
+    x_s4=x_s+0.5
+    y_s4=y_s-0.05    
+    con = ConnectionPatch(
+        xyA=(x_s,y_s),
+        xyB=(x_s4,y_s4),
+        coordsA=ax10.transData,
+        coordsB=ax10.transData,
+        color='gray'
+    )
+    ax10.add_artist(con)      
 
     # pop frac scatter ----------------------------------------------------------
 
@@ -5426,11 +5487,19 @@ def combined_plot_hw_pf(
         borderaxespad=0.,
         frameon=False, 
         columnspacing=0.05, 
-    )       
+    )      
+    
+    ax10.set_title(
+        letters[i],
+        loc='left',
+        fontweight='bold',
+        fontsize=10
+    )    
+    i+=1     
 
     # pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
 
-    gmt_indices_123 = [0,10,19]
+    gmt_indices_123 = [19,10,0]
     da_p_gs_plot = ds_pf_gs['unprec'].loc[{
         'GMT':gmt_indices_123,
         'birth_year':by,
@@ -5456,13 +5525,11 @@ def combined_plot_hw_pf(
         gdf_p.to_crs(robinson).plot(
             ax=ax,
             column='pf',
-            cmap='Reds',
-            legend=False,
-            vmin=0,
-            vmax=1,
-            # norm=norm,
-            # cax=cax00,
+            cmap=cmap_list_frac,
+            norm=norm,
+            cax=cax00,
         )           
+
         gdf.to_crs(robinson).plot(
             ax=ax,
             color='none', 
@@ -5470,31 +5537,60 @@ def combined_plot_hw_pf(
             linewidth=0.25,
         ) 
         
-        # cb = mpl.colorbar.ColorbarBase(
-        #     ax=caxn1, 
-        #     cmap=cmap_list_p,
-        #     norm=norm_p,
-        #     orientation='horizontal',
-        #     spacing='uniform',
-        #     drawedges=False,
-        #     ticks=tick_locs_p,
-        # )
+        ax.set_title(
+            letters[i],
+            loc='left',
+            fontweight='bold',
+            fontsize=10,
+        )    
+        i+=1
+        
+        ax.set_title(
+            '{} °C'.format(str(np.round(df_GMT_strj.loc[2100,step],1))),
+            loc='center',
+            fontweight='bold',
+            fontsize=10,       
+        )
+        
+        # pointers connecting 2020, GMT step pixel in heatmap to map panels ------------------
+        
+        x_h=2020
+        y_h=step
+        x_m=0
+        y_m=0.5
+        con = ConnectionPatch(
+            xyA=(x_h,y_h),
+            xyB=(x_m,y_m),
+            coordsA=ax00.transData,
+            coordsB=ax.transAxes,
+            color='gray'
+        )
+        ax00.add_artist(con)          
+        
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cax00, 
+        cmap=cmap_list_frac,
+        norm=norm,
+        orientation='horizontal',
+        spacing='uniform',
+        ticks=ticks,
+        drawedges=False,
+    )
 
-    # cb.set_label('Unprecedented population')
-    # cb.ax.xaxis.set_label_position('top')
-    # cb.ax.tick_params(
-    #     labelcolor=col_cbticlbl,
-    #     color=col_cbtic,
-    #     length=cb_ticlen,
-    #     width=cb_ticwid,
-    #     direction='out'
-    # )
-    # cb.ax.set_xticklabels(
-    #     tick_labels_p,
-    #     rotation=45,
-    # )    
-    # cb.outline.set_edgecolor(col_cbedg)
-    # cb.outline.set_linewidth(cb_edgthic)                         
+    cb.set_label( 'Population fraction'.format(flags['extr']))
+    cb.ax.xaxis.set_label_position('top')
+    cb.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        # labelsize=tick_font,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )   
+    cb.outline.set_edgecolor(col_cbedg)
+    cb.outline.set_linewidth(cb_edgthic)   
+    cax00.xaxis.set_label_position('top')                   
 
     f.savefig('./figures/combined_heatmap_scatter_mapsofpf_{}.png'.format(flags['extr']),dpi=900)
     plt.show()            
+# %%
