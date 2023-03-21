@@ -84,8 +84,8 @@ def load_worldbank_unwpp_data():
     
     # manually adjust country names with accent problems
     correct_names = {
-        'CÃ´te d\'Ivoire' : 'Côte d\Ivoire', 
-        'SÃ£o TomÃ© and Principe' : 'São Tomé and Principe'
+        'CÃ´te d\'Ivoire' : 'Cote dIvoire', 
+        'SÃ£o TomÃ© and Principe' : 'Sao Tome and Principe'
     }
 
     df_worldbank_country.rename(columns=correct_names, inplace=True)
@@ -438,7 +438,7 @@ def load_isimip(
             for model in models: 
 
                 # store all files starting with model name
-                file_names = sorted(glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*rcp*landarea*2099*'))
+                file_names = sorted(glob.glob('./data/isimip/'+flags['extr']+'/'+model.lower()+'/'+model.lower()+'*rcp*landarea*2099*'))
 
                 for file_name in file_names: 
 
@@ -456,7 +456,7 @@ def load_isimip(
                     }
 
                     #load associated historical variable
-                    file_name_his = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[i]['gcm']+'*_historical_*landarea*')[0]
+                    file_name_his = glob.glob('./data/isimip/'+flags['extr']+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[i]['gcm']+'*_historical_*landarea*')[0]
                     da_AFA_his = open_dataarray_isimip(file_name_his)
 
                     # load GMT for rcp and historical period - note that these data are in different files
@@ -491,26 +491,21 @@ def load_isimip(
                     # convert GMT from absolute values to anomalies - use data from pic until 1861 and from his from then onwards
                     df_GMT = df_GMT - pd.concat([GMT_pic.loc[year_start_GMT_ref:np.min(GMT_his.index)-1,:], GMT_his.loc[:year_end_GMT_ref,:]]).mean()
 
-                    # if needed, repeat last year until entire period of interest is covered
+                    # if needed, repeat mean of last 10 years until entire period of interest is covered
                     if da_AFA.time.max() < year_end: 
-                        # line below was fixed; supposed to be average of last 10 years, but we only selected last year
-                        # da_AFA_lastyear = da_AFA.sel(time=da_AFA.time.max()).expand_dims(dim='time',axis=0) # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
                         da_AFA_lastyear = da_AFA.sel(time=slice(da_AFA.time.max()-9,da_AFA.time.max())).mean(dim='time').expand_dims(dim='time',axis=0)
-                        # also adapted line below for GMTs
-                        # GMT_lastyear = df_GMT.iloc[-1:,:]
-                        GMT_lastyear = df_GMT.iloc[-10:,:].mean()
+                        GMT_lastyear = df_GMT.iloc[-10:,:].mean() # mean of last 10 years to fill time span 
 
                         for year in range(da_AFA.time.max().values+1,year_end+1): 
                             da_AFA = xr.concat([da_AFA,da_AFA_lastyear.assign_coords(time = [year])], dim='time')
                             if len(df_GMT) < 439: # necessary to avoid this filling from 2100-2113 if GMTs already go to 2299
                                 df_GMT = pd.concat([df_GMT,pd.DataFrame(data={'tas':GMT_lastyear['tas']},index=[year])])
-                            # changed below to above line so that new mean of last 10 years, like with afa, is properly appended to df_GMT
-                            # df_GMT = pd.concat([df_GMT,pd.DataFrame(GMT_lastyear).rename(index={0:year})])
 
                     # retain only period of interest
                     da_AFA = da_AFA.sel(time=slice(year_start,year_end))
                     df_GMT = df_GMT.loc[year_start:year_end,:]
                     
+                    # rolling mean option
                     if flags['rm'] == 'no_rm':
                         
                         pass
@@ -564,7 +559,7 @@ def load_isimip(
                     if '{}_{}'.format(d_isimip_meta[i]['model'],d_isimip_meta[i]['gcm']) not in pic_list:
 
                         # load associated picontrol variables (can be from up to 4 files)
-                        file_names_pic  = glob.glob('./data/isimip/'+extreme+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[i]['gcm']+'*_picontrol_*landarea*')
+                        file_names_pic  = glob.glob('./data/isimip/'+flags['extr']+'/'+model.lower()+'/'+model.lower()+'*'+d_isimip_meta[i]['gcm']+'*_picontrol_*landarea*')
 
                         if  isinstance(file_names_pic, str): # single pic file 
                             da_AFA_pic  = open_dataarray_isimip(file_names_pic)
@@ -573,7 +568,7 @@ def load_isimip(
                             da_AFA_pic  = xr.concat(das_AFA_pic, dim='time')
                             
                         # save AFA field as pickle
-                        with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(extreme,str(i)), 'wb') as f: # added extreme to string of pickle
+                        with open('./data/pickles/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
                             pk.dump(da_AFA_pic,f)
                             
                         pic_list.append('{}_{}'.format(d_isimip_meta[i]['model'],d_isimip_meta[i]['gcm']))
@@ -587,7 +582,7 @@ def load_isimip(
                         }
                             
                     # save AFA field as pickle
-                    with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(extreme,str(i)), 'wb') as f: # added extreme to string of pickle
+                    with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
                         pk.dump(da_AFA,f)
 
                     # update counter
@@ -595,9 +590,9 @@ def load_isimip(
         
             # save metadata dictionary as a pickle
             print('Saving metadata')
-            with open('./data/pickles/isimip_metadata_{}_{}_{}.pkl'.format(extreme,flags['gmt'],flags['rm']), 'wb') as f:
+            with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
                 pk.dump(d_isimip_meta,f)
-            with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'wb') as f:
+            with open('./data/pickles/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
                 pk.dump(d_pic_meta,f)
 
     else: 
@@ -605,11 +600,10 @@ def load_isimip(
         # loop over extremes
         print('Loading processed isimip data')
         # loac pickled metadata for isimip and isimip-pic simulations
-        extreme = extremes[0]
 
-        with open('./data/pickles/isimip_metadata_{}_{}_{}.pkl'.format(extreme,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
-        with open('./data/pickles/isimip_pic_metadata_{}.pkl'.format(extreme), 'rb') as f:
+        with open('./data/pickles/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
             d_pic_meta = pk.load(f)                
 
     return d_isimip_meta,d_pic_meta
@@ -890,7 +884,7 @@ def all_country_data():
         year_end,
     )
     
-    gdf_country_borders = gpd.read_file('./data/natural_earth/Cultural_10m/Countries/ne_10m_admin_0_countries.shp'); 
+    gdf_country_borders = gpd.read_file('./data/natural_earth/Cultural_10m/Countries/ne_10m_admin_0_countries.shp')
     
     # interpolate pop sizes per age cohort for all ages (0-100)
     da_cohort_size = get_all_cohorts(

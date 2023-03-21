@@ -55,7 +55,6 @@ def vectorize_lreg(da_y,
 
 #%% ----------------------------------------------------------------
 # bootstrapping function 
-
 def resample(
     da, 
     resample_dim,
@@ -85,7 +84,6 @@ def calc_life_exposure(
     df_life_expectancy,
     col,
 ):
-
 
     # initialise birth years 
     exposure_birthyears_percountry = np.empty(len(df_life_expectancy))
@@ -266,6 +264,7 @@ def calc_exposure_trends(
     flags,
 ):
 
+    # arrays of lat/lon values
     lat = grid_area.lat.values
     lon = grid_area.lon.values
     
@@ -273,15 +272,13 @@ def calc_exposure_trends(
     ar6_regs_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
     
     # 3d mask for countries
-    # countries_3D = rm.defined_regions.natural_earth_v5_0_0.countries_110.mask_3D(lon,lat) opting to use same geodataframe as analysis instead of regionmask
     countries_3D = rm.mask_3D_geopandas(gdf_country_borders.reset_index(),lon,lat)
     
-    # testing on basins
+    # basin shapefiles
     gdf_basins = gpd.read_file('./data/shapefiles/Major_Basins_of_the_World.shp')
     gdf_basins = gdf_basins.loc[:,['NAME','geometry']]
-    # gdf_basins = gdf_basins.loc[gdf_basins['NAME'].isin(basins)] # going to run this bitch for all basins!
     
-    # merge basins with multiple entries in dataframe
+    # merge basins with multiple entries
     basins_grouped = []
     bc = {k:0 for k in gdf_basins['NAME']} # bc for basin counter
     for b_name in gdf_basins['NAME']:
@@ -293,7 +290,7 @@ def calc_exposure_trends(
         else:
             basins_grouped.append(gdf_basins.loc[gdf_basins['NAME']==b_name])
     gdf_basins = pd.concat(basins_grouped).reset_index().loc[:,['NAME','geometry']]
-    basins_3D = rm.mask_3D_geopandas(gdf_basins,lon,lat)
+    basins_3D = rm.mask_3D_geopandas(gdf_basins,lon,lat) # 3d mask for basins
 
     # dataset for exposure trends
     ds_e = xr.Dataset(
@@ -357,7 +354,7 @@ def calc_exposure_trends(
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+        with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)  
         
         # per GMT step, if max threshold criteria met, run gmt mapping and compute trends
@@ -365,6 +362,7 @@ def calc_exposure_trends(
                 
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
             
+                # reindexing original exposure array based on GMT-mapping indices
                 da_AFA_step = da_AFA.reindex(
                     {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                 ).assign_coords({'time':year_range}) 
@@ -400,13 +398,14 @@ def calc_exposure_trends(
                         'basin':basins_3D.region.data,
                         'year':y,
                     }] = vectorize_lreg(da_AFA_basin_weighted_sum.loc[{'time':np.arange(y,y+81)}])
-                
+    
+    # take means of trends in exposed area
     ds_e['mean_exposure_trend_ar6'] = ds_e['exposure_trend_ar6'].mean(dim='run')
     ds_e['mean_exposure_trend_country'] = ds_e['exposure_trend_country'].mean(dim='run')
     ds_e['mean_exposure_trend_basin'] = ds_e['exposure_trend_basin'].mean(dim='run')
 
-    # dump pickle of lifetime exposure
-    with open('./data/pickles/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
+    # dump pickle of exposure trends
+    with open('./data/pickles/{}/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
         pk.dump(ds_e,f)
 
     return ds_e
@@ -424,6 +423,7 @@ def calc_lifetime_exposure(
     flags,
 ):
 
+    # nan dataset of lifetime exposure
     ds_le = xr.Dataset(
         data_vars={
             'lifetime_exposure': (
@@ -448,7 +448,7 @@ def calc_lifetime_exposure(
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+        with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)
 
         # --------------------------------------------------------------------
@@ -484,6 +484,7 @@ def calc_lifetime_exposure(
             
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
             
+                # reindexing original exposure array based on GMT-mapping indices
                 d_exposure_perrun_step = df_exposure.apply(
                     lambda col: calc_life_exposure(
                         df_exposure.reindex(df_exposure.index[d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]).set_index(df_exposure.index),
@@ -500,7 +501,7 @@ def calc_lifetime_exposure(
                 }] = d_exposure_perrun_step.values.transpose()             
 
     # dump pickle of lifetime exposure
-    with open('./data/pickles/lifetime_exposure_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
+    with open('./data/pickles/{}/lifetime_exposure_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
         pk.dump(ds_le,f)
 
     return ds_le
@@ -524,7 +525,7 @@ def calc_cohort_lifetime_exposure(
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
+        with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)
 
         # --------------------------------------------------------------------
@@ -578,7 +579,8 @@ def calc_cohort_lifetime_exposure(
                 'GMT',
             ],
         ) 
-                            
+        
+        # if max threshold criteria met, run gmt mapping              
         for step in GMT_labels:
             
             if d_isimip_meta[i]['GMT_strj_valid'][step]:
@@ -592,7 +594,7 @@ def calc_cohort_lifetime_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * da_cohort_size
                     
-        with open('./data/pickles/exposure_cohort_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm'],i), 'wb') as f:
+        with open('./data/pickles/{}/exposure_cohort_{}_{}.pkl'.format(flags['extr'],flags['extr'],i), 'wb') as f:
             pk.dump(da_exposure_cohort_strj,f)
             
         # GMT mapping for stylized trajectories in dimension expansion of da_exposure_peryear_percountry
@@ -624,7 +626,7 @@ def calc_cohort_lifetime_exposure(
                         {'time':da_exposure_peryear_percountry['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range}) * xr.full_like(da_cohort_size,1)
         
-        with open('./data/pickles/exposure_peryear_perage_percountry_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['gmt'],flags['rm'],i), 'wb') as f:
+        with open('./data/pickles/{}/exposure_peryear_perage_percountry_{}_{}.pkl'.format(flags['extr'],flags['extr'],i), 'wb') as f:
             pk.dump(da_exposure_peryear_perage_percountry_strj,f)                     
         
         
@@ -649,7 +651,7 @@ def calc_lifetime_exposure_pic(
         print('simulation '+str(n+1)+ ' of '+str(len(d_pic_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/isimip_AFA_pic_{}_{}.pkl'.format(d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
+        with open('./data/pickles/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
             da_AFA_pic = pk.load(f)
         
         # get 1960 life expectancy
@@ -704,10 +706,7 @@ def calc_lifetime_exposure_pic(
                 (life_expectancy_1960 - np.floor(life_expectancy_1960))
 
     # save pickles
-    print()
-    print('Saving processed exposures')
-
-    with open('./data/pickles/exposure_pic_{}.pkl'.format(flags['extr']), 'wb') as f:
+    with open('./data/pickles/{}/exposure_pic_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
         pk.dump(d_exposure_perrun_pic,f)
 
     return d_exposure_perrun_pic

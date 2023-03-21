@@ -23,7 +23,7 @@ def init():
     # PIC sampling information
     global pic_life_extent, nboots, resample_dim, pic_by, pic_qntl
     pic_life_extent=82 # +1 from max 1960 life expectancy
-    nboots=100 # number of bootstrapped lifetimes
+    nboots=10000 # number of bootstrapped lifetimes
     resample_dim='time' # for bootstrapping lifetimes, sample over time
     pic_by=1960 # use 1960 birth year demography data for pic lifetimes
     pic_qntl=0.9999 # quantile for pic extreme threshold
