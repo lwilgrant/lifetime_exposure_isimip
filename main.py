@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'floodedarea' # 0: all
+flags['extr'] = 'heatwavedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -163,6 +163,14 @@ d_isimip_meta,d_pic_meta = load_isimip(
     flags,
 )
 
+sim_labels = {}
+for step in GMT_labels:
+    sim_labels[step] = []
+    print('step {}'.format(step))
+    for i in list(d_isimip_meta.keys()):
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            sim_labels[step].append(i)
+
 #%% ----------------------------------------------------------------
 # compute exposure per lifetime
 # ------------------------------------------------------------------
@@ -195,7 +203,7 @@ else: # load processed exposure data
     print('Loading processed exposure trends')
 
     # load lifetime exposure pickle
-    with open('./data/pickles/{}/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+    with open('./data/pickles/{}/exposure_trends_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
         ds_e = pk.load(f)  
 
 # --------------------------------------------------------------------
@@ -429,6 +437,18 @@ if flags['gridscale_spatially_explicit']:
     for cntry in gridscale_countries:
         with open('./data/pickles/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
             d_gs_spatial[cntry] = pk.load(f)
+            
+# estimate union of all hazard emergences
+if flags['gridscale_union']:
+    
+    da_emergence_mean, da_emergence_union = get_gridscale_union(
+        da_population,
+        flags,
+        gridscale_countries,
+        countries_mask,
+        countries_regions,
+        sim_labels,
+    )
 
 #%% ----------------------------------------------------------------
 # plot
@@ -588,83 +608,6 @@ if flags['testing']:
     
     pass
 
-step=0
-cntry='Canada'
+                        
 
-# pic ------------------------------------------------------------------   
-with open('./data/pickles/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],cntry), 'rb') as f:
-    ds_gs_pic = pk.load(f)
-ds_gs_pic['99.99'].where(ds_gs_pic['99.99']!=0).plot()
-plt.show()
-
-# lifetime exposure for 1 degree 2020 by ------------------------------------------------------------------   
-das={}
-for i in sim_labels[step]:
-    with open('./data/pickles/gridscale_le_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step), 'rb') as f:
-        das[i] = pk.load(f)  
-da_le = xr.concat([das[i] for i in list(das.keys())],dim='run').assign_coords({'run':sim_labels[step]})
-da_le_mean = da_le.mean(dim='run').sel(birth_year=2020)
-da_le_mean.where(da_le_mean!=0).plot()
-
-# emergence mask ------------------------------------------------------------------   
-emasks = {}
-for i in sim_labels[step]:
-    with open('./data/pickles/gridscale_exposure_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],cntry,i,step), 'rb') as f:
-        emasks[i] = pk.load(f)  
-da_ems = xr.concat([emasks[i] for i in list(emasks.keys())],dim='run').assign_coords({'run':sim_labels[step]})
-
-
-# need to check cumsum from gridscale for sample run: ------------------------------------------------------------------   
-# load demography pickle
-i=1
-with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
-    ds_dmg = pk.load(f)             
-    
-# load AFA data of that run
-with open('./data/pickles/isimip_AFA_{}_{}.pkl'.format(flags['extr'],str(i)), 'rb') as f:
-    da_AFA = pk.load(f)
-    
-# mask to sample country and reduce spatial extent
-da_AFA = da_AFA.where(ds_dmg['country_extent']==1,drop=True)    
-da_AFA_step = da_AFA.reindex(
-    {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-).assign_coords({'time':year_range})   
-da_exp_py_pa = da_AFA_step * xr.full_like(ds_dmg['population'],1)
-bys = []
-
-# to be new func, per birth year, make (year,age) selections
-for by in birth_years:
-        
-    time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
-    ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-    data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
-    data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
-    data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
-    # when I reindex time, the len=1 lat coord for cyprus, a small country, disappears
-    # therefore need to reintroduce len=1 coord at correct position
-    for scoord in ['lat','lon']:
-        if data[scoord].size == 1:
-            if scoord == 'lat':
-                a_pos = 1
-            elif scoord == 'lon':
-                a_pos = 2
-            data = data.expand_dims(dim={scoord:1},axis=a_pos).copy()
-    data = data.assign_coords({'birth_year':by}).drop_vars('age')
-    data.loc[
-        {'time':ds_dmg['death_year'].sel(birth_year=by).item()}
-    ] = da_AFA_step.loc[{'time':ds_dmg['death_year'].sel(birth_year=by).item()}] *\
-        (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
-    bys.append(data)
-
-da_exp_py_pa = xr.concat(bys,dim='birth_year')
-        
-# cumulative sum per birthyear (in emergence.py, this cumsum then has .where(==0), should I add this here too?)
-da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
-
-da_age_exposure_mask = xr.where(
-    da_exp_py_pa_cumsum > ds_gs_pic['99.99'],
-    1,
-    0,
-)
-da_birthyear_exposure_mask = xr.where(da_age_exposure_mask.sum(dim='time')>0,1,0) 
 # %%

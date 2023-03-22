@@ -762,3 +762,150 @@ def get_gridscale_popdenom(
     
     da_cntry_pops = xr.concat(cntry_pops,dim='country').assign_coords({'country':list_countries})     
     return da_cntry_pops
+
+#%% ----------------------------------------------------------------
+# grid scale emergence union
+# ------------------------------------------------------------------
+
+def get_gridscale_union(
+    da_population,
+    flags,
+    gridscale_countries,
+    countries_mask,
+    countries_regions,
+    sim_labels,
+):
+    
+    if not os.path.isfile('./data/pickles/emergence_hazards.pkl') or not os.path.isfile('./data/pickles/emergence_union.pkl'):
+        
+        extremes = [
+            'burntarea', 
+            'cropfailedarea', 
+            'driedarea', 
+            'floodedarea', 
+            'heatwavedarea', 
+            'tropicalcyclonedarea'
+        ]
+
+        ds_emergence_union = xr.Dataset(
+            data_vars={
+                'emergence_mean': (
+                    ['hazard','GMT','birth_year','lat','lon'],
+                    np.full(
+                        (len(extremes),len(GMT_labels),len(birth_years),len(da_population.lat.data),len(da_population.lon.data)),
+                        fill_value=np.nan,
+                    ),
+                ),        
+                'emergence_union': (
+                    ['GMT','birth_year','lat','lon'],
+                    np.full(
+                        (len(GMT_labels),len(birth_years),len(da_population.lat.data),len(da_population.lon.data)),
+                        fill_value=np.nan,
+                    ),
+                ),        
+            },
+            coords={
+                'lat': ('lat', da_population.lat.data),
+                'lon': ('lon', da_population.lon.data),
+                'birth_year': ('birth_year', birth_years),
+                'hazard': ('hazard', extremes),
+                'GMT': ('GMT', GMT_labels),
+            }
+        )
+
+        # loop through extremes
+        for extr in extremes:
+            
+            # get metadata for extreme
+            with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+                d_isimip_meta = pk.load(f)
+                
+                # loop through countries
+                for cntry in gridscale_countries:
+                    
+                    da_cntry = xr.DataArray(
+                        np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+                        dims=countries_mask.dims,
+                        coords=countries_mask.coords,
+                    )
+                    da_cntry = da_cntry.where(da_cntry,drop=True)                  
+                        
+                    # loop through GMT trajectories
+                    for step in GMT_labels:
+                        
+                        # dataset for extreme - country - GMT
+                        ds_cntry_emergence = xr.Dataset(
+                            data_vars={
+                                'emergence': (
+                                    ['run','birth_year','lat','lon'],
+                                    np.full(
+                                        (len(list(d_isimip_meta.keys())),len(birth_years),len(da_cntry.lat.data),len(da_cntry.lon.data)),
+                                        fill_value=np.nan,
+                                    ),
+                                ),                          
+                            },
+                            coords={
+                                'lat': ('lat', da_cntry.lat.data),
+                                'lon': ('lon', da_cntry.lon.data),
+                                'birth_year': ('birth_year', birth_years),
+                                'run': ('run', range(len(list(d_isimip_meta.keys())))),
+                            }
+                        )                      
+                    
+                        # loop through sims and pick emergence masks for sims that are valid
+                        for i in list(d_isimip_meta.keys()): 
+                            
+                            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                            
+                                with open('./data/pickles/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'rb') as f:
+                                    da_birthyear_emergence_mask = pk.load(f)
+                                    
+                                ds_cntry_emergence['emergence'].loc[{
+                                    'run':i,
+                                    'GMT':step,
+                                    'birth_year':birth_years,
+                                    'lat':da_cntry.lat.data,
+                                    'lon':da_cntry.lon.data,
+                                }] = da_birthyear_emergence_mask
+                                
+                        # compute mean for extreme - country - GMT, assign into greater dataset for eventual union
+                        ds_emergence_union['emergence_mean'].loc[{
+                            'hazard':extr,
+                            'GMT':step,
+                            'birth_year':birth_years,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,
+                        }] = ds_cntry_emergence['emergence'].loc[{'run':sim_labels[step]}].fillna(0).where(da_cntry).mean(dim='run')
+                        
+        # if mean greater than 0.5, consider emerged on average, sum across hazards for union        
+        ds_emergence_union['emergence_union'].loc[{
+            'GMT':GMT_labels,
+            'birth_year':birth_years,
+            'lat':da_population.lat.data,
+            'lon':da_population.lon.data,    
+        }] = xr.where(ds_emergence_union['emergence_mean']>0.5,1,0).sum(dim='hazard')
+                        
+        # pickle mean emergence
+        with open('./data/pickles/emergence_hazards.pkl', 'wb') as f:
+            pk.dump(ds_emergence_union['emergence_mean'],f)  
+            
+        # pickle emergence union
+        with open('./data/pickles/emergence_union.pkl', 'wb') as f:
+            pk.dump(ds_emergence_union['emergence_union'],f)     
+            
+        da_emergence_mean = ds_emergence_union['emergence_mean'] 
+        da_emergence_union = ds_emergence_union['emergence_union']
+            
+    else:
+        
+        # pickle mean emergence
+        with open('./data/pickles/emergence_hazards.pkl', 'rb') as f:
+            da_emergence_mean = pk.load(f)  
+            
+        # pickle emergence union
+        with open('./data/pickles/emergence_union.pkl', 'rb') as f:
+            da_emergence_union = pk.load(f)             
+        
+        
+        
+    return da_emergence_mean,da_emergence_union
