@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'heatwavedarea' # 0: all
+flags['extr'] = 'cropfailedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -90,6 +90,8 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
                                                # 1: load those^ pickles
+flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
+                                    # 1: process/load those^ pickles                                     
 flags['testing'] = 0                           
 flags['plot'] = 0
 
@@ -447,21 +449,11 @@ if flags['gridscale_union']:
         gridscale_countries,
         countries_mask,
         countries_regions,
-        sim_labels,
     )
 
 #%% ----------------------------------------------------------------
 # plot
 # ------------------------------------------------------------------   
-
-# not sure if this is at the correct place, but dictionary of valid runs per GMT step
-sim_labels = {}
-for step in GMT_labels:
-    sim_labels[step] = []
-    print('step {}'.format(step))
-    for i in list(d_isimip_meta.keys()):
-        if d_isimip_meta[i]['GMT_strj_valid'][step]:
-            sim_labels[step].append(i)
 
 if flags['plot']:
     
@@ -529,6 +521,7 @@ if flags['plot']:
         flags,
         sim_labels,
         gridscale_countries,
+        ds_cohorts,
     )    
     
     # plotting unprecedented population fracs between country and gridscale levels for given region

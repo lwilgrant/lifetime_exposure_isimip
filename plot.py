@@ -4218,6 +4218,7 @@ def boxplot_cs_vs_gs_p(
     flags,
     sim_labels,
     list_countries,
+    ds_cohorts,
 ):
     
     # country scale pop emerging ---------------------------------------------------------------
@@ -4412,13 +4413,19 @@ def boxplot_cs_vs_gs_p(
         ax.spines['top'].set_visible(False)
         ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
         ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+        ax.set_ylim(
+            0,
+            np.around(ds_cohorts['by_population_y0'].sum(dim='country').sel(birth_year=2020).item()*1000,-6),
+        )
         ax.set_xlabel(
             'Birth year', 
             va='center', 
             rotation='horizontal', 
             fontsize=axis_font, 
             labelpad=10,
-        )               
+        )    
+        if ax == ax2:
+            ax.yaxis.set_ticklabels([])
         
     f.savefig('./figures/testing/boxplots_p_cs_vs_gs_{}_selgmtruns.png'.format(flags['extr']))        
         
@@ -4626,14 +4633,20 @@ def boxplot_cs_vs_gs_pf(
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
         ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
-        ax.tick_params(labelsize=tick_font,axis="y",direction="in")     
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")    
+        ax.set_ylim(
+            0,
+            1,
+        )         
         ax.set_xlabel(
             'Birth year', 
             va='center', 
             rotation='horizontal', 
             fontsize=axis_font, 
             labelpad=10,
-        )               
+        )          
+        if ax == ax2:
+            ax.yaxis.set_ticklabels([])             
         
     f.savefig('./figures/testing/boxplots_pf_cs_vs_gs_{}_selgmtruns.png'.format(flags['extr']))    
 # %% ----------------------------------------------------------------
@@ -5369,50 +5382,53 @@ def combined_plot_hw_pf_cs(
     # vertical line
     x_h=2020
     y_h=-1
-    x_s=29.25
-    y_s=1.025
+    # x_s=29.25
+    # y_s=1.025
+    x_s=0.995
+    y_s=1.05    
     con = ConnectionPatch(
         xyA=(x_h,y_h),
         xyB=(x_s,y_s),
         coordsA=ax00.transData,
-        coordsB=ax10.transData,
-        color='gray'
+        # coordsB=ax10.transData,
+        coordsB=ax10.transAxes,
+        color='gray',
     )
     ax00.add_artist(con)         
     
     # horizontal line
-    x_s2=0
-    y_s2=1.025
+    x_s2=0.075
+    y_s2=y_s
     con = ConnectionPatch(
         xyA=(x_s,y_s),
         xyB=(x_s2,y_s2),
-        coordsA=ax10.transData,
-        coordsB=ax10.transData,
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
         color='gray'
     )
     ax00.add_artist(con)    
     
     # brace outliers
     # left 
-    x_s3=x_s2-0.5
+    x_s3=x_s2-0.025
     y_s3=y_s2-0.05  
     con = ConnectionPatch(
         xyA=(x_s2,y_s2),
         xyB=(x_s3,y_s3),
-        coordsA=ax10.transData,
-        coordsB=ax10.transData,
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
         color='gray'
     )
     ax10.add_artist(con)       
     
     # right
-    x_s4=x_s+0.5
+    x_s4=x_s+0.025
     y_s4=y_s-0.05    
     con = ConnectionPatch(
         xyA=(x_s,y_s),
         xyB=(x_s4,y_s4),
-        coordsA=ax10.transData,
-        coordsB=ax10.transData,
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
         color='gray'
     )
     ax10.add_artist(con)      
@@ -5587,7 +5603,6 @@ def combined_plot_hw_pf_cs(
 
     f.savefig('./figures/combined_heatmap_scatter_mapsofpf_cs_{}.png'.format(flags['extr']),dpi=900)
     plt.show()            
-# %%
 
 # %% ----------------------------------------------------------------
             
@@ -5631,7 +5646,6 @@ def combined_plot_hw_pf_gs(
         pos00.width * 2.25,
         pos00.height*0.1
     ])
-    pos01 = ax01.get_position()  
     
     i = 0 # letter indexing
     
@@ -5696,53 +5710,56 @@ def combined_plot_hw_pf_gs(
     # vertical line
     x_h=2020
     y_h=-1
-    x_s=29.25
-    y_s=1.025
+    # x_s=29.25
+    # y_s=1.025
+    x_s=0.995
+    y_s=1.05    
     con = ConnectionPatch(
         xyA=(x_h,y_h),
         xyB=(x_s,y_s),
         coordsA=ax00.transData,
-        coordsB=ax10.transData,
-        color='gray'
+        # coordsB=ax10.transData,
+        coordsB=ax10.transAxes,
+        color='gray',
     )
     ax00.add_artist(con)         
     
     # horizontal line
-    x_s2=0
-    y_s2=1.025
+    x_s2=0.075
+    y_s2=y_s
     con = ConnectionPatch(
         xyA=(x_s,y_s),
         xyB=(x_s2,y_s2),
-        coordsA=ax10.transData,
-        coordsB=ax10.transData,
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
         color='gray'
     )
     ax00.add_artist(con)    
     
     # brace outliers
     # left 
-    x_s3=x_s2-0.5
+    x_s3=x_s2-0.025
     y_s3=y_s2-0.05  
     con = ConnectionPatch(
         xyA=(x_s2,y_s2),
         xyB=(x_s3,y_s3),
-        coordsA=ax10.transData,
-        coordsB=ax10.transData,
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
         color='gray'
     )
     ax10.add_artist(con)       
     
     # right
-    x_s4=x_s+0.5
+    x_s4=x_s+0.025
     y_s4=y_s-0.05    
     con = ConnectionPatch(
         xyA=(x_s,y_s),
         xyB=(x_s4,y_s4),
-        coordsA=ax10.transData,
-        coordsB=ax10.transData,
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
         color='gray'
     )
-    ax10.add_artist(con)      
+    ax10.add_artist(con)
 
     # pop frac scatter ----------------------------------------------------------
 
@@ -5914,6 +5931,114 @@ def combined_plot_hw_pf_gs(
     cb.outline.set_linewidth(cb_edgthic)   
     cax00.xaxis.set_label_position('top')                   
 
-    # f.savefig('./figures/combined_heatmap_scatter_mapsofpf_gs_{}.png'.format(flags['extr']),dpi=900)
+    f.savefig('./figures/combined_heatmap_scatter_mapsofpf_gs_{}.png'.format(flags['extr']),dpi=900)
     plt.show()            
-# %%
+
+
+# %% ----------------------------------------------------------------
+def emergence_locations(
+    da_emergence_mean,
+    da_emergence_union,
+):
+    
+    # vertical version -----------------------------------
+    x=8
+    y=13
+    markersize=10
+    # tick_font = 12
+    # cbar stuff
+    col_cbticlbl = '0'   # colorbar color of tick labels
+    col_cbtic = '0.5'   # colorbar color of ticks
+    col_cbedg = '0.9'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors    
+
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(3,1)
+    gs0.update(wspace=0)
+    ax0 = f.add_subplot(gs0[0:1,:],projection=ccrs.Robinson()) # map of emergence union
+    gs00 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        2,
+        subplot_spec=gs0[1:4,:],
+        wspace=0,
+        hspace=0,
+    )
+    # gs00.update(wspace=0.2)
+    ax00 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+    ax10 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+    ax20 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+
+    ax01 = f.add_subplot(gs00[3],projection=ccrs.Robinson())
+    ax11 = f.add_subplot(gs00[4],projection=ccrs.Robinson())
+    ax21 = f.add_subplot(gs00[5],projection=ccrs.Robinson())     
+
+    # horizontal version -----------------------------------    
+    x=8
+    y=9
+    markersize=10
+    # tick_font = 12
+    # cbar stuff
+    col_cbticlbl = '0'   # colorbar color of tick labels
+    col_cbtic = '0.5'   # colorbar color of ticks
+    col_cbedg = '0.9'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors    
+
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(2,1)
+    gs0.update(wspace=0)
+    ax0 = f.add_subplot(gs0[0:1,:],projection=ccrs.Robinson()) # map of emergence union
+    gs00 = gridspec.GridSpecFromSubplotSpec(
+        2,
+        3,
+        subplot_spec=gs0[1:3,:],
+        wspace=0,
+        hspace=0,
+    )
+    # gs00.update(wspace=0.2)
+    ax00 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+    ax10 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+    ax20 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+
+    ax01 = f.add_subplot(gs00[3],projection=ccrs.Robinson())
+    ax11 = f.add_subplot(gs00[4],projection=ccrs.Robinson())
+    ax21 = f.add_subplot(gs00[5],projection=ccrs.Robinson())        
+    
+    # pos00 = ax00.get_position()
+    # cax00 = f.add_axes([
+    #     pos00.x0,
+    #     pos00.y0+0.4,
+    #     pos00.width * 2.25,
+    #     pos00.height*0.1
+    # ])    
+    
+    # ds_emergence_union = xr.Dataset(
+    #     data_vars={
+    #         'emergence_mean': (
+    #             ['hazard','GMT','birth_year','lat','lon'],
+    #             np.full(
+    #                 (len(extremes),len(GMT_labels),len(birth_years),len(da_population.lat.data),len(da_population.lon.data)),
+    #                 fill_value=np.nan,
+    #             ),
+    #         ),        
+    #         'emergence_union': (
+    #             ['GMT','birth_year','lat','lon'],
+    #             np.full(
+    #                 (len(GMT_labels),len(birth_years),len(da_population.lat.data),len(da_population.lon.data)),
+    #                 fill_value=np.nan,
+    #             ),
+    #         ),        
+    #     },
+    #     coords={
+    #         'lat': ('lat', da_population.lat.data),
+    #         'lon': ('lon', da_population.lon.data),
+    #         'birth_year': ('birth_year', birth_years),
+    #         'hazard': ('hazard', extremes),
+    #         'GMT': ('GMT', GMT_labels),
+    #     }
+    # )    
+
+    
