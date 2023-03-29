@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'cropfailedarea' # 0: all
+flags['extr'] = 'heatwavedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -165,13 +165,13 @@ d_isimip_meta,d_pic_meta = load_isimip(
     flags,
 )
 
-sim_labels = {}
+sims_per_step = {}
 for step in GMT_labels:
-    sim_labels[step] = []
+    sims_per_step[step] = []
     print('step {}'.format(step))
     for i in list(d_isimip_meta.keys()):
         if d_isimip_meta[i]['GMT_strj_valid'][step]:
-            sim_labels[step].append(i)
+            sims_per_step[step].append(i)
 
 #%% ----------------------------------------------------------------
 # compute exposure per lifetime
@@ -519,7 +519,7 @@ if flags['plot']:
         ds_pf_gs,
         df_GMT_strj,
         flags,
-        sim_labels,
+        sims_per_step,
         gridscale_countries,
         ds_cohorts,
     )    
@@ -532,7 +532,7 @@ if flags['plot']:
         ds_pf_gs,
         df_GMT_strj,
         flags,
-        sim_labels,
+        sims_per_step,
         gridscale_countries,
     )    
     
@@ -566,7 +566,7 @@ if flags['plot']:
         ds_pf_gs,
         da_gs_popdenom,
         gdf_country_borders,
-        sim_labels,
+        sims_per_step,
         flags,
     )    
     
@@ -576,7 +576,7 @@ if flags['plot']:
         ds_pf_strj,
         ds_cohorts,
         gdf_country_borders,
-        sim_labels,
+        sims_per_step,
         flags,
     )
         
@@ -586,12 +586,9 @@ if flags['plot']:
         ds_pf_gs,
         da_gs_popdenom,
         gdf_country_borders,
-        sim_labels,
+        sims_per_step,
         flags,
     )
-    
-
-
     
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing

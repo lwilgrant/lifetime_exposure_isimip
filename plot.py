@@ -460,7 +460,7 @@ def plot_gridscale_se_p(
     flags,
     gdf_country_borders,
     list_countries,
-    sim_labels,
+    sims_per_step,
     d_gs_spatial,
     df_GMT_strj,
     GMT_indices,
@@ -492,7 +492,7 @@ def plot_gridscale_se_p(
         for step in GMT_indices_plot:
             da_data_step = da_data.loc[{
                 'GMT':step,
-                'run':sim_labels[step],
+                'run':sims_per_step[step],
             }].mean(dim='run')
             da_steps.append(da_data_step)
         da_data_mean = xr.concat(da_steps,dim='GMT')
@@ -2372,7 +2372,7 @@ def plot_p_pf_ae_cs_heatmap(
     )    
     p.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p.axes.set_xlabel('Birth year')
-    p.axes.figure.savefig('./figures/p_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p.axes.figure.savefig('./figures/p_by_heatmap_cs_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()    
     
     # pop frac
@@ -2400,7 +2400,7 @@ def plot_p_pf_ae_cs_heatmap(
     )    
     p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
     p2.axes.set_xlabel('Birth year')
-    p2.axes.figure.savefig('./figures/pf_by_heatmap_ht_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
+    p2.axes.figure.savefig('./figures/pf_by_heatmap_cs_{}_{}_{}.png'.format(flags['extr'],flags['gmt'],flags['rm']))    
     plt.show()
     
     # age emergence
@@ -4216,7 +4216,7 @@ def boxplot_cs_vs_gs_p(
     ds_pf_gs,
     df_GMT_strj,
     flags,
-    sim_labels,
+    sims_per_step,
     list_countries,
     ds_cohorts,
 ):
@@ -4230,7 +4230,7 @@ def boxplot_cs_vs_gs_p(
     df_list = []
     # this loop is done to make sure that for each GMT, we only include sims with valid mapping (and not unecessary nans that skew distribution and denominator when turned to 0)
     for step in GMT_indices_plot:
-        da_p_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        da_p_plot_step = da_p_plot.loc[{'run':sims_per_step[step],'GMT':step}]
         df_p_plot_step = da_p_plot_step.to_dataframe().reset_index()
         df_p_plot_step = df_p_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
         df_list.append(df_p_plot_step)
@@ -4244,7 +4244,7 @@ def boxplot_cs_vs_gs_p(
     }]
     df_list_gs = []
     for step in GMT_indices_plot:
-        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}]
         df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
         df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
         df_list_gs.append(df_p_gs_plot_step)
@@ -4336,7 +4336,7 @@ def boxplot_cs_vs_gs_p(
     da_p_plot = da_p_plot.sum(dim='country')
     df_list = []
     for step in GMT_indices_plot:
-        da_p_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        da_p_plot_step = da_p_plot.loc[{'run':sims_per_step[step],'GMT':step}]
         df_p_plot_step = da_p_plot_step.to_dataframe().reset_index()
         df_p_plot_step = df_p_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
         df_list.append(df_p_plot_step)
@@ -4351,7 +4351,7 @@ def boxplot_cs_vs_gs_p(
     df_list_gs = []
     da_p_gs_plot = da_p_gs_plot.sum(dim='country')
     for step in GMT_indices_plot:
-        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}]
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}]
         df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
         df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
         df_list_gs.append(df_p_gs_plot_step)
@@ -4437,7 +4437,7 @@ def boxplot_cs_vs_gs_pf(
     ds_pf_gs,
     df_GMT_strj,
     flags,
-    sim_labels,
+    sims_per_step,
     list_countries,
 ):
     
@@ -4451,7 +4451,7 @@ def boxplot_cs_vs_gs_pf(
     
     # this loop is done to make sure that for each GMT, we only include sims with valid mapping (and not unecessary nans that skew distribution and denominator when turned to 0)
     for step in GMT_indices_plot:
-        da_pf_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0) / (ds_cohorts['by_population_y0'].loc[{'country':list_countries,'birth_year':sample_birth_years}] * 1000)
+        da_pf_plot_step = da_p_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0) / (ds_cohorts['by_population_y0'].loc[{'country':list_countries,'birth_year':sample_birth_years}] * 1000)
         df_pf_plot_step = da_pf_plot_step.to_dataframe(name='pf').reset_index()
         df_pf_plot_step = df_pf_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
         df_list.append(df_pf_plot_step)
@@ -4465,7 +4465,7 @@ def boxplot_cs_vs_gs_pf(
         
     df_list_gs = []
     for step in GMT_indices_plot:
-        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0) / da_gs_popdenom
+        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0) / da_gs_popdenom
         df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
         df_pf_gs_plot_step = df_pf_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))        
         df_list_gs.append(df_pf_gs_plot_step)
@@ -4557,7 +4557,7 @@ def boxplot_cs_vs_gs_pf(
     
     # this loop is done to make sure that for each GMT, we only include sims with valid mapping (and not unecessary nans that skew distribution and denominator when turned to 0)
     for step in GMT_indices_plot:
-        da_pf_plot_step = da_p_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0).sum(dim='country') \
+        da_pf_plot_step = da_p_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') \
             / (ds_cohorts['by_population_y0'].loc[{'country':list_countries,'birth_year':sample_birth_years}].sum(dim='country') * 1000)
         df_pf_plot_step = da_pf_plot_step.to_dataframe(name='pf').reset_index()
         df_pf_plot_step = df_pf_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
@@ -4572,7 +4572,7 @@ def boxplot_cs_vs_gs_pf(
         
     df_list_gs = []
     for step in GMT_indices_plot:
-        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country')
+        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country')
         df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
         df_pf_gs_plot_step = df_pf_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))        
         df_list_gs.append(df_pf_gs_plot_step)
@@ -5001,7 +5001,7 @@ def combined_plot_hw_p(
     ds_pf_gs,
     da_gs_popdenom,
     gdf_country_borders,
-    sim_labels,
+    sims_per_step,
     flags,
 ):
     x=12
@@ -5221,7 +5221,7 @@ def combined_plot_hw_p(
     # so we only take sims or runs valid per GMT level and make sure nans are 0
     df_list_gs = []
     for step in gmt_indices_123:
-        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].mean(dim='run')
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
         df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
         df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
         df_list_gs.append(df_p_gs_plot_step)
@@ -5283,7 +5283,7 @@ def combined_plot_hw_pf_cs(
     ds_pf_strj,
     ds_cohorts,
     gdf_country_borders,
-    sim_labels,
+    sims_per_step,
     flags,
 ):
     x=12
@@ -5519,7 +5519,7 @@ def combined_plot_hw_pf_cs(
     # so we only take sims or runs valid per GMT level and make sure nans are 0
     df_list_cs = []
     for step in gmt_indices_123:
-        da_p_cs_plot_step = da_p_cs_plot.loc[{'run':sim_labels[step],'GMT':step}].fillna(0).mean(dim='run')
+        da_p_cs_plot_step = da_p_cs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).mean(dim='run')
         da_p_cs_plot_step = da_p_cs_plot_step / ds_cohorts['by_population_y0'].loc[{'birth_year':by}]
         df_p_cs_plot_step = da_p_cs_plot_step.to_dataframe(name='pf').reset_index()
         df_p_cs_plot_step = df_p_cs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
@@ -5611,7 +5611,7 @@ def combined_plot_hw_pf_gs(
     ds_pf_gs,
     da_gs_popdenom,
     gdf_country_borders,
-    sim_labels,
+    sims_per_step,
     flags,
 ):
     x=12
@@ -5849,7 +5849,7 @@ def combined_plot_hw_pf_gs(
     # so we only take sims or runs valid per GMT level and make sure nans are 0
     df_list_gs = []
     for step in gmt_indices_123:
-        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sim_labels[step],'GMT':step}].mean(dim='run')
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
         da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}]
         df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
         df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
@@ -5941,6 +5941,8 @@ def emergence_locations(
     da_emergence_union,
 ):
     
+    
+    
     # vertical version -----------------------------------
     x=8
     y=13
@@ -5972,7 +5974,14 @@ def emergence_locations(
 
     ax01 = f.add_subplot(gs00[3],projection=ccrs.Robinson())
     ax11 = f.add_subplot(gs00[4],projection=ccrs.Robinson())
-    ax21 = f.add_subplot(gs00[5],projection=ccrs.Robinson())     
+    ax21 = f.add_subplot(gs00[5],projection=ccrs.Robinson())    
+    
+    ax00.set_title("ax00")
+    ax10.set_title("ax10")
+    ax20.set_title("ax20")
+    ax01.set_title("ax01")
+    ax11.set_title("ax11")
+    ax21.set_title("ax21")     
 
     # horizontal version -----------------------------------    
     x=8
@@ -6006,6 +6015,13 @@ def emergence_locations(
     ax01 = f.add_subplot(gs00[3],projection=ccrs.Robinson())
     ax11 = f.add_subplot(gs00[4],projection=ccrs.Robinson())
     ax21 = f.add_subplot(gs00[5],projection=ccrs.Robinson())        
+    
+    ax00.set_title("ax00")
+    ax10.set_title("ax10")
+    ax20.set_title("ax20")
+    ax01.set_title("ax01")
+    ax11.set_title("ax11")
+    ax21.set_title("ax21")
     
     # pos00 = ax00.get_position()
     # cax00 = f.add_axes([

@@ -405,7 +405,7 @@ def calc_exposure_trends(
     ds_e['mean_exposure_trend_basin'] = ds_e['exposure_trend_basin'].mean(dim='run')
 
     # dump pickle of exposure trends
-    with open('./data/pickles/{}/exposure_trends_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
+    with open('./data/pickles/{}/exposure_trends_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
         pk.dump(ds_e,f)
 
     return ds_e
@@ -651,7 +651,7 @@ def calc_lifetime_exposure_pic(
         print('simulation '+str(n+1)+ ' of '+str(len(d_pic_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],d_pic_meta[i]['extreme'],str(i)), 'rb') as f:
+        with open('./data/pickles/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
             da_AFA_pic = pk.load(f)
         
         # get 1960 life expectancy
