@@ -786,15 +786,15 @@ def get_gridscale_union(
     countries_regions,
 ):
     
-    if not os.path.isfile('./data/pickles/emergence_hazards.pkl') or not os.path.isfile('./data/pickles/emergence_union.pkl'):
+    if not os.path.isfile('./data/pickles/emergence_hazards_subset.pkl') or not os.path.isfile('./data/pickles/emergence_union_subset.pkl'):
         
         extremes = [
-            # 'burntarea', 
-            # 'cropfailedarea', 
-            # 'driedarea', 
-            # 'floodedarea', 
+            'burntarea', 
+            'cropfailedarea', 
+            'driedarea', 
+            'floodedarea', 
             'heatwavedarea', 
-            # 'tropicalcyclonedarea',
+            'tropicalcyclonedarea',
         ]
 
         ds_emergence_union = xr.Dataset(
@@ -827,7 +827,7 @@ def get_gridscale_union(
         for extr in extremes:
             
             # get metadata for extreme
-            with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+            with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
                 d_isimip_meta = pk.load(f)
                 
             sims_per_step = {}
@@ -875,7 +875,7 @@ def get_gridscale_union(
                         
                         if d_isimip_meta[i]['GMT_strj_valid'][step]:
                         
-                            with open('./data/pickles/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'rb') as f:
+                            with open('./data/pickles/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
                                 da_birthyear_emergence_mask = pk.load(f)
                                 
                             ds_cntry_emergence['emergence'].loc[{
@@ -912,17 +912,43 @@ def get_gridscale_union(
             
         da_emergence_mean = ds_emergence_union['emergence_mean'] 
         da_emergence_union = ds_emergence_union['emergence_union']
+        
+        # get subsets of these large objects/pickles for plotting locally
+        da_emergence_mean_subset = da_emergence_mean.loc[{
+            'GMT':[0,10,19],
+            'birth_year':[1960,1980,2000,2020],
+        }]
+        da_emergence_union_subset = da_emergence_union.loc[{
+            'GMT':[0,10,19],
+            'birth_year':[1960,1980,2000,2020],
+        }]  
+        
+        # pickle mean emergence
+        with open('./data/pickles/emergence_hazards_subset.pkl', 'wb') as f:
+            pk.dump(da_emergence_mean_subset,f)  
+            
+        # pickle emergence union
+        with open('./data/pickles/emergence_union_subset.pkl', 'wb') as f:
+            pk.dump(da_emergence_union_subset,f)                   
             
     else:
         
-        # pickle mean emergence
-        with open('./data/pickles/emergence_hazards.pkl', 'rb') as f:
-            da_emergence_mean = pk.load(f)  
+        # # load mean emergence
+        # with open('./data/pickles/emergence_hazards.pkl', 'rb') as f:
+        #     da_emergence_mean = pk.load(f)  
             
-        # pickle emergence union
-        with open('./data/pickles/emergence_union.pkl', 'rb') as f:
-            da_emergence_union = pk.load(f)             
+        # # load emergence union
+        # with open('./data/pickles/emergence_union.pkl', 'rb') as f:
+        #     da_emergence_union = pk.load(f)            
+            
+        with open('./data/pickles/emergence_hazards_subset.pkl', 'rb') as f:
+            da_emergence_mean_subset = pk.load(f)  
+            
+        # load emergence union
+        with open('./data/pickles/emergence_union_subset.pkl', 'rb') as f:
+            da_emergence_union_subset = pk.load(f)             
+                     
         
         
-        
-    return da_emergence_mean,da_emergence_union
+    return da_emergence_mean_subset,da_emergence_union_subset
+# %%

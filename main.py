@@ -90,7 +90,7 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
                                                # 1: load those^ pickles
-flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
+flags['gridscale_union'] = 1        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles                                     
 flags['testing'] = 0                           
 flags['plot'] = 0
@@ -451,6 +451,141 @@ if flags['gridscale_union']:
         countries_regions,
     )
 
+#%% ----------------------------------------------------------------  
+# horizontal version -----------------------------------    
+x=8
+y=9
+markersize=10
+lat = grid_area.lat.values
+lon = grid_area.lon.values
+mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon, lat)
+# tick_font = 12
+# cbar stuff
+col_cbticlbl = '0'   # colorbar color of tick labels
+col_cbtic = '0.5'   # colorbar color of ticks
+col_cbedg = '0.9'   # colorbar color of edge
+cb_ticlen = 3.5   # colorbar length of ticks
+cb_ticwid = 0.4   # colorbar thickness of ticks
+cb_edgthic = 0   # colorbar thickness of edges between colors    
+
+extremes = [
+    'burntarea', 
+    'cropfailedarea', 
+    'driedarea', 
+    'floodedarea', 
+    'heatwavedarea', 
+    'tropicalcyclonedarea',
+]
+
+colors=[
+    mpl.colors.to_rgb('steelblue'),
+    mpl.colors.to_rgb('darkgoldenrod'),
+    mpl.colors.to_rgb('darkred'),
+]
+cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+levels = np.arange(0.5,3.6,1)
+
+import matplotlib.gridspec as gridspec
+f = plt.figure(figsize=(x,y))    
+gs0 = gridspec.GridSpec(2,1)
+gs0.update(wspace=0)
+ax0 = f.add_subplot(gs0[0:1,:],projection=ccrs.Robinson()) # map of emergence union
+gs00 = gridspec.GridSpecFromSubplotSpec(
+    2,
+    3,
+    subplot_spec=gs0[1:3,:],
+    wspace=0,
+    hspace=0,
+)
+# gs00.update(wspace=0.2)
+ax00 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+ax10 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+ax20 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+
+ax01 = f.add_subplot(gs00[3],projection=ccrs.Robinson())
+ax11 = f.add_subplot(gs00[4],projection=ccrs.Robinson())
+ax21 = f.add_subplot(gs00[5],projection=ccrs.Robinson())        
+
+ax00.set_title("ax00")
+ax10.set_title("ax10")
+ax20.set_title("ax20")
+ax01.set_title("ax01")
+ax11.set_title("ax11")
+ax21.set_title("ax21")
+
+
+for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
+
+    # # 1 degree warming
+    # p1 = da_emergence_mean.loc[{
+    #     'hazard':extr,
+    #     'GMT':0,
+    # }]
+    # p1 = xr.where(p1>0,1,0)
+    # p1 = p1.where(p1).where(mask.notnull())    
+    # p1.plot(
+    #     ax=ax,
+    #     cmap=cmap_list,
+    #     levels=levels,
+    #     add_colorbar=False,
+    #     add_labels=False,
+    #     transform=ccrs.PlateCarree(),
+    #     zorder=2
+    # )
+
+    # # 2 degree warming
+    # p2 = da_emergence_mean.loc[{
+    #     'hazard':extr,
+    #     'GMT':10,
+    # }]
+    # p2 = xr.where(p2>0,1,0)
+    # p2 = p2.where(p2).where(mask.notnull())*2
+    # p2.plot(
+    #     ax=ax,
+    #     cmap=cmap_list,
+    #     levels=levels,
+    #     add_colorbar=False,
+    #     add_labels=False,
+    #     transform=ccrs.PlateCarree(),
+    #     zorder=1
+    # )
+    
+    # 3 degree warming
+    p3 = da_emergence_mean.loc[{
+        'hazard':extr,
+        'GMT':19,
+    }]
+    p3 = xr.where(p3>0,1,0)
+    p3 = p3.where(p3).where(mask.notnull())*3
+    p3.plot(
+        ax=ax,
+        cmap=cmap_list,
+        levels=levels,
+        add_colorbar=False,
+        add_labels=False,
+        transform=ccrs.PlateCarree(),
+        zorder=0
+    )    
+    ax.coastlines(linewidth=0.25)
+    ax.set_title(extr)
+union_levels = np.arange(0.5,6.5,1)
+
+# p_u3 = da_emergence_union.loc[{'GMT':19,}].where(mask.notnull())
+# xr.where(ds_emergence_union['emergence_mean']>0.5,1,0).sum(dim='hazard')
+p_u3 = xr.where(da_emergence_mean.loc[{'GMT':19}]>0,1,0).sum(dim='hazard').where(mask.notnull())
+p_u3.plot(
+    ax=ax0,
+    cmap='Reds',
+    levels=union_levels,
+    add_colorbar=False,
+    add_labels=False,
+    transform=ccrs.PlateCarree(),
+    zorder=0
+)
+ax0.coastlines(linewidth=0.25)
+    
+    
+
 #%% ----------------------------------------------------------------
 # plot
 # ------------------------------------------------------------------   
@@ -506,12 +641,6 @@ if flags['plot']:
         da_gs_popdenom,
         flags,
     )    
-    
-    plot_pf_t_GMT_strj(
-        ds_pf_strj,
-        df_GMT_strj,
-        flags,
-    )        
     
     # plotting unprecedented population totals between country level and gridscale level for given region 
     boxplot_cs_vs_gs_p(
