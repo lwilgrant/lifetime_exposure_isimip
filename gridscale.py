@@ -886,13 +886,22 @@ def get_gridscale_union(
                             }] = da_birthyear_emergence_mask
                             
                     # compute mean for extreme - country - GMT, assign into greater dataset for eventual union
+                    da_loc = ds_cntry_emergence['emergence'].loc[{
+                        'run':sims_per_step[step],
+                        'lat':da_cntry.lat.data,
+                        'lon':da_cntry.lon.data,
+                    }].where(da_cntry==1).mean(dim='run')
                     ds_emergence_union['emergence_mean'].loc[{
                         'hazard':extr,
                         'GMT':step,
                         'birth_year':birth_years,
                         'lat':da_cntry.lat.data,
                         'lon':da_cntry.lon.data,
-                    }] = ds_cntry_emergence['emergence'].loc[{'run':sims_per_step[step]}].fillna(0).where(da_cntry).mean(dim='run')
+                    }] = xr.where(
+                        da_loc.notnull(),
+                        da_loc,
+                        ds_emergence_union['emergence_mean'].loc[{'hazard':extr,'GMT':step,'birth_year':birth_years,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                    )
                     
         # if mean greater than 0.5, consider emerged on average, sum across hazards for union        
         ds_emergence_union['emergence_union'].loc[{
@@ -900,7 +909,7 @@ def get_gridscale_union(
             'birth_year':birth_years,
             'lat':da_population.lat.data,
             'lon':da_population.lon.data,    
-        }] = xr.where(ds_emergence_union['emergence_mean']>0.5,1,0).sum(dim='hazard')
+        }] = xr.where(ds_emergence_union['emergence_mean']>0,1,0).sum(dim='hazard')
                         
         # pickle mean emergence
         with open('./data/pickles/emergence_hazards.pkl', 'wb') as f:
