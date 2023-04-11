@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'heatwavedarea' # 0: all
+flags['extr'] = 'burntarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -90,7 +90,7 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
                                                # 1: load those^ pickles
-flags['gridscale_union'] = 1        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
+flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles                                     
 flags['testing'] = 0                           
 flags['plot'] = 0
@@ -465,6 +465,10 @@ if flags['plot']:
         d_isimip_meta,
     )    
     
+    plot_sims_per_gmt(
+        GMT_indices_plot,    
+    )    
+    
     plot_trend(
         ds_e,
         flags,
@@ -591,6 +595,129 @@ if flags['plot']:
         da_emergence_mean,
     )    
     
+    # combined heatmap plots for all hazards
+    plot_p_pf_gs_heatmap_combined(
+        df_GMT_strj,
+        da_gs_popdenom,
+    )    
+    
+    # plotting unprecedented population fracs for all hazards
+    boxplot_combined_gs_pf(
+        da_gs_popdenom,
+        flags,   
+    )
+    
+    
+def boxplot_combined_gs_pf(
+    da_gs_popdenom,
+    flags,   
+):
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failure',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }     
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    }
+
+    # get data
+    df_list_gs = []
+    for extr in extremes:
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)              
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_gs_plot = pk.load(f)
+        da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+            'GMT':GMT_indices_plot,
+            'birth_year':sample_birth_years,
+        }]
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)    
+        for step in GMT_indices_plot:
+            da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
+            df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+            df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+            df_pf_gs_plot_step['hazard'] = extr
+            df_list_gs.append(df_pf_gs_plot_step)
+    df_pf_gs_plot = pd.concat(df_list_gs)
+    
+    # pf plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )  
+    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+    i = 0
+    for ax,extr in zip(axes.flatten(),extremes):
+        p = sns.boxplot(
+            data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+            x='birth_year',
+            y='pf',
+            hue='GMT_label',
+            palette=colors,
+            showcaps=False,
+            showfliers=False,
+            boxprops={
+                'linewidth':0,
+                'alpha':0.5
+            },        
+            ax=ax,
+        )
+        p.legend_.remove()                 
+        i+=1
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)        
+        if not np.isin(n,[0,3]):
+            # ax.yaxis.set_ticklabels([])
+            ax.set_ylabel(None)
+        else:
+            ax.set_ylabel('Population %')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+            ax.set_xlabel(None)
+        if n >= 3:
+            ax.set_xlabel('Birth year')    
+        
+        f.savefig('./figures/boxplots_combined.png',dpi=800)
+        
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing
 # ------------------------------------------------------------------        
