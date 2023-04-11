@@ -5457,20 +5457,25 @@ def combined_plot_hw_pf_gs(
     levels = np.arange(0,1.01,0.05)
     colors = [cmap_whole(i) for i in levels[:-1]]
     cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
-    ticks = np.arange(0,1.01,0.1)
+    # ticks = np.arange(0,1.01,0.1)
+    ticks = np.arange(0,101,10)
     norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
 
 
     # pop frac heatmap ----------------------------------------------------------
-    gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
+    # gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
 
-    levels = np.arange(0,1.01,0.05)
+    # levels = np.arange(0,1.01,0.05)
+    levels = np.arange(0,101,5)
       
     norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
     p2 = ds_pf_gs['unprec'].loc[{
-        'birth_year':np.arange(1960,2021)
+        'birth_year':np.arange(1960,2021),
+        'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
     }].sum(dim='country')
-    p2 = p2.where(p2!=0).mean(dim='run') /  da_gs_popdenom.sum(dim='country')
+    p2 = p2.where(p2!=0).mean(dim='run') /  da_gs_popdenom.sum(dim='country') * 100
     p2 = p2.plot(
         x='birth_year',
         y='GMT',
@@ -5481,7 +5486,7 @@ def combined_plot_hw_pf_gs(
         cmap=cmap_list_frac,
     )
     p2.axes.set_yticks(
-        ticks=[0,5,10,15,20,25],
+        ticks=GMT_indices_ticks,
         labels=gmts2100
     )
     p2.axes.set_xticks(
@@ -5511,7 +5516,8 @@ def combined_plot_hw_pf_gs(
     
     # vertical line
     x_h=2020
-    y_h=-1
+    # y_h=-1
+    y_h=5.5
     # x_s=29.25
     # y_s=1.025
     x_s=0.995
@@ -5568,7 +5574,7 @@ def combined_plot_hw_pf_gs(
     by=2020
     da_plt = ds_pf_gs['unprec'].sum(dim='country') # summing converts nans from invalid GMT/run combos to 0, use where below to remove these
     da_plt_gmt = da_plt.loc[{'birth_year':by}].where(da_plt.loc[{'birth_year':by}]!=0)
-    da_plt_gmt = da_plt_gmt / da_gs_popdenom.loc[{'birth_year':by}].sum(dim='country')
+    da_plt_gmt = da_plt_gmt / da_gs_popdenom.loc[{'birth_year':by}].sum(dim='country') * 100
     p = da_plt_gmt.to_dataframe(name='pf').reset_index(level="run")
     x = p.index.values
     y = p['pf'].values
@@ -5587,7 +5593,7 @@ def combined_plot_hw_pf_gs(
         color='r'
     )
     ax10.set_ylabel(
-        'Population fraction', 
+        'Population %', 
         va='center', 
         rotation='vertical',
         labelpad=10,
@@ -5598,9 +5604,13 @@ def combined_plot_hw_pf_gs(
         labelpad=10,
     )                                           
     ax10.set_xticks(
-        ticks=[0,5,10,15,20,25],
+        ticks=GMT_indices_ticks,
         labels=gmts2100,
     )    
+    ax10.set_xlim(
+        GMT_indices_ticks[0]-0.5,
+        GMT_indices_ticks[-1]+0.5,
+    )
     ax10.spines['right'].set_visible(False)
     ax10.spines['top'].set_visible(False)    
 
@@ -5641,18 +5651,19 @@ def combined_plot_hw_pf_gs(
 
     # pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
 
-    gmt_indices_123 = [19,10,0]
+    # gmt_indices_123 = [19,10,0]
+    gmt_indices_152535 = [24,15,6]
     da_p_gs_plot = ds_pf_gs['unprec'].loc[{
-        'GMT':gmt_indices_123,
+        'GMT':gmt_indices_152535,
         'birth_year':by,
     }]
     
     # since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
     # so we only take sims or runs valid per GMT level and make sure nans are 0
     df_list_gs = []
-    for step in gmt_indices_123:
+    for step in gmt_indices_152535:
         da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
-        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}]
+        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
         df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
         df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
         df_list_gs.append(df_p_gs_plot_step)
@@ -5662,7 +5673,7 @@ def combined_plot_hw_pf_gs(
     gdf_p = cp(gdf_country_borders.reset_index())
     robinson = ccrs.Robinson().proj4_init
 
-    for ax,step in zip((ax01,ax11,ax21),gmt_indices_123):
+    for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
         gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
         gdf_p.to_crs(robinson).plot(
             ax=ax,
@@ -5719,7 +5730,7 @@ def combined_plot_hw_pf_gs(
         drawedges=False,
     )
 
-    cb.set_label( 'Population fraction'.format(flags['extr']))
+    cb.set_label( 'Population %'.format(flags['extr']))
     cb.ax.xaxis.set_label_position('top')
     cb.ax.tick_params(
         labelcolor=col_cbticlbl,
@@ -6045,10 +6056,8 @@ def emergence_union_plot(
 #%% ----------------------------------------------------------------
 # plotting pop frac
 def plot_p_pf_gs_heatmap_combined(
-    ds_pf_gs,
     df_GMT_strj,
     da_gs_popdenom,
-    flags,
 ):
     
     # --------------------------------------------------------------------
@@ -6088,8 +6097,8 @@ def plot_p_pf_gs_heatmap_combined(
             ds_pf_gs_extr = pk.load(f)
         p = ds_pf_gs_extr['unprec'].loc[{'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')}].sum(dim='country')
         p = p.where(p!=0).mean(dim='run') / 10**6
-        p.plot(x='birth_year',y='GMT')
-        plt.show()
+        # p.plot(x='birth_year',y='GMT')
+        # plt.show()
         list_extrs_pf.append(p)
         
     ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
@@ -6145,7 +6154,7 @@ def plot_p_pf_gs_heatmap_combined(
         if n >= 3:
             ax.set_xlabel('Birth year')
                       
-    # p.axes.figure.savefig('./figures/p_heatmap_combined.png')    
+    f.savefig('./figures/p_heatmap_combined.png',dpi=800)
     plt.show()    
     
     # --------------------------------------------------------------------
@@ -6158,8 +6167,8 @@ def plot_p_pf_gs_heatmap_combined(
             ds_pf_gs_extr = pk.load(f)
         p = ds_pf_gs_extr['unprec'].loc[{'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')}].sum(dim='country')
         p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
-        p.plot(x='birth_year',y='GMT')
-        plt.show()
+        # p.plot(x='birth_year',y='GMT')
+        # plt.show()
         list_extrs_pf.append(p)
         
     ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
@@ -6173,10 +6182,6 @@ def plot_p_pf_gs_heatmap_combined(
         figsize=(x,y),
     )
     for ax,extr in zip(axes.flatten(),extremes):
-        if extr == 'heatwavedarea':
-            levels = np.arange(0,1.01,0.1)
-        else:
-            levels = 10        
         ds_pf_gs_extrs.loc[{
             'hazard':extr,
             'birth_year':np.arange(1960,2021),
@@ -6185,7 +6190,7 @@ def plot_p_pf_gs_heatmap_combined(
             y='GMT',
             ax=ax,
             add_labels=False,
-            levels=levels,
+            levels=10,
         ) 
         
         ax.set_yticks(
@@ -6220,36 +6225,9 @@ def plot_p_pf_gs_heatmap_combined(
             ax.tick_params(labelbottom=False)    
         if n >= 3:
             ax.set_xlabel('Birth year')    
-    
-    # # pop frac
-    # if flags['extr'] == 'heatwavedarea':
-    #     levels = np.arange(0,1.01,0.1)
-    # else:
-    #     levels = 10
-        
-    # p2 = ds_pf_gs['unprec'].loc[{
-    #     'birth_year':np.arange(1960,2021),
-    #     'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
-    # }].sum(dim='country')
-    # p2 = p2.where(p2!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country')
-    # p2 = p2.plot(
-    #     x='birth_year',
-    #     y='GMT',
-    #     add_colorbar=True,
-    #     levels=levels,
-    #     cbar_kwargs={
-    #         'label':'Population Fraction'
-    #     }
-    # )
-    # p2.axes.set_yticks(
-    #     ticks=GMT_indices_ticks,
-    #     labels=gmts2100
-    # )
-    # p2.axes.set_xticks(
-    #     ticks=np.arange(1960,2025,10),
-    # )    
-    # p2.axes.set_ylabel('GMT anomaly at 2100 [°C]')
-    # p2.axes.set_xlabel('Birth year')
-    # p2.axes.figure.savefig('./figures/pf_heatmap_combined.png')    
+ 
+    f.savefig('./figures/pf_heatmap_combined.png',dpi=800)
     plt.show()     
 
+
+# %%
