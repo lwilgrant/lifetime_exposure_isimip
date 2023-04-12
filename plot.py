@@ -5649,7 +5649,7 @@ def combined_plot_hw_pf_gs(
     )    
     i+=1     
 
-    # pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
+    # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
 
     # gmt_indices_123 = [19,10,0]
     gmt_indices_152535 = [24,15,6]
@@ -5675,12 +5675,14 @@ def combined_plot_hw_pf_gs(
 
     for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
         gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
         gdf_p.to_crs(robinson).plot(
             ax=ax,
             column='pf',
             cmap=cmap_list_frac,
             norm=norm,
             cax=cax00,
+            zorder=2,
         )
 
         gdf.to_crs(robinson).plot(
@@ -5688,7 +5690,9 @@ def combined_plot_hw_pf_gs(
             color='none', 
             edgecolor='black',
             linewidth=0.25,
+            zorder=3,
         )
+        # ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))        
         
         ax.set_title(
             letters[i],
@@ -5980,7 +5984,7 @@ def emergence_union_plot(
         )
 
         cb.set_label(
-            'Number of emerged hazards'.format(flags['extr']),
+            'Number of emerged hazards',
             fontsize=12,
             labelpad=10,
         )
@@ -6285,7 +6289,6 @@ def plot_sims_per_gmt(
     )
 
 # %% ======================================================================================================
-   
 def boxplot_combined_gs_pf(
     da_gs_popdenom,
     flags,   
@@ -6315,6 +6318,21 @@ def boxplot_combined_gs_pf(
         GMT_indices_plot[1]:'2.5',
         GMT_indices_plot[2]:'3.5',
     }
+    
+    # bbox
+    x0 = 0
+    y0 = 0.5
+    xlen = 1
+    ylen = 0.9
+    
+    # space between entries
+    legend_entrypad = 0.5
+    
+    # length per entry
+    legend_entrylen = 0.75
+    
+    legend_font = 14
+    legend_lw=3.5    
 
     # get data
     df_list_gs = []
@@ -6393,17 +6411,181 @@ def boxplot_combined_gs_pf(
             ax.set_xlabel(None)
         if n >= 3:
             ax.set_xlabel('Birth year')    
-            
-        # legendcols = [col_pimean,col_histmean,col_rcp26mean,col_rcp60mean,col_rcp85mean,col_fill]
-        # handles = [Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),\
-        #         Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),\
-        #         Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2]),\
-        #         Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[3]),\
-        #         Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[4]),\
-        #         Rectangle((0,0),1,1,color=legendcols[5])]
-        # labels= [lab_pimean,lab_histmean,lab_26mean,lab_60mean,lab_85mean,lab_fill]
-        # ax1.legend(handles, labels, bbox_to_anchor=(x0, y0, xlen, ylen), loc=3,   #bbox: (x, y, width, height)
-        #         ncol=6,fontsize=legend_font, mode="expand", borderaxespad=0.,\
-        #         frameon=False, columnspacing=0.05, handlelength=legend_entrylen, handletextpad=legend_entrypad)            
+    
+        legendcols = list(colors.values())
+        handles = [
+            Rectangle((0,0),1,1,color=legendcols[0]),\
+            Rectangle((0,0),1,1,color=legendcols[1]),\
+            Rectangle((0,0),1,1,color=legendcols[2])
+        ]
+        labels= ['1.5 °C','2.5 °C','3.5 °C']
+        axes.flatten()[1].legend(
+            handles, 
+            labels, 
+            bbox_to_anchor=(x0, y0, xlen, ylen), 
+            # loc=9,   #bbox: (x, y, width, height)
+            ncol=3,
+            fontsize=legend_font, 
+            mode="expand", 
+            borderaxespad=0.,\
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad
+        )              
+    
+    f.savefig('./figures/gs_boxplots_combined_pf.png',dpi=800,bbox_inches='tight')
+
+# %% ======================================================================================================
+def boxplot_combined_gs_p(
+    flags,   
+):
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failure',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }     
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    }
+    
+    # bbox
+    x0 = 0
+    y0 = 0.5
+    xlen = 1
+    ylen = 0.9
+    
+    # space between entries
+    legend_entrypad = 0.5
+    
+    # length per entry
+    legend_entrylen = 0.75
+    
+    legend_font = 14
+    legend_lw=3.5    
+
+    # get data
+    df_list_gs = []
+    for extr in extremes:
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)              
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_gs_plot = pk.load(f)
+        da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+            'GMT':GMT_indices_plot,
+            'birth_year':sample_birth_years,
+        }] / 10**6
         
-        f.savefig('./figures/boxplots_combined.png',dpi=800)
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)
+                    
+        da_p_gs_plot = da_p_gs_plot.sum(dim='country')
+        for step in GMT_indices_plot:
+            da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}]
+            df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe().reset_index()
+            df_p_gs_plot_step['GMT_label'] = df_p_gs_plot_step['GMT'].map(gmt_legend)  
+            df_p_gs_plot_step['hazard'] = extr
+            df_list_gs.append(df_p_gs_plot_step)
+        
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['unprec'] = df_p_gs_plot['unprec'].fillna(0)   
+    
+    # p plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )  
+    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+    i = 0
+    for ax,extr in zip(axes.flatten(),extremes):
+        p = sns.boxplot(
+            data=df_p_gs_plot[df_p_gs_plot['hazard']==extr],
+            x='birth_year',
+            y='unprec',
+            hue='GMT_label',
+            palette=colors,
+            showcaps=False,
+            showfliers=False,
+            boxprops={
+                'linewidth':0,
+                'alpha':0.5
+            },        
+            ax=ax,
+        )
+        p.legend_.remove()                 
+        i+=1
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)        
+        if not np.isin(n,[0,3]):
+            # ax.yaxis.set_ticklabels([])
+            ax.set_ylabel(None)
+        else:
+            ax.set_ylabel('Millions unprecedented')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+            ax.set_xlabel(None)
+        if n >= 3:
+            ax.set_xlabel('Birth year')    
+    
+        legendcols = list(colors.values())
+        handles = [
+            Rectangle((0,0),1,1,color=legendcols[0]),\
+            Rectangle((0,0),1,1,color=legendcols[1]),\
+            Rectangle((0,0),1,1,color=legendcols[2])
+        ]
+        labels= ['1.5 °C','2.5 °C','3.5 °C']
+        axes.flatten()[1].legend(
+            handles, 
+            labels, 
+            bbox_to_anchor=(x0, y0, xlen, ylen), 
+            # loc=9,   #bbox: (x, y, width, height)
+            ncol=3,
+            fontsize=legend_font, 
+            mode="expand", 
+            borderaxespad=0.,\
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad
+        )              
+    
+    f.savefig('./figures/gs_boxplots_combined_p.png',dpi=800,bbox_inches='tight')
+
+# %%
