@@ -6058,7 +6058,7 @@ def emergence_union_plot(
     f.savefig('./figures/emergence_locations.png',dpi=900)
 
 #%% ----------------------------------------------------------------
-# plotting pop frac
+# plotting pop and pop frac for grid scale across hazards
 def plot_p_pf_gs_heatmap_combined(
     df_GMT_strj,
     da_gs_popdenom,
@@ -6158,7 +6158,7 @@ def plot_p_pf_gs_heatmap_combined(
         if n >= 3:
             ax.set_xlabel('Birth year')
                       
-    f.savefig('./figures/p_heatmap_combined.png',dpi=800)
+    f.savefig('./figures/gs_p_heatmap_combined.png',dpi=800)
     plt.show()    
     
     # --------------------------------------------------------------------
@@ -6230,9 +6230,177 @@ def plot_p_pf_gs_heatmap_combined(
         if n >= 3:
             ax.set_xlabel('Birth year')    
  
-    f.savefig('./figures/pf_heatmap_combined.png',dpi=800)
+    f.savefig('./figures/gs_pf_heatmap_combined.png',dpi=800)
     plt.show()     
 
+
+#%% ----------------------------------------------------------------
+# plotting pop and pop frac for grid scale across hazards
+def plot_p_pf_cs_heatmap_combined(
+    df_GMT_strj,
+):
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failure',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }    
+    
+    # labels for GMT ticks
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    
+    # --------------------------------------------------------------------
+    # population totals
+    
+    # loop through extremes and concat pop
+    list_extrs_pf = []
+    for extr in extremes:
+        with open('./data/pickles/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_cs = pk.load(f)
+        p = ds_pf_cs['mean_unprec_all_b_y0'].loc[{'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')}] * 1000 / 10**6
+        list_extrs_pf.append(p)
+    da_pf_cs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
+    
+    # plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+    for ax,extr in zip(axes.flatten(),extremes):
+        da_pf_cs_extrs.loc[{
+            'hazard':extr,
+            'birth_year':np.arange(1960,2021),
+        }].plot(
+            x='birth_year',
+            y='GMT',
+            ax=ax,
+            add_labels=False,
+            levels=10,
+        ) 
+        
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+        )    
+        
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)                 
+        if not np.isin(n,[0,3]):
+            ax.yaxis.set_ticklabels([])
+        else:
+            ax.set_ylabel('GMT anomaly at 2100 [°C]')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+        if n >= 3:
+            ax.set_xlabel('Birth year')
+                      
+    f.savefig('./figures/cs_p_heatmap_combined.png',dpi=800)
+    plt.show()    
+    
+    # --------------------------------------------------------------------
+    # population fractions
+    
+    # loop through extremes and concat pop and pop frac
+    list_extrs_pf = []
+    for extr in extremes:
+        with open('./data/pickles/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_cs = pk.load(f)
+        pf = ds_pf_cs['mean_frac_unprec_all_b_y0'].loc[{'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')}] * 100
+        list_extrs_pf.append(pf)
+        
+    da_pf_cs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
+    
+    # plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+    for ax,extr in zip(axes.flatten(),extremes):
+        da_pf_cs_extrs.loc[{
+            'hazard':extr,
+            'birth_year':np.arange(1960,2021),
+        }].plot(
+            x='birth_year',
+            y='GMT',
+            ax=ax,
+            add_labels=False,
+            levels=10,
+        ) 
+        
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+        )    
+        # ax.set_ylabel('GMT anomaly at 2100 [°C]')
+        # ax.set_xlabel('Birth year')
+        
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)                 
+        if not np.isin(n,[0,3]):
+            ax.yaxis.set_ticklabels([])
+        else:
+            ax.set_ylabel('GMT anomaly at 2100 [°C]')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+        if n >= 3:
+            ax.set_xlabel('Birth year')    
+ 
+    f.savefig('./figures/cs_pf_heatmap_combined.png',dpi=800)
+    plt.show()     
 
 # %% ======================================================================================================
 
@@ -6435,6 +6603,165 @@ def boxplot_combined_gs_pf(
         )              
     
     f.savefig('./figures/gs_boxplots_combined_pf.png',dpi=800,bbox_inches='tight')
+    
+# %% ======================================================================================================
+def boxplot_combined_cs_pf(
+    ds_cohorts,
+    gridscale_countries,
+    flags,
+):
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failure',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }     
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    }
+    
+    # bbox
+    x0 = 0
+    y0 = 0.5
+    xlen = 1
+    ylen = 0.9
+    
+    # space between entries
+    legend_entrypad = 0.5
+    
+    # length per entry
+    legend_entrylen = 0.75
+    
+    legend_font = 14
+    legend_lw=3.5    
+
+    # get data
+    df_list_cs = []
+    for extr in extremes:
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)              
+        with open('./data/pickles/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_cs = pk.load(f)
+
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)    
+                    
+                    
+        # country scale pop emerging --------------------------------------------------------
+        da_p_plot = ds_pf_cs['unprec_country_b_y0'].loc[{
+            'GMT':GMT_indices_plot,
+            'country':gridscale_countries,
+            'birth_year':sample_birth_years,
+        }] * 1000
+        
+        # this loop is done to make sure that for each GMT, we only include sims with valid mapping (and not unecessary nans that skew distribution and denominator when turned to 0)
+        for step in GMT_indices_plot:
+            da_pf_plot_step = da_p_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') \
+                / (ds_cohorts['by_population_y0'].loc[{'country':gridscale_countries,'birth_year':sample_birth_years}].sum(dim='country') * 1000) * 100
+            df_pf_plot_step = da_pf_plot_step.to_dataframe(name='pf').reset_index()
+            df_pf_plot_step['GMT_label'] = df_pf_plot_step['GMT'].map(gmt_legend)       
+            df_pf_plot_step['hazard'] = extr
+            df_list_cs.append(df_pf_plot_step)
+            
+    df_pf_plot = pd.concat(df_list_cs)
+    
+    # pf plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )  
+    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+    i = 0
+    for ax,extr in zip(axes.flatten(),extremes):
+        p = sns.boxplot(
+            data=df_pf_plot[df_pf_plot['hazard']==extr],
+            x='birth_year',
+            y='pf',
+            hue='GMT_label',
+            palette=colors,
+            showcaps=False,
+            showfliers=False,
+            boxprops={
+                'linewidth':0,
+                'alpha':0.5
+            },        
+            ax=ax,
+        )
+        p.legend_.remove()                 
+        i+=1
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)        
+        if not np.isin(n,[0,3]):
+            # ax.yaxis.set_ticklabels([])
+            ax.set_ylabel(None)
+        else:
+            ax.set_ylabel('Population %')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+            ax.set_xlabel(None)
+        if n >= 3:
+            ax.set_xlabel('Birth year')    
+    
+        legendcols = list(colors.values())
+        handles = [
+            Rectangle((0,0),1,1,color=legendcols[0]),\
+            Rectangle((0,0),1,1,color=legendcols[1]),\
+            Rectangle((0,0),1,1,color=legendcols[2])
+        ]
+        labels= ['1.5 °C','2.5 °C','3.5 °C']
+        axes.flatten()[1].legend(
+            handles, 
+            labels, 
+            bbox_to_anchor=(x0, y0, xlen, ylen), 
+            # loc=9,   #bbox: (x, y, width, height)
+            ncol=3,
+            fontsize=legend_font, 
+            mode="expand", 
+            borderaxespad=0.,\
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad
+        )              
+    
+    f.savefig('./figures/cs_boxplots_combined_pf.png',dpi=800,bbox_inches='tight')
+    
 
 # %% ======================================================================================================
 def boxplot_combined_gs_p(
@@ -6587,5 +6914,363 @@ def boxplot_combined_gs_p(
         )              
     
     f.savefig('./figures/gs_boxplots_combined_p.png',dpi=800,bbox_inches='tight')
+
+# %% ======================================================================================================
+def boxplot_combined_cs_p(
+    flags,   
+    gridscale_countries,
+):
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failure',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }     
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    }
+    
+    # bbox
+    x0 = 0
+    y0 = 0.5
+    xlen = 1
+    ylen = 0.9
+    
+    # space between entries
+    legend_entrypad = 0.5
+    
+    # length per entry
+    legend_entrylen = 0.75
+    
+    legend_font = 14
+    legend_lw=3.5    
+
+    # get data
+    df_list_cs = []
+    for extr in extremes:
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)              
+        with open('./data/pickles/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_cs = pk.load(f)
+
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)    
+                    
+                    
+        # country scale pop emerging --------------------------------------------------------
+        da_p_plot = ds_pf_cs['unprec_country_b_y0'].loc[{
+            'GMT':GMT_indices_plot,
+            'country':gridscale_countries,
+            'birth_year':sample_birth_years,
+        }] * 1000 / 10**6
+        
+        # this loop is done to make sure that for each GMT, we only include sims with valid mapping (and not unecessary nans that skew distribution and denominator when turned to 0)
+        for step in GMT_indices_plot:
+            da_p_plot_step = da_p_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country')
+            df_p_plot_step = da_p_plot_step.to_dataframe(name='p').reset_index()
+            df_p_plot_step['GMT_label'] = df_p_plot_step['GMT'].map(gmt_legend)       
+            df_p_plot_step['hazard'] = extr
+            df_list_cs.append(df_p_plot_step)
+            
+    df_p_plot = pd.concat(df_list_cs)
+    
+    # p plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )  
+    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+    i = 0
+    for ax,extr in zip(axes.flatten(),extremes):
+        p = sns.boxplot(
+            data=df_p_plot[df_p_plot['hazard']==extr],
+            x='birth_year',
+            y='p',
+            hue='GMT_label',
+            palette=colors,
+            showcaps=False,
+            showfliers=False,
+            boxprops={
+                'linewidth':0,
+                'alpha':0.5
+            },        
+            ax=ax,
+        )
+        p.legend_.remove()                 
+        i+=1
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)        
+        if not np.isin(n,[0,3]):
+            # ax.yaxis.set_ticklabels([])
+            ax.set_ylabel(None)
+        else:
+            ax.set_ylabel('Millions unprecedented')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+            ax.set_xlabel(None)
+        if n >= 3:
+            ax.set_xlabel('Birth year')    
+    
+        legendcols = list(colors.values())
+        handles = [
+            Rectangle((0,0),1,1,color=legendcols[0]),\
+            Rectangle((0,0),1,1,color=legendcols[1]),\
+            Rectangle((0,0),1,1,color=legendcols[2])
+        ]
+        labels= ['1.5 °C','2.5 °C','3.5 °C']
+        axes.flatten()[1].legend(
+            handles, 
+            labels, 
+            bbox_to_anchor=(x0, y0, xlen, ylen), 
+            # loc=9,   #bbox: (x, y, width, height)
+            ncol=3,
+            fontsize=legend_font, 
+            mode="expand", 
+            borderaxespad=0.,\
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad
+        )              
+    
+    f.savefig('./figures/cs_boxplots_combined_p.png',dpi=800,bbox_inches='tight')
+
+
+# %% ======================================================================================================
+def plot_ae_gs_heatmap_combined(
+    da_gs_popdenom
+):    
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failure',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }    
+    
+    # labels for GMT ticks
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    
+    # --------------------------------------------------------------------
+    # population totals
+    
+    # loop through extremes and concat pop and pop frac
+    list_extrs_ae = []
+    for extr in extremes:
+        with open('./data/pickles/{}/gridscale_aggregated_age_emergence_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_ae_gs = pk.load(f)
+        ae = ds_ae_gs['age_emergence_popweight'].loc[{'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')}]
+        ae = ae.weighted(da_gs_popdenom / da_gs_popdenom.sum(dim='country')).mean(dim=('country','run'))
+        list_extrs_ae.append(ae)
+        
+    ds_ae_gs_extrs = xr.concat(list_extrs_ae,dim='hazard').assign_coords({'hazard':extremes})       
+    
+    # plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+    for ax,extr in zip(axes.flatten(),extremes):
+        ds_ae_gs_extrs.loc[{
+            'hazard':extr,
+            'birth_year':np.arange(1960,2021),
+        }].plot(
+            x='birth_year',
+            y='GMT',
+            ax=ax,
+            add_labels=False,
+            levels=10,
+        ) 
+        
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+        )    
+        
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)                 
+        if not np.isin(n,[0,3]):
+            ax.yaxis.set_ticklabels([])
+        else:
+            ax.set_ylabel('GMT anomaly at 2100 [°C]')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+        if n >= 3:
+            ax.set_xlabel('Birth year')
+                      
+    f.savefig('./figures/gs_ae_heatmap_combined.png',dpi=800)
+    plt.show()         
+
+# %% ======================================================================================================
+def plot_ae_cs_heatmap_combined(
+    ds_cohorts,
+):    
+    
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failure',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }    
+    
+    # labels for GMT ticks
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    
+    # --------------------------------------------------------------------
+    # population totals
+    
+    # loop through extremes and concat pop and pop frac
+    list_extrs_ae = []
+    for extr in extremes:
+        # age emergence           
+        with open('./data/pickles/{}/age_emergence_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_ae_strj = pk.load(f)                
+        ae = ds_ae_strj['age_emergence'].weighted(ds_cohorts['by_y0_weights']).mean(dim=('country','run'))
+        ae = ae.loc[{'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')}]
+        list_extrs_ae.append(ae)
+        
+    ds_ae_cs_extrs = xr.concat(list_extrs_ae,dim='hazard').assign_coords({'hazard':extremes})       
+    
+    # plot
+    x=16
+    y=8
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+    for ax,extr in zip(axes.flatten(),extremes):
+        ds_ae_cs_extrs.loc[{
+            'hazard':extr,
+            'birth_year':np.arange(1960,2021),
+        }].plot(
+            x='birth_year',
+            y='GMT',
+            ax=ax,
+            add_labels=False,
+            levels=10,
+        ) 
+        
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+        )    
+        
+    # ax stuff
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            letters[n],
+            loc='left',
+            fontweight='bold',
+        )
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+        )            
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)                 
+        if not np.isin(n,[0,3]):
+            ax.yaxis.set_ticklabels([])
+        else:
+            ax.set_ylabel('GMT anomaly at 2100 [°C]')
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+        if n >= 3:
+            ax.set_xlabel('Birth year')
+                      
+    f.savefig('./figures/cs_ae_heatmap_combined.png',dpi=800)
+    plt.show()         
 
 # %%

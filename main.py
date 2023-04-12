@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'heatwavedarea' # 0: all
+flags['extr'] = 'floodedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -595,22 +595,51 @@ if flags['plot']:
         da_emergence_mean,
     )    
     
-    # combined heatmap plots for all hazards
+    # combined heatmap plots of absolute pop and pop frac for all hazards computed @ grid scale
     plot_p_pf_gs_heatmap_combined(
         df_GMT_strj,
         da_gs_popdenom,
     )    
     
-    # box plots of unprecedented population fracs for all hazards
+    # combined heatmap plots of absolute pop and pop frac for all hazards computed @ country scale
+    plot_p_pf_cs_heatmap_combined(
+        df_GMT_strj,
+    )  
+    
+    # box plots of unprecedented population fracs for all hazards computed @ grid scale
     boxplot_combined_gs_pf(
         da_gs_popdenom,
         flags,   
     )
     
-    # box plots of unprecedented population totals for all hazards
+    # box plots of unprecedented population fracs for all hazards computed @ country scale
+    boxplot_combined_cs_pf(
+        ds_cohorts,
+        gridscale_countries,
+        flags,
+    )    
+    
+    # box plots of unprecedented population totals for all hazards computed at grid scale
     boxplot_combined_gs_p(
         flags,   
     )   
+    
+    # box plots of unprecedented population totals for all hazards computed at country scale
+    boxplot_combined_cs_p(
+        flags,   
+        gridscale_countries,
+    )    
+    
+    # combined heatmaps across hazards of age emergence computed at grid scale
+    plot_ae_gs_heatmap_combined(
+        da_gs_popdenom,
+    )    
+    
+    # combined heatmaps across hazards of age emergence computed at country scale
+    plot_ae_cs_heatmap_combined(
+        ds_cohorts,
+    )
+
         
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing
