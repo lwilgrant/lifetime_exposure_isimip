@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'floodedarea' # 0: all
+flags['extr'] = 'heatwavedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -639,8 +639,193 @@ if flags['plot']:
     plot_ae_cs_heatmap_combined(
         ds_cohorts,
     )
+#%% ----------------------------------------------------------------
+# concept figure
+# ------------------------------------------------------------------   
+cntry='Kenya'
+concept_bys = np.arange(1960,2021,30)
+print(cntry)
+da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
+da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='ages') # cohort relative sizes in sample country
+da_cntry = xr.DataArray(
+    np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+    dims=countries_mask.dims,
+    coords=countries_mask.coords,
+)
+da_cntry = da_cntry.where(da_cntry,drop=True)
+# weights for latitude (probably won't use but will use population instead)
+lat_weights = np.cos(np.deg2rad(da_cntry.lat))
+lat_weights.name = "weights"     
+nairobi_lat = -1.29
+nairobi_lon = 36.8   
 
+ds_spatial = xr.Dataset(
+    data_vars={
+        'cumulative_exposure': (
+            ['run','GMT','birth_year','time','lat','lon'],
+            np.full(
+                (len(list(d_isimip_meta.keys())),
+                 len(GMT_indices_plot),
+                 len(concept_bys),
+                 len(year_range),
+                 len(da_cntry.lat.data),
+                 len(da_cntry.lon.data)),
+                fill_value=np.nan,
+            ),
+        ),
+    },
+    coords={
+        'lat': ('lat', da_cntry.lat.data),
+        'lon': ('lon', da_cntry.lon.data),
+        'birth_year': ('birth_year', concept_bys),
+        'time': ('time', year_range),
+        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+        'GMT': ('GMT', GMT_indices_plot)
+    }
+)
+
+# load demography pickle
+with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+    ds_dmg = pk.load(f)                  
+
+# loop over simulations
+for i in list(d_isimip_meta.keys()): 
+
+    print('simulation {} of {}'.format(i,len(d_isimip_meta)))
+
+    # load AFA data of that run
+    with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
+        da_AFA = pk.load(f)
         
+    # mask to sample country and reduce spatial extent
+    da_AFA = da_AFA.where(ds_dmg['country_extent']==1,drop=True)
+    
+    for step in GMT_indices_plot:
+        
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            
+            da_AFA_step = da_AFA.reindex(
+                {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+            ).assign_coords({'time':year_range})                     
+                                
+            # simple lifetime exposure sum
+            da_le = xr.concat(
+                [(da_AFA_step.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].cumsum(dim='time') +\
+                da_AFA_step.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()) *\
+                (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
+                for by in concept_bys],
+                dim='birth_year',
+            ).assign_coords({'birth_year':concept_bys})
+            
+            da_le = da_le.reindex({'time':year_range})
+            
+            ds_spatial['cumulative_exposure'].loc[{
+                'run':i,
+                'GMT':step,
+                'birth_year':concept_bys,
+                'time':year_range,
+                'lat':ds_dmg['country_extent'].lat.data,
+                'lon':ds_dmg['country_extent'].lon.data,
+            }] = da_le.loc[{
+                'birth_year':concept_bys,
+                'time':year_range,
+                'lat':ds_dmg['country_extent'].lat.data,
+                'lon':ds_dmg['country_extent'].lon.data,
+            }]
+            
+da_test_nairobi = ds_spatial['cumulative_exposure'].sel({'lat':nairobi_lat,'lon':nairobi_lon},method='nearest').mean(dim='run')
+da_test_kenya = ds_spatial['cumulative_exposure'].weighted(lat_weights).mean(('lat','lon')).mean(dim='run')
+            
+# load PIC pickle
+with open('./data/pickles/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+    ds_pic = pk.load(f)   
+
+# plotting nairobi lat/lon pixel doesn't give smooth kde
+df_pic_nairobi = ds_pic['lifetime_exposure'].sel({'lat':nairobi_lat,'lon':nairobi_lon},method='nearest').to_dataframe().drop(columns=['lat','lon','quantile'])         
+da_pic_nairobi_9999 = ds_pic['99.99'].sel({'lat':nairobi_lat,'lon':nairobi_lon},method='nearest')  
+sns.displot(data=df_pic_nairobi,kind='kde')
+
+# plotting mean across kenya should be more smooth
+df_pic_kenya = ds_pic['lifetime_exposure'].weighted(lat_weights).mean(('lon','lat')).to_dataframe().drop(columns=['quantile'])   
+df_pic_kenya_9999 = ds_pic['99.99'].weighted(lat_weights).mean(('lon','lat'))       
+sns.displot(data=df_pic_kenya,kind='kde')
+
+# plot building
+from mpl_toolkits.axes_grid1 import inset_locator as inset
+colors = dict(zip(GMT_indices_plot,['steelblue','darkgoldenrod','darkred']))
+x=14
+y=8
+
+# 1960
+f,ax = plt.subplots()
+for step in GMT_indices_plot:
+    da_test_nairobi.loc[{'birth_year':1960,'GMT':step}].plot.line(
+        ax=ax,
+        color=colors[step],
+    )
+end_year=1960+np.floor(df_life_expectancy_5.loc[1960,'Kenya'])
+ax.set_title(None)
+ax.set_xlim(
+    1960,
+    end_year,
+)
+ax.set_ylim(
+    0,
+    np.round(da_test_nairobi.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max()),
+)
+ax.spines['right'].set_visible(False)
+ax.spines['top'].set_visible(False)       
+    
+# 1990
+ax2_l = 1990
+ax2_b = np.round(da_test_nairobi.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max()) 
+ax2_w = np.floor(df_life_expectancy_5.loc[1990,'Kenya'])
+ax2_h = np.round(da_test_nairobi.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max())
+ax2 = ax.inset_axes(
+    bounds=(ax2_l, ax2_b, ax2_w, ax2_h),
+    transform=ax.transData,
+)
+
+for step in GMT_indices_plot:
+    da_test_nairobi.loc[{'birth_year':1990,'GMT':step}].plot.line(
+        ax=ax2,
+        color=colors[step],
+    )
+end_year=1990+np.floor(df_life_expectancy_5.loc[1990,'Kenya'])
+ax2.set_title(None)
+ax2.set_xlim(
+    1990,
+    end_year,
+)
+ax2.set_ylim(
+    0,
+    np.round(da_test_nairobi.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()),
+)
+ax2.spines['right'].set_visible(False)
+ax2.spines['top'].set_visible(False)  
+ax2.
+    
+# f = plt.figure(figsize=(x,y))    
+# gs0 = gridspec.GridSpec(4,4)
+# gs0.update(hspace=0.8,wspace=0.8)
+# ax00 = f.add_subplot(gs0[0:2,0:2]) # heatmap
+# ax10 = f.add_subplot(gs0[2:,0:2]) # scatterplot for 2020 by
+# gs00 = gridspec.GridSpecFromSubplotSpec(
+#     3,
+#     1, 
+#     subplot_spec=gs0[:4,2:],
+# )
+# ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+# ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+# ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+# pos00 = ax00.get_position()
+# cax00 = f.add_axes([
+#     pos00.x0,
+#     pos00.y0+0.4,
+#     pos00.width * 2.25,
+#     pos00.height*0.1
+# ])
+
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing
 # ------------------------------------------------------------------        
