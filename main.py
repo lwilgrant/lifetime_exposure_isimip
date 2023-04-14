@@ -642,7 +642,10 @@ if flags['plot']:
 #%% ----------------------------------------------------------------
 # concept figure
 # ------------------------------------------------------------------   
-cntry='Kenya'
+
+# ------------------------------------------------------------------   
+# get data
+cntry='Belgium'
 concept_bys = np.arange(1960,2021,30)
 print(cntry)
 da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
@@ -655,9 +658,10 @@ da_cntry = xr.DataArray(
 da_cntry = da_cntry.where(da_cntry,drop=True)
 # weights for latitude (probably won't use but will use population instead)
 lat_weights = np.cos(np.deg2rad(da_cntry.lat))
-lat_weights.name = "weights"     
-nairobi_lat = -1.29
-nairobi_lon = 36.8   
+lat_weights.name = "weights"   
+# brussels coords  
+city_lat = 50.8476
+city_lon = 4.3572   
 
 ds_spatial = xr.Dataset(
     data_vars={
@@ -733,78 +737,264 @@ for i in list(d_isimip_meta.keys()):
                 'lon':ds_dmg['country_extent'].lon.data,
             }]
             
-da_test_nairobi = ds_spatial['cumulative_exposure'].sel({'lat':nairobi_lat,'lon':nairobi_lon},method='nearest').mean(dim='run')
+da_test_city = ds_spatial['cumulative_exposure'].sel({'lat':city_lat,'lon':city_lon},method='nearest').mean(dim='run')
+da_test_city = da_test_city.rolling(time=5,min_periods=5).mean()
+# fill in 1st 4 years with 1s
+for by in da_test_city.birth_year.data:
+    for step in GMT_indices_plot:
+        da_test_city.loc[{'birth_year':by,'GMT':step,'time':np.arange(by,by+5)}] = da_test_city.loc[{'birth_year':by,'GMT':step}].min(dim='time')
+
 da_test_kenya = ds_spatial['cumulative_exposure'].weighted(lat_weights).mean(('lat','lon')).mean(dim='run')
             
 # load PIC pickle
 with open('./data/pickles/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
     ds_pic = pk.load(f)   
 
-# plotting nairobi lat/lon pixel doesn't give smooth kde
-df_pic_nairobi = ds_pic['lifetime_exposure'].sel({'lat':nairobi_lat,'lon':nairobi_lon},method='nearest').to_dataframe().drop(columns=['lat','lon','quantile'])         
-da_pic_nairobi_9999 = ds_pic['99.99'].sel({'lat':nairobi_lat,'lon':nairobi_lon},method='nearest')  
-sns.displot(data=df_pic_nairobi,kind='kde')
+# plotting city lat/lon pixel doesn't give smooth kde
+df_pic_city = ds_pic['lifetime_exposure'].sel({'lat':city_lat,'lon':city_lon},method='nearest').to_dataframe().drop(columns=['lat','lon','quantile'])         
+da_pic_city_9999 = ds_pic['99.99'].sel({'lat':city_lat,'lon':city_lon},method='nearest')  
+
 
 # plotting mean across kenya should be more smooth
-df_pic_kenya = ds_pic['lifetime_exposure'].weighted(lat_weights).mean(('lon','lat')).to_dataframe().drop(columns=['quantile'])   
-df_pic_kenya_9999 = ds_pic['99.99'].weighted(lat_weights).mean(('lon','lat'))       
-sns.displot(data=df_pic_kenya,kind='kde')
+# df_pic_kenya = ds_pic['lifetime_exposure'].weighted(lat_weights).mean(('lon','lat')).to_dataframe().drop(columns=['quantile'])   
+# df_pic_kenya_9999 = ds_pic['99.99'].weighted(lat_weights).mean(('lon','lat'))       
+# sns.displot(data=df_pic_kenya,kind='kde')
 
+#%% ----------------------------------------------------------------
+# concept figure
+# ------------------------------------------------------------------   
+ 
 # plot building
 from mpl_toolkits.axes_grid1 import inset_locator as inset
 colors = dict(zip(GMT_indices_plot,['steelblue','darkgoldenrod','darkred']))
-x=14
-y=8
+x=5
+y=1
 
-# 1960
-f,ax = plt.subplots()
+gmt_legend={
+    GMT_indices_plot[0]:'1.5',
+    GMT_indices_plot[1]:'2.5',
+    GMT_indices_plot[2]:'3.5',
+}
+
+# ------------------------------------------------------------------   
+# 1960 time series
+f,ax = plt.subplots(
+    figsize=(x,y)
+)
 for step in GMT_indices_plot:
-    da_test_nairobi.loc[{'birth_year':1960,'GMT':step}].plot.line(
+    da_test_city.loc[{'birth_year':1960,'GMT':step}].plot.line(
         ax=ax,
         color=colors[step],
     )
-end_year=1960+np.floor(df_life_expectancy_5.loc[1960,'Kenya'])
+end_year=1960+np.floor(df_life_expectancy_5.loc[1960,cntry])
 ax.set_title(None)
+ax.set_ylabel(None)
 ax.set_xlim(
     1960,
     end_year,
 )
 ax.set_ylim(
     0,
-    np.round(da_test_nairobi.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max()),
+    # np.round(da_test_city.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max())+1,
+    da_pic_city_9999+1,
 )
 ax.spines['right'].set_visible(False)
 ax.spines['top'].set_visible(False)       
+
+# 1960 pdf
+ax_pdf_l = end_year+5
+ax_pdf_b = 0
+ax_pdf_w = 20
+# ax_pdf_h = np.round(da_test_city.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max()+1)
+ax_pdf_h = da_pic_city_9999+1
+ax_pdf = ax.inset_axes(
+    bounds=(ax_pdf_l, ax_pdf_b, ax_pdf_w, ax_pdf_h),
+    transform=ax.transData,
+)
+sns.kdeplot(
+    data=df_pic_city,
+    y='lifetime_exposure',
+    fill=True,
+    color='grey',
+    bw_adjust=5,
+    ax=ax_pdf
+)
+ax_pdf.hlines(
+    y=da_pic_city_9999, 
+    xmin=0, 
+    xmax=0.4, 
+    colors='grey', 
+    linewidth=2.5, 
+    linestyle='-', 
+    label='99.99%', 
+    zorder=0
+)
+for step in GMT_indices_plot:
+    ax_pdf.hlines(
+        y=da_test_city.loc[{'birth_year':1960,'GMT':step}].max(), 
+        xmin=0, 
+        xmax=0.4, 
+        colors=colors[step], 
+        linewidth=2.5, 
+        linestyle='-', 
+        label=gmt_legend[step], 
+        zorder=0
+    )
+ax_pdf.spines['right'].set_visible(False)
+ax_pdf.spines['top'].set_visible(False)      
+ax_pdf.set_ylabel(None)
+ax_pdf.set_ylim(ax.get_ylim())
     
-# 1990
-ax2_l = 1990
-ax2_b = np.round(da_test_nairobi.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max()) 
-ax2_w = np.floor(df_life_expectancy_5.loc[1990,'Kenya'])
-ax2_h = np.round(da_test_nairobi.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max())
+# ------------------------------------------------------------------       
+# 1990 time series
+ax2_l = 1960
+# ax2_b = np.round(da_test_city.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max()) *2
+ax2_b = da_pic_city_9999 *2
+ax2_w = 1990-1960+np.floor(df_life_expectancy_5.loc[1990,cntry])
+ax2_h = np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max())
 ax2 = ax.inset_axes(
     bounds=(ax2_l, ax2_b, ax2_w, ax2_h),
     transform=ax.transData,
 )
 
 for step in GMT_indices_plot:
-    da_test_nairobi.loc[{'birth_year':1990,'GMT':step}].plot.line(
+    da_test_city.loc[{'birth_year':1990,'GMT':step}].plot.line(
         ax=ax2,
         color=colors[step],
     )
-end_year=1990+np.floor(df_life_expectancy_5.loc[1990,'Kenya'])
+end_year=1990+np.floor(df_life_expectancy_5.loc[1990,cntry])
 ax2.set_title(None)
+ax2.set_ylabel(None)
 ax2.set_xlim(
-    1990,
+    1960,
     end_year,
 )
 ax2.set_ylim(
     0,
-    np.round(da_test_nairobi.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()),
+    np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max())+1,
 )
 ax2.spines['right'].set_visible(False)
 ax2.spines['top'].set_visible(False)  
-ax2.
-    
+ax2.spines['left'].set_position(('data',1990))
+
+# 1990 pdf
+ax2_pdf_l = end_year+5
+ax2_pdf_b = 0
+ax2_pdf_w = 20
+ax2_pdf_h = np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()+1)
+ax2_pdf = ax2.inset_axes(
+    bounds=(ax2_pdf_l, ax2_pdf_b, ax2_pdf_w, ax2_pdf_h),
+    transform=ax2.transData,
+)
+sns.kdeplot(
+    data=df_pic_city,
+    y='lifetime_exposure',
+    fill=True,
+    color='grey',
+    bw_adjust=5,
+    ax=ax2_pdf
+)
+ax2_pdf.hlines(
+    y=da_pic_city_9999, 
+    xmin=0, 
+    xmax=0.4, 
+    colors='grey', 
+    linewidth=2.5, 
+    linestyle='-', 
+    label='99.99%', 
+    zorder=0
+)
+for step in GMT_indices_plot:
+    ax2_pdf.hlines(
+        y=da_test_city.loc[{'birth_year':1990,'GMT':step}].max(), 
+        xmin=0, 
+        xmax=0.4, 
+        colors=colors[step], 
+        linewidth=2.5, 
+        linestyle='-', 
+        label=gmt_legend[step], 
+        zorder=0
+    )
+ax2_pdf.spines['right'].set_visible(False)
+ax2_pdf.spines['top'].set_visible(False)      
+ax2_pdf.set_ylabel(None)
+ax2_pdf.set_ylim(ax2.get_ylim())
+
+# ------------------------------------------------------------------   
+# 2020 time series
+ax3_l = 1960
+ax3_b = np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()) * 1.25
+ax3_w = 2020-1960+np.floor(df_life_expectancy_5.loc[2020,cntry])
+ax3_h = np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[-1]}].max())
+ax3 = ax2.inset_axes(
+    bounds=(ax3_l, ax3_b, ax3_w, ax3_h),
+    transform=ax2.transData,
+)
+
+for step in GMT_indices_plot:
+    da_test_city.loc[{'birth_year':2020,'GMT':step}].plot.line(
+        ax=ax3,
+        color=colors[step],
+    )
+end_year=2020+np.floor(df_life_expectancy_5.loc[2020,cntry])
+ax3.set_title(None)
+ax3.set_ylabel(None)
+ax3.set_xlim(
+    1960,
+    end_year,
+)
+ax3.set_ylim(
+    0,
+    np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[-1]}].max())+1,
+)
+ax3.spines['right'].set_visible(False)
+ax3.spines['top'].set_visible(False)  
+ax3.spines['left'].set_position(('data',2020))
+
+# 2020 pdf
+ax3_pdf_l = end_year+5
+ax3_pdf_b = 0
+ax3_pdf_w = 20
+ax3_pdf_h = np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[-1]}].max()+1)
+ax3_pdf = ax3.inset_axes(
+    bounds=(ax3_pdf_l, ax3_pdf_b, ax3_pdf_w, ax3_pdf_h),
+    transform=ax3.transData,
+)
+sns.kdeplot(
+    data=df_pic_city,
+    y='lifetime_exposure',
+    fill=True,
+    color='grey',
+    bw_adjust=5,
+    ax=ax3_pdf
+)
+ax3_pdf.hlines(
+    y=da_pic_city_9999, 
+    xmin=0, 
+    xmax=0.4, 
+    colors='grey', 
+    linewidth=2.5, 
+    linestyle='-', 
+    label='99.99%', 
+    zorder=0
+)
+for step in GMT_indices_plot:
+    ax3_pdf.hlines(
+        y=da_test_city.loc[{'birth_year':2020,'GMT':step}].max(), 
+        xmin=0, 
+        xmax=0.4, 
+        colors=colors[step], 
+        linewidth=2.5, 
+        linestyle='-', 
+        label=gmt_legend[step], 
+        zorder=0
+    )
+ax3_pdf.spines['right'].set_visible(False)
+ax3_pdf.spines['top'].set_visible(False)      
+ax3_pdf.set_ylabel(None)
+ax3_pdf.set_ylim(ax3.get_ylim())
+
+f.savefig('./figures/concept.png',dpi=900,bbox_inches='tight')
 # f = plt.figure(figsize=(x,y))    
 # gs0 = gridspec.GridSpec(4,4)
 # gs0.update(hspace=0.8,wspace=0.8)
