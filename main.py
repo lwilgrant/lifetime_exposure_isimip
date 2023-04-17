@@ -785,6 +785,7 @@ for step in GMT_indices_plot:
     da_test_city.loc[{'birth_year':1960,'GMT':step}].plot.line(
         ax=ax,
         color=colors[step],
+        linewidth=1
     )
 end_year=1960+np.floor(df_life_expectancy_5.loc[1960,cntry])
 ax.set_title(None)
@@ -800,6 +801,16 @@ ax.set_ylim(
 )
 ax.spines['right'].set_visible(False)
 ax.spines['top'].set_visible(False)       
+ax.hlines(
+    y=da_pic_city_9999, 
+    xmin=1960, 
+    xmax=da_test_city.loc[{'birth_year':1960}].time.max()+10, 
+    colors='grey', 
+    linewidth=1, 
+    linestyle='-', 
+    label='99.99%', 
+    zorder=0
+)
 
 # 1960 pdf
 ax_pdf_l = end_year+5
@@ -824,7 +835,7 @@ ax_pdf.hlines(
     xmin=0, 
     xmax=0.4, 
     colors='grey', 
-    linewidth=2.5, 
+    linewidth=1, 
     linestyle='-', 
     label='99.99%', 
     zorder=0
@@ -835,7 +846,7 @@ for step in GMT_indices_plot:
         xmin=0, 
         xmax=0.4, 
         colors=colors[step], 
-        linewidth=2.5, 
+        linewidth=1, 
         linestyle='-', 
         label=gmt_legend[step], 
         zorder=0
@@ -844,6 +855,7 @@ ax_pdf.spines['right'].set_visible(False)
 ax_pdf.spines['top'].set_visible(False)      
 ax_pdf.set_ylabel(None)
 ax_pdf.set_ylim(ax.get_ylim())
+ax.tick_params(labelleft=False)    
     
 # ------------------------------------------------------------------       
 # 1990 time series
@@ -861,6 +873,7 @@ for step in GMT_indices_plot:
     da_test_city.loc[{'birth_year':1990,'GMT':step}].plot.line(
         ax=ax2,
         color=colors[step],
+        linewidth=1,
     )
 end_year=1990+np.floor(df_life_expectancy_5.loc[1990,cntry])
 ax2.set_title(None)
@@ -876,6 +889,17 @@ ax2.set_ylim(
 ax2.spines['right'].set_visible(False)
 ax2.spines['top'].set_visible(False)  
 ax2.spines['left'].set_position(('data',1990))
+ax2.tick_params(labelleft=False)    
+ax2.hlines(
+    y=da_pic_city_9999, 
+    xmin=1990, 
+    xmax=da_test_city.loc[{'birth_year':1990}].time.max()+10, 
+    colors='grey', 
+    linewidth=1, 
+    linestyle='-', 
+    label='99.99%', 
+    zorder=0
+)
 
 # 1990 pdf
 ax2_pdf_l = end_year+5
@@ -899,7 +923,7 @@ ax2_pdf.hlines(
     xmin=0, 
     xmax=0.4, 
     colors='grey', 
-    linewidth=2.5, 
+    linewidth=1, 
     linestyle='-', 
     label='99.99%', 
     zorder=0
@@ -910,7 +934,7 @@ for step in GMT_indices_plot:
         xmin=0, 
         xmax=0.4, 
         colors=colors[step], 
-        linewidth=2.5, 
+        linewidth=1, 
         linestyle='-', 
         label=gmt_legend[step], 
         zorder=0
@@ -923,7 +947,7 @@ ax2_pdf.set_ylim(ax2.get_ylim())
 # ------------------------------------------------------------------   
 # 2020 time series
 ax3_l = 1960
-ax3_b = np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()) * 1.25
+ax3_b = np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()) * 1.5
 ax3_w = 2020-1960+np.floor(df_life_expectancy_5.loc[2020,cntry])
 ax3_h = np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[-1]}].max())
 ax3 = ax2.inset_axes(
@@ -935,6 +959,7 @@ for step in GMT_indices_plot:
     da_test_city.loc[{'birth_year':2020,'GMT':step}].plot.line(
         ax=ax3,
         color=colors[step],
+        linewidth=1
     )
 end_year=2020+np.floor(df_life_expectancy_5.loc[2020,cntry])
 ax3.set_title(None)
@@ -950,6 +975,17 @@ ax3.set_ylim(
 ax3.spines['right'].set_visible(False)
 ax3.spines['top'].set_visible(False)  
 ax3.spines['left'].set_position(('data',2020))
+ax3.tick_params(labelleft=False)    
+ax3.hlines(
+    y=da_pic_city_9999, 
+    xmin=2020, 
+    xmax=da_test_city.loc[{'birth_year':2020}].time.max()+10, 
+    colors='grey', 
+    linewidth=1, 
+    linestyle='-', 
+    label='99.99%', 
+    zorder=0
+)
 
 # 2020 pdf
 ax3_pdf_l = end_year+5
@@ -973,7 +1009,7 @@ ax3_pdf.hlines(
     xmin=0, 
     xmax=0.4, 
     colors='grey', 
-    linewidth=2.5, 
+    linewidth=1, 
     linestyle='-', 
     label='99.99%', 
     zorder=0
@@ -984,7 +1020,7 @@ for step in GMT_indices_plot:
         xmin=0, 
         xmax=0.4, 
         colors=colors[step], 
-        linewidth=2.5, 
+        linewidth=1, 
         linestyle='-', 
         label=gmt_legend[step], 
         zorder=0
