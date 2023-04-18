@@ -645,8 +645,8 @@ if flags['plot']:
 
 # ------------------------------------------------------------------   
 # get data
-cntry='Belgium'
-city_name='Brussels'
+cntry='Canada'
+city_name='Saint John'
 # cntry='Canada'
 concept_bys = np.arange(1960,2021,30)
 print(cntry)
@@ -662,11 +662,23 @@ da_cntry = da_cntry.where(da_cntry,drop=True)
 lat_weights = np.cos(np.deg2rad(da_cntry.lat))
 lat_weights.name = "weights"   
 # brussels coords  
-city_lat = 50.8476
-city_lon = 4.3572   
+# city_lat = 50.8476
+# city_lon = 4.3572   
 # saint john coords
-# city_lat = 45.2733
-# city_lon = 66.0633   
+city_lat = 45.2733
+city_lon = -66.0633
+# Tokyo coords  
+# city_lat = 35.6762
+# city_lon = 139.6503      
+# Delhi coords  
+# city_lat = 28.7041
+# city_lon = 77.1025
+# Cairo coords  
+# city_lat = 30.0444
+# city_lon = 31.2357
+# Lagos coords  
+# city_lat = 6.5244
+# city_lon = 3.3792
 
 ds_spatial = xr.Dataset(
     data_vars={
@@ -940,11 +952,22 @@ ax2.tick_params(labelleft=False)
 ax2.tick_params(colors='gray')
 ax2.spines['left'].set_color('gray')
 ax2.spines['bottom'].set_color('gray')
+
+# get time of first line to cross PIC thresh
+emergences = []
+for step in GMT_indices_plot:
+    da = da_test_city.loc[{'birth_year':1990,'GMT':step}]
+    da = da.where(da>da_pic_city_9999)
+    da_t = da.time.where(da == da.min()).dropna(dim='time').item()
+    emergences.append(da_t)
+first_emerge = np.min(emergences)
+
 ax2.hlines(
     y=da_pic_city_9999, 
-    xmin=1990, 
-    xmax=da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[0]}].time.\
-        where(np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}])==np.round(da_pic_city_9999)).min()-3.1, 
+    xmin=first_emerge, 
+    # xmax=da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[0]}].time.\
+    #     where(np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}])==np.round(da_pic_city_9999)).min()-3.1,
+    xmax=end_year, 
     colors='grey', 
     linewidth=1, 
     linestyle='--', 
@@ -1064,18 +1087,41 @@ ax3.tick_params(labelleft=False)
 ax3.tick_params(colors='gray')
 ax3.spines['left'].set_color('gray')
 ax3.spines['bottom'].set_color('gray')
+
+# get time of first line to cross PIC thresh
+emergences = []
+for step in GMT_indices_plot:
+    da = da_test_city.loc[{'birth_year':2020,'GMT':step}]
+    da = da.where(da>da_pic_city_9999)
+    da_t = da.time.where(da == da.min()).dropna(dim='time').item()
+    emergences.append(da_t)
+first_emerge = np.min(emergences)
+
 ax3.hlines(
     y=da_pic_city_9999, 
-    xmin=2020, 
-    # xmax=da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}].time.where(), 
-    xmax=da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}].time.\
-        where(np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}])==np.round(da_pic_city_9999)).min()+1,
+    xmin=first_emerge, 
+    # xmax=da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[0]}].time.\
+    #     where(np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}])==np.round(da_pic_city_9999)).min()-3.1,
+    xmax=end_year, 
     colors='grey', 
     linewidth=1, 
     linestyle='--', 
     label='99.99%', 
     zorder=1
 )
+
+# ax3.hlines(
+#     y=da_pic_city_9999, 
+#     xmin=2020, 
+#     # xmax=da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}].time.where(), 
+#     xmax=da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}].time.\
+#         where(np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}])==np.round(da_pic_city_9999)).min()+1,
+#     colors='grey', 
+#     linewidth=1, 
+#     linestyle='--', 
+#     label='99.99%', 
+#     zorder=1
+# )
 ax3.annotate(
     'Born in 2020',
     (2022,ax3.get_ylim()[-1]-10),
@@ -1146,8 +1192,8 @@ ax3_pdf.spines['bottom'].set_color('gray')
 
 # City name
 ax3.annotate(
-    '{}, \n{}'.format(city_name,cntry),
-    (1980,15),
+    '{}, {}'.format(city_name,cntry),
+    (1960,ax3.get_ylim()[-1]),
     xycoords=ax3.transData,
     fontsize=16,
     rotation='horizontal',
@@ -1281,7 +1327,7 @@ ax.legend(
     columnspacing=0.05, 
 )      
 
-f.savefig('./figures/concept.png',dpi=900,bbox_inches='tight')
+f.savefig('./figures/concept_{}_{}.png'.format(city_name,cntry),dpi=900,bbox_inches='tight')
 
 
 #%% ----------------------------------------------------------------
