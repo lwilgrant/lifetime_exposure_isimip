@@ -646,6 +646,8 @@ if flags['plot']:
 # ------------------------------------------------------------------   
 # get data
 cntry='Belgium'
+city_name='Brussels'
+# cntry='Canada'
 concept_bys = np.arange(1960,2021,30)
 print(cntry)
 da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
@@ -662,6 +664,9 @@ lat_weights.name = "weights"
 # brussels coords  
 city_lat = 50.8476
 city_lon = 4.3572   
+# saint john coords
+# city_lat = 45.2733
+# city_lon = 66.0633   
 
 ds_spatial = xr.Dataset(
     data_vars={
@@ -736,15 +741,26 @@ for i in list(d_isimip_meta.keys()):
                 'lat':ds_dmg['country_extent'].lat.data,
                 'lon':ds_dmg['country_extent'].lon.data,
             }]
-            
+
+# mean for brussels            
 da_test_city = ds_spatial['cumulative_exposure'].sel({'lat':city_lat,'lon':city_lon},method='nearest').mean(dim='run')
 da_test_city = da_test_city.rolling(time=5,min_periods=5).mean()
+
+# standard deviation for brussels
+da_test_city_std = ds_spatial['cumulative_exposure'].sel({'lat':city_lat,'lon':city_lon},method='nearest').std(dim='run')
+da_test_city_std = da_test_city_std.rolling(time=5,min_periods=5).mean()
+
 # fill in 1st 4 years with 1s
+# first for mean
 for by in da_test_city.birth_year.data:
     for step in GMT_indices_plot:
         da_test_city.loc[{'birth_year':by,'GMT':step,'time':np.arange(by,by+5)}] = da_test_city.loc[{'birth_year':by,'GMT':step}].min(dim='time')
+# then for std        
+for by in da_test_city_std.birth_year.data:
+    for step in GMT_indices_plot:
+        da_test_city_std.loc[{'birth_year':by,'GMT':step,'time':np.arange(by,by+5)}] = da_test_city_std.loc[{'birth_year':by,'GMT':step}].min(dim='time')        
 
-da_test_kenya = ds_spatial['cumulative_exposure'].weighted(lat_weights).mean(('lat','lon')).mean(dim='run')
+# da_test_kenya = ds_spatial['cumulative_exposure'].weighted(lat_weights).mean(('lat','lon')).mean(dim='run')
             
 # load PIC pickle
 with open('./data/pickles/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
@@ -790,6 +806,18 @@ for step in GMT_indices_plot:
 end_year=1960+np.floor(df_life_expectancy_5.loc[1960,cntry])
 ax.set_title(None)
 ax.set_ylabel(None)
+ax.set_xlabel(None)
+ax.set_xticks(np.arange(1960,2031,10))
+ax.set_xticklabels([1960,None,1980,None,2000,None,2020,None])
+ax.annotate(
+    'Born in 1960',
+    (1962,ax.get_ylim()[-1]+1),
+    xycoords=ax.transData,
+    fontsize=10,
+    rotation='horizontal',
+    color='gray',
+)
+# ax.tick_params(colors='gray')
 ax.set_xlim(
     1960,
     end_year,
@@ -800,43 +828,53 @@ ax.set_ylim(
     da_pic_city_9999+1,
 )
 ax.spines['right'].set_visible(False)
-ax.spines['top'].set_visible(False)       
+ax.spines['top'].set_visible(False)    
+ax.tick_params(colors='gray')
+ax.spines['left'].set_color('gray')
+ax.spines['bottom'].set_color('gray')
 ax.hlines(
     y=da_pic_city_9999, 
     xmin=1960, 
     xmax=da_test_city.loc[{'birth_year':1960}].time.max()+10, 
     colors='grey', 
     linewidth=1, 
-    linestyle='-', 
+    linestyle='--', 
     label='99.99%', 
     zorder=0
 )
 
 # 1960 pdf
 ax_pdf_l = end_year+5
-ax_pdf_b = 0
+ax_pdf_b = -2
 ax_pdf_w = 20
-# ax_pdf_h = np.round(da_test_city.loc[{'birth_year':1960,'GMT':GMT_indices_plot[-1]}].max()+1)
-ax_pdf_h = da_pic_city_9999+1
+ax_pdf_h = ax.get_ylim()[-1]+2
 ax_pdf = ax.inset_axes(
     bounds=(ax_pdf_l, ax_pdf_b, ax_pdf_w, ax_pdf_h),
     transform=ax.transData,
 )
-sns.kdeplot(
-    data=df_pic_city,
+# sns.kdeplot(
+#     data=df_pic_city,
+#     y='lifetime_exposure',
+#     fill=True,
+#     color='grey',
+#     bw_adjust=5,
+#     ax=ax_pdf
+# )
+sns.histplot(
+    data=df_pic_city.round(),
     y='lifetime_exposure',
-    fill=True,
+    # fill=True,
     color='grey',
-    bw_adjust=5,
     ax=ax_pdf
 )
 ax_pdf.hlines(
     y=da_pic_city_9999, 
     xmin=0, 
-    xmax=0.4, 
+    # xmax=0.4,
+    xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
     colors='grey', 
     linewidth=1, 
-    linestyle='-', 
+    linestyle='--', 
     label='99.99%', 
     zorder=0
 )
@@ -844,18 +882,23 @@ for step in GMT_indices_plot:
     ax_pdf.hlines(
         y=da_test_city.loc[{'birth_year':1960,'GMT':step}].max(), 
         xmin=0, 
-        xmax=0.4, 
+        # xmax=0.4,
+        xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
         colors=colors[step], 
         linewidth=1, 
-        linestyle='-', 
+        linestyle='--', 
         label=gmt_legend[step], 
         zorder=0
     )
 ax_pdf.spines['right'].set_visible(False)
 ax_pdf.spines['top'].set_visible(False)      
 ax_pdf.set_ylabel(None)
-ax_pdf.set_ylim(ax.get_ylim())
+ax_pdf.set_xlabel(None)
+ax_pdf.set_ylim(-2,ax.get_ylim()[-1])
 ax.tick_params(labelleft=False)    
+ax_pdf.tick_params(colors='gray')
+ax_pdf.spines['left'].set_color('gray')
+ax_pdf.spines['bottom'].set_color('gray')
     
 # ------------------------------------------------------------------       
 # 1990 time series
@@ -878,6 +921,7 @@ for step in GMT_indices_plot:
 end_year=1990+np.floor(df_life_expectancy_5.loc[1990,cntry])
 ax2.set_title(None)
 ax2.set_ylabel(None)
+ax2.set_xlabel(None)
 ax2.set_xlim(
     1960,
     end_year,
@@ -890,41 +934,62 @@ ax2.spines['right'].set_visible(False)
 ax2.spines['top'].set_visible(False)  
 ax2.spines['left'].set_position(('data',1990))
 ax2.tick_params(labelleft=False)    
+ax2.tick_params(colors='gray')
+ax2.spines['left'].set_color('gray')
+ax2.spines['bottom'].set_color('gray')
 ax2.hlines(
     y=da_pic_city_9999, 
     xmin=1990, 
-    xmax=da_test_city.loc[{'birth_year':1990}].time.max()+10, 
+    xmax=da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[0]}].time.\
+        where(np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}])==np.round(da_pic_city_9999)).min()-3.1, 
     colors='grey', 
     linewidth=1, 
-    linestyle='-', 
+    linestyle='--', 
     label='99.99%', 
     zorder=0
+)
+ax2.annotate(
+    'Born in 1990',
+    (1992,ax2.get_ylim()[-1]-4),
+    xycoords=ax2.transData,
+    fontsize=10,
+    rotation='horizontal',
+    color='gray',
 )
 
 # 1990 pdf
 ax2_pdf_l = end_year+5
-ax2_pdf_b = 0
+ax2_pdf_b = -2
 ax2_pdf_w = 20
-ax2_pdf_h = np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()+1)
+# ax2_pdf_h = np.round(da_test_city.loc[{'birth_year':1990,'GMT':GMT_indices_plot[-1]}].max()+2)
+ax2_pdf_h = ax2.get_ylim()[-1]+2
 ax2_pdf = ax2.inset_axes(
     bounds=(ax2_pdf_l, ax2_pdf_b, ax2_pdf_w, ax2_pdf_h),
     transform=ax2.transData,
 )
-sns.kdeplot(
-    data=df_pic_city,
+# sns.kdeplot(
+#     data=df_pic_city,
+#     y='lifetime_exposure',
+#     fill=True,
+#     color='grey',
+#     bw_adjust=5,
+#     ax=ax2_pdf
+# )
+sns.histplot(
+    data=df_pic_city.round(),
     y='lifetime_exposure',
-    fill=True,
+    # fill=True,
     color='grey',
-    bw_adjust=5,
     ax=ax2_pdf
 )
 ax2_pdf.hlines(
     y=da_pic_city_9999, 
     xmin=0, 
-    xmax=0.4, 
+    # xmax=0.4,
+    xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
     colors='grey', 
     linewidth=1, 
-    linestyle='-', 
+    linestyle='--', 
     label='99.99%', 
     zorder=0
 )
@@ -932,17 +997,22 @@ for step in GMT_indices_plot:
     ax2_pdf.hlines(
         y=da_test_city.loc[{'birth_year':1990,'GMT':step}].max(), 
         xmin=0, 
-        xmax=0.4, 
+        # xmax=0.4, 
+        xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
         colors=colors[step], 
         linewidth=1, 
-        linestyle='-', 
+        linestyle='--', 
         label=gmt_legend[step], 
         zorder=0
     )
 ax2_pdf.spines['right'].set_visible(False)
 ax2_pdf.spines['top'].set_visible(False)      
 ax2_pdf.set_ylabel(None)
-ax2_pdf.set_ylim(ax2.get_ylim())
+ax2_pdf.set_xlabel(None)
+ax2_pdf.set_ylim(-2,ax2.get_ylim()[-1])
+ax2_pdf.tick_params(colors='gray')
+ax2_pdf.spines['left'].set_color('gray')
+ax2_pdf.spines['bottom'].set_color('gray')
 
 # ------------------------------------------------------------------   
 # 2020 time series
@@ -954,16 +1024,27 @@ ax3 = ax2.inset_axes(
     bounds=(ax3_l, ax3_b, ax3_w, ax3_h),
     transform=ax2.transData,
 )
-
+# plot mean lines
 for step in GMT_indices_plot:
     da_test_city.loc[{'birth_year':2020,'GMT':step}].plot.line(
         ax=ax3,
         color=colors[step],
         linewidth=1
     )
+# plot std uncertainty bars
+# for step in GMT_indices_plot:
+#     ax3.fill_between(
+#         x=da_test_city_std.loc[{'birth_year':2020,'GMT':step}].time.data,
+#         y1=da_test_city.loc[{'birth_year':2020,'GMT':step}] + da_test_city_std.loc[{'birth_year':2020,'GMT':step}],
+#         y2=da_test_city.loc[{'birth_year':2020,'GMT':step}] - da_test_city_std.loc[{'birth_year':2020,'GMT':step}],
+#         color=colors[step],
+#         alpha=0.2
+#     )
+
 end_year=2020+np.floor(df_life_expectancy_5.loc[2020,cntry])
 ax3.set_title(None)
 ax3.set_ylabel(None)
+ax3.set_xlabel(None)
 ax3.set_xlim(
     1960,
     end_year,
@@ -976,41 +1057,64 @@ ax3.spines['right'].set_visible(False)
 ax3.spines['top'].set_visible(False)  
 ax3.spines['left'].set_position(('data',2020))
 ax3.tick_params(labelleft=False)    
+ax3.tick_params(colors='gray')
+ax3.spines['left'].set_color('gray')
+ax3.spines['bottom'].set_color('gray')
 ax3.hlines(
     y=da_pic_city_9999, 
     xmin=2020, 
-    xmax=da_test_city.loc[{'birth_year':2020}].time.max()+10, 
+    # xmax=da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}].time.where(), 
+    xmax=da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}].time.\
+        where(np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[0]}])==np.round(da_pic_city_9999)).min()+1,
     colors='grey', 
     linewidth=1, 
-    linestyle='-', 
+    linestyle='--', 
     label='99.99%', 
     zorder=0
+)
+ax3.annotate(
+    'Born in 2020',
+    (2022,ax3.get_ylim()[-1]-10),
+    xycoords=ax3.transData,
+    fontsize=10,
+    rotation='horizontal',
+    color='gray',
 )
 
 # 2020 pdf
 ax3_pdf_l = end_year+5
-ax3_pdf_b = 0
+ax3_pdf_b = -2
 ax3_pdf_w = 20
-ax3_pdf_h = np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[-1]}].max()+1)
+# ax3_pdf_h = np.round(da_test_city.loc[{'birth_year':2020,'GMT':GMT_indices_plot[-1]}].max()+2)
+ax3_pdf_h = ax3.get_ylim()[-1]+2
 ax3_pdf = ax3.inset_axes(
     bounds=(ax3_pdf_l, ax3_pdf_b, ax3_pdf_w, ax3_pdf_h),
     transform=ax3.transData,
 )
-sns.kdeplot(
-    data=df_pic_city,
+# sns.kdeplot(
+#     data=df_pic_city,
+#     y='lifetime_exposure',
+#     fill=True,
+#     color='grey',
+#     bw_adjust=5,
+#     cut=0,
+#     ax=ax3_pdf
+# )
+sns.histplot(
+    data=df_pic_city.round(),
     y='lifetime_exposure',
-    fill=True,
+    # fill=True,
     color='grey',
-    bw_adjust=5,
     ax=ax3_pdf
 )
 ax3_pdf.hlines(
     y=da_pic_city_9999, 
     xmin=0, 
-    xmax=0.4, 
+    # xmax=0.4, 
+    xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
     colors='grey', 
     linewidth=1, 
-    linestyle='-', 
+    linestyle='--', 
     label='99.99%', 
     zorder=0
 )
@@ -1018,39 +1122,162 @@ for step in GMT_indices_plot:
     ax3_pdf.hlines(
         y=da_test_city.loc[{'birth_year':2020,'GMT':step}].max(), 
         xmin=0, 
-        xmax=0.4, 
+        # xmax=0.4, 
+        xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
         colors=colors[step], 
         linewidth=1, 
-        linestyle='-', 
+        linestyle='--', 
         label=gmt_legend[step], 
         zorder=0
     )
 ax3_pdf.spines['right'].set_visible(False)
 ax3_pdf.spines['top'].set_visible(False)      
 ax3_pdf.set_ylabel(None)
-ax3_pdf.set_ylim(ax3.get_ylim())
+ax3_pdf.set_xlabel(None)
+ax3_pdf.set_ylim(-2,ax3.get_ylim()[-1])
+ax3_pdf.tick_params(colors='gray')
+ax3_pdf.spines['left'].set_color('gray')
+ax3_pdf.spines['bottom'].set_color('gray')
+
+# City name
+ax3.annotate(
+    '{}, \n{}'.format(city_name,cntry),
+    (1980,15),
+    xycoords=ax3.transData,
+    fontsize=16,
+    rotation='horizontal',
+    color='gray',
+)
+
+# axis labels ===================================================================
+
+# x axis label (time)
+x_i=1950
+y_i=-10
+x_f=2040
+y_f=y_i 
+con = ConnectionPatch(
+    xyA=(x_i,y_i),
+    xyB=(x_f,y_f),
+    coordsA=ax.transData,
+    coordsB=ax.transData,
+    color='gray',
+)
+ax.add_artist(con)   
+
+con_arrow_top = ConnectionPatch(
+    xyA=(x_f-2,y_f+1),
+    xyB=(x_f,y_f),
+    coordsA=ax.transData,
+    coordsB=ax.transData,
+    color='gray',
+)
+ax.add_artist(con_arrow_top)  
+
+con_arrow_bottom = ConnectionPatch(
+    xyA=(x_f-2,y_f-1),
+    xyB=(x_f,y_f),
+    coordsA=ax.transData,
+    coordsB=ax.transData,
+    color='gray',
+)
+ax.add_artist(con_arrow_bottom) 
+ax.annotate(
+    'Time',
+    ((x_i+x_f)/2,y_f+1),
+    xycoords=ax.transData,
+    fontsize=12,
+    color='gray',
+)
+
+# y axis label (Cumulative heatwave exposure since birth)
+x_i=1950
+y_i=-10
+x_f=x_i
+y_f=y_i + 50
+con = ConnectionPatch(
+    xyA=(x_i,y_i),
+    xyB=(x_f,y_f),
+    coordsA=ax.transData,
+    coordsB=ax.transData,
+    color='gray',
+)
+ax.add_artist(con)   
+
+con_arrow_left = ConnectionPatch(
+    xyA=(x_f-2,y_f-1),
+    xyB=(x_f,y_f),
+    coordsA=ax.transData,
+    coordsB=ax.transData,
+    color='gray',
+)
+ax.add_artist(con_arrow_left)  
+
+con_arrow_right = ConnectionPatch(
+    xyA=(x_f+2,y_f-1),
+    xyB=(x_f,y_f),
+    coordsA=ax.transData,
+    coordsB=ax.transData,
+    color='gray',
+)
+ax.add_artist(con_arrow_right) 
+
+ax.annotate(
+    'Cumulative heatwave exposure since birth',
+    (x_i-10,(y_i+y_f)/5),
+    xycoords=ax.transData,
+    fontsize=12,
+    rotation='vertical',
+    color='gray',
+)
+
+# legend ===================================================================
+
+# bbox
+x0 = 1.45
+y0 = -1.25
+xlen = 0.5
+ylen = 0.5
+
+# space between entries
+legend_entrypad = 0.5
+
+# length per entry
+legend_entrylen = 0.75
+
+legend_font = 10
+legend_lw=1
+   
+legendcols = list(colors.values())+['gray']+['lightgrey']
+handles = [
+    Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[0]),
+    Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),
+    Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2]),
+    Line2D([0],[0],linestyle='--',lw=legend_lw,color=legendcols[3]),
+    Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[3]),
+]
+labels= [
+    '1.5 °C GMT warming by 2100',
+    '2.5 °C GMT warming by 2100',
+    '3.5 °C GMT warming by 2100',
+    '99.99% pre-industrial \n lifetime exposure',
+    'pre-industrial lifetime \n exposure distribution'
+]
+ax.legend(
+    handles, 
+    labels, 
+    bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+    loc=3,
+    ncol=1,
+    fontsize=legend_font, 
+    mode="expand", 
+    borderaxespad=0.,
+    frameon=False, 
+    columnspacing=0.05, 
+)      
 
 f.savefig('./figures/concept.png',dpi=900,bbox_inches='tight')
-# f = plt.figure(figsize=(x,y))    
-# gs0 = gridspec.GridSpec(4,4)
-# gs0.update(hspace=0.8,wspace=0.8)
-# ax00 = f.add_subplot(gs0[0:2,0:2]) # heatmap
-# ax10 = f.add_subplot(gs0[2:,0:2]) # scatterplot for 2020 by
-# gs00 = gridspec.GridSpecFromSubplotSpec(
-#     3,
-#     1, 
-#     subplot_spec=gs0[:4,2:],
-# )
-# ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
-# ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
-# ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
-# pos00 = ax00.get_position()
-# cax00 = f.add_axes([
-#     pos00.x0,
-#     pos00.y0+0.4,
-#     pos00.width * 2.25,
-#     pos00.height*0.1
-# ])
+
 
 #%% ----------------------------------------------------------------
 # age emergence & pop frac testing
