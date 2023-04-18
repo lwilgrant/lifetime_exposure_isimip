@@ -782,6 +782,8 @@ da_pic_city_9999 = ds_pic['99.99'].sel({'lat':city_lat,'lon':city_lon},method='n
  
 # plot building
 from mpl_toolkits.axes_grid1 import inset_locator as inset
+plt.rcParams['patch.linewidth'] = 0.1
+plt.rcParams['patch.edgecolor'] = 'k'
 colors = dict(zip(GMT_indices_plot,['steelblue','darkgoldenrod','darkred']))
 x=5
 y=1
@@ -840,7 +842,7 @@ ax.hlines(
     linewidth=1, 
     linestyle='--', 
     label='99.99%', 
-    zorder=0
+    zorder=1
 )
 
 # 1960 pdf
@@ -864,7 +866,8 @@ sns.histplot(
     data=df_pic_city.round(),
     y='lifetime_exposure',
     # fill=True,
-    color='grey',
+    color='lightgrey',
+    discrete = True,
     ax=ax_pdf
 )
 ax_pdf.hlines(
@@ -876,7 +879,7 @@ ax_pdf.hlines(
     linewidth=1, 
     linestyle='--', 
     label='99.99%', 
-    zorder=0
+    zorder=1
 )
 for step in GMT_indices_plot:
     ax_pdf.hlines(
@@ -886,9 +889,9 @@ for step in GMT_indices_plot:
         xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
         colors=colors[step], 
         linewidth=1, 
-        linestyle='--', 
+        linestyle='-', 
         label=gmt_legend[step], 
-        zorder=0
+        zorder=2
     )
 ax_pdf.spines['right'].set_visible(False)
 ax_pdf.spines['top'].set_visible(False)      
@@ -946,7 +949,7 @@ ax2.hlines(
     linewidth=1, 
     linestyle='--', 
     label='99.99%', 
-    zorder=0
+    zorder=1
 )
 ax2.annotate(
     'Born in 1990',
@@ -979,7 +982,8 @@ sns.histplot(
     data=df_pic_city.round(),
     y='lifetime_exposure',
     # fill=True,
-    color='grey',
+    color='lightgrey',
+    discrete = True,
     ax=ax2_pdf
 )
 ax2_pdf.hlines(
@@ -991,7 +995,7 @@ ax2_pdf.hlines(
     linewidth=1, 
     linestyle='--', 
     label='99.99%', 
-    zorder=0
+    zorder=1
 )
 for step in GMT_indices_plot:
     ax2_pdf.hlines(
@@ -1001,9 +1005,9 @@ for step in GMT_indices_plot:
         xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
         colors=colors[step], 
         linewidth=1, 
-        linestyle='--', 
+        linestyle='-', 
         label=gmt_legend[step], 
-        zorder=0
+        zorder=2
     )
 ax2_pdf.spines['right'].set_visible(False)
 ax2_pdf.spines['top'].set_visible(False)      
@@ -1070,7 +1074,7 @@ ax3.hlines(
     linewidth=1, 
     linestyle='--', 
     label='99.99%', 
-    zorder=0
+    zorder=1
 )
 ax3.annotate(
     'Born in 2020',
@@ -1104,7 +1108,8 @@ sns.histplot(
     data=df_pic_city.round(),
     y='lifetime_exposure',
     # fill=True,
-    color='grey',
+    color='lightgrey',
+    discrete = True,
     ax=ax3_pdf
 )
 ax3_pdf.hlines(
@@ -1116,7 +1121,7 @@ ax3_pdf.hlines(
     linewidth=1, 
     linestyle='--', 
     label='99.99%', 
-    zorder=0
+    zorder=1
 )
 for step in GMT_indices_plot:
     ax3_pdf.hlines(
@@ -1126,9 +1131,9 @@ for step in GMT_indices_plot:
         xmax=df_pic_city['lifetime_exposure'][df_pic_city['lifetime_exposure']==0].count(),
         colors=colors[step], 
         linewidth=1, 
-        linestyle='--', 
+        linestyle='-', 
         label=gmt_legend[step], 
-        zorder=0
+        zorder=2
     )
 ax3_pdf.spines['right'].set_visible(False)
 ax3_pdf.spines['top'].set_visible(False)      
@@ -1234,8 +1239,8 @@ ax.annotate(
 # legend ===================================================================
 
 # bbox
-x0 = 1.45
-y0 = -1.25
+x0 = 1.5
+y0 = -1.3
 xlen = 0.5
 ylen = 0.5
 
@@ -1254,14 +1259,14 @@ handles = [
     Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[1]),
     Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[2]),
     Line2D([0],[0],linestyle='--',lw=legend_lw,color=legendcols[3]),
-    Line2D([0],[0],linestyle='-',lw=legend_lw,color=legendcols[3]),
+    Rectangle((0,0),1,1,color=legendcols[4]),
 ]
 labels= [
     '1.5 °C GMT warming by 2100',
     '2.5 °C GMT warming by 2100',
     '3.5 °C GMT warming by 2100',
     '99.99% pre-industrial \n lifetime exposure',
-    'pre-industrial lifetime \n exposure distribution'
+    'pre-industrial lifetime \n exposure histogram'
 ]
 ax.legend(
     handles, 
