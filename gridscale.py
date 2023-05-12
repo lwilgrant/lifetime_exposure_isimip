@@ -786,7 +786,7 @@ def get_gridscale_union(
     countries_regions,
 ):
     
-    if not os.path.isfile('./data/pickles/emergence_hazards_subset.pkl') or not os.path.isfile('./data/pickles/emergence_union_subset.pkl'):
+    if not os.path.isfile('./data/pickles/emergence_hazards_subset_new.pkl') or not os.path.isfile('./data/pickles/emergence_union_subset_new.pkl'):
         
         extremes = [
             'burntarea', 
@@ -950,11 +950,11 @@ def get_gridscale_union(
         # with open('./data/pickles/emergence_union.pkl', 'rb') as f:
         #     da_emergence_union = pk.load(f)            
             
-        with open('./data/pickles/emergence_hazards_subset.pkl', 'rb') as f:
+        with open('./data/pickles/emergence_hazards_subset_new.pkl', 'rb') as f:
             da_emergence_mean_subset = pk.load(f)  
             
         # load emergence union
-        with open('./data/pickles/emergence_union_subset.pkl', 'rb') as f:
+        with open('./data/pickles/emergence_union_subset_new.pkl', 'rb') as f:
             da_emergence_union_subset = pk.load(f)             
                      
         

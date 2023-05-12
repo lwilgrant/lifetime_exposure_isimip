@@ -736,6 +736,16 @@ combined_plot_egu(
     flags,
 )
 
+# plot of heatwave box plot, scatter plot and maps of 1, 2 and 3 degree pop frac unprecedented across countries - gridscale
+combined_plot_boxplot(
+    df_GMT_strj,
+    ds_pf_gs,
+    da_gs_popdenom,
+    gdf_country_borders,
+    sims_per_step,
+    flags,
+)
+
 # heatmaps
 plot_heatmaps_allhazards_egu(
     df_GMT_strj,
