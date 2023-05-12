@@ -440,6 +440,434 @@ def combined_plot_egu(
     f.savefig('./figures/combined_heatmap_scatter_mapsofpf_gs_{}_egu_35.png'.format(flags['extr']),dpi=1000,bbox_inches='tight')
     plt.show()            
 
+# %% ----------------------------------------------------------------
+            
+def combined_plot_boxplot(
+    df_GMT_strj,
+    ds_pf_gs,
+    da_gs_popdenom,
+    gdf_country_borders,
+    sims_per_step,
+    flags,
+):
+    
+    x=12
+    y=10
+    markersize=10
+    # cbar stuff
+    col_cbticlbl = 'gray'   # colorbar color of tick labels
+    col_cbtic = 'gray'   # colorbar color of ticks
+    col_cbedg = 'gray'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors   
+    
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    }     
+
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(4,4)
+    gs0.update(hspace=0.8,wspace=0.8)
+    ax00 = f.add_subplot(gs0[0:2,0:2]) # heatmap
+    ax10 = f.add_subplot(gs0[2:,0:2]) # scatterplot for 2020 by
+    gs00 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        1, 
+        subplot_spec=gs0[:4,2:],
+        # top=0.8
+    )
+    ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+    ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+    ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+    pos00 = ax00.get_position()
+    cax00 = f.add_axes([
+        # pos00.x0,
+        pos00.x0+0.415,
+        pos00.y0+0.4,
+        # pos00.width * 2.25,
+        pos00.width * 1.125,
+        pos00.height*0.1
+    ])
+    
+    l = 0 # letter indexing
+    
+    # colorbar stuff ------------------------------------------------------------
+    cmap_whole = plt.cm.get_cmap('Reds')
+    levels = np.arange(0,1.01,0.05)
+    colors = [cmap_whole(i) for i in levels[:-1]]
+    cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+    ticks = np.arange(0,101,10)
+    norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
+
+    # pop frac box plot ----------------------------------------------------------
+    # gmts2100 = np.round(df_GMT_strj.loc[2100,[0,5,10,15,20,25]].values,1)
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+
+    # levels = np.arange(0,1.01,0.05)
+    levels = np.arange(0,101,5)
+    norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
+
+    # get data
+    df_list_gs = []
+    extr='heatwavedarea'
+    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        d_isimip_meta = pk.load(file)              
+    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        ds_pf_gs_plot = pk.load(file)
+    da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+        'GMT':GMT_indices_plot,
+        'birth_year':sample_birth_years,
+    }]
+    sims_per_step = {}
+    for step in GMT_labels:
+        sims_per_step[step] = []
+        print('step {}'.format(step))
+        for i in list(d_isimip_meta.keys()):
+            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                sims_per_step[step].append(i)    
+
+    for step in GMT_indices_plot:
+        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
+        df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+        df_pf_gs_plot_step['hazard'] = extr
+        df_list_gs.append(df_pf_gs_plot_step)
+    df_pf_gs_plot = pd.concat(df_list_gs)
+    
+    # pf boxplot
+    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+    p = sns.boxplot(
+        data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+        x='birth_year',
+        y='pf',
+        hue='GMT_label',
+        palette=colors,
+        showcaps=False,
+        showfliers=False,
+        boxprops={
+            'linewidth':0,
+            'alpha':0.5
+        },        
+        ax=ax00,
+    )
+    p.legend_.remove()                  
+    ax00.spines['right'].set_visible(False)
+    ax00.spines['top'].set_visible(False)      
+    ax00.tick_params(colors='gray')
+    ax00.set_ylim(0,100)
+    ax00.spines['left'].set_color('gray')
+    ax00.spines['bottom'].set_color('gray')      
+    # ax00.set_ylabel('Population % living unprecedented \n exposure to heatwaves',color='gray')
+    ax00.set_ylabel('$\mathregular{PF_{HW}}$',color='gray',fontsize=14)
+    # '$\mathregular{PF_{HW}}$',
+    ax00.set_xlabel('Birth year',color='gray',fontsize=14)       
+    ax00.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10
+    )    
+    l+=1 
+    
+    # bbox
+    x0 = 0.075
+    y0 = 0.7
+    xlen = 0.2
+    ylen = 0.3
+    
+    # space between entries
+    legend_entrypad = 0.5
+    
+    # length per entry
+    legend_entrylen = 0.75
+    
+    legend_font = 10
+    legend_lw=3.5   
+    
+    legendcols = list(colors.values())
+    handles = [
+        Rectangle((0,0),1,1,color=legendcols[0]),\
+        Rectangle((0,0),1,1,color=legendcols[1]),\
+        Rectangle((0,0),1,1,color=legendcols[2])
+    ]
+    
+    labels= [
+        '1.5 °C GMT warming by 2100',
+        '2.5 °C GMT warming by 2100',
+        '3.5 °C GMT warming by 2100',    
+    ]
+    
+    ax00.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), 
+        loc = 'upper left',
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,\
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad
+    )            
+    
+    # bracket connecting 2020 in box plot to tseries plot panel ------------------
+    
+    # vertical line
+    x_h=0.95
+    y_h=-.075
+    x_s=0.995
+    y_s=1.05    
+    con = ConnectionPatch(
+        xyA=(x_h,y_h),
+        xyB=(x_s,y_s),
+        coordsA=ax00.transAxes,
+        coordsB=ax10.transAxes,
+        color='dimgray',
+    )
+    ax00.add_artist(con)         
+    
+    # horizontal line
+    x_s2=0.075
+    y_s2=y_s
+    con = ConnectionPatch(
+        xyA=(x_s,y_s),
+        xyB=(x_s2,y_s2),
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
+        color='dimgray'
+    )
+    ax00.add_artist(con)    
+    
+    # brace outliers
+    # left 
+    x_s3=x_s2-0.025
+    y_s3=y_s2-0.05  
+    con = ConnectionPatch(
+        xyA=(x_s2,y_s2),
+        xyB=(x_s3,y_s3),
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
+        color='dimgray'
+    )
+    ax10.add_artist(con)       
+    
+    # right
+    x_s4=x_s+0.025
+    y_s4=y_s-0.05    
+    con = ConnectionPatch(
+        xyA=(x_s,y_s),
+        xyB=(x_s4,y_s4),
+        coordsA=ax10.transAxes,
+        coordsB=ax10.transAxes,
+        color='dimgray'
+    )
+    ax10.add_artist(con)
+
+    # pop frac t series for 2020 ----------------------------------------------------------
+    
+    by=2020
+    da_plt = ds_pf_gs['unprec'].sum(dim='country') # summing converts nans from invalid GMT/run combos to 0, use where below to remove these
+    da_plt_gmt = da_plt.loc[{'birth_year':by}].where(da_plt.loc[{'birth_year':by}]!=0)
+    da_plt_gmt = da_plt_gmt / da_gs_popdenom.loc[{'birth_year':by}].sum(dim='country') * 100
+    ax10.plot(
+        GMT_labels,
+        da_plt_gmt.mean(dim='run').values,
+        linestyle='-',
+        color='darkred'
+    )    
+    ax10.fill_between(
+        da_plt_gmt.GMT.values,
+        y1=da_plt_gmt.max(dim='run').values,
+        y2=da_plt_gmt.min(dim='run').values,
+        color='peachpuff',
+    )
+    ax10.set_ylabel(
+        '$\mathregular{PF_{HW}}$ for 2020 birth cohort', 
+        va='center', 
+        rotation='vertical',
+        labelpad=10,
+        fontsize=14,
+        color='gray',
+    )         
+    # ax00.set_ylabel('$\mathregular{PF_{HW}}$',color='gray',fontsize=14)
+     
+    ax10.set_xlabel(
+        'GMT anomaly at 2100 [°C]', 
+        va='center', 
+        labelpad=10,
+        fontsize=14,
+        color='gray'
+    )                                           
+    ax10.set_xticks(
+        ticks=GMT_indices_ticks,
+        labels=gmts2100,
+    )    
+    ax10.set_xlim(
+        GMT_indices_ticks[0]-0.5,
+        GMT_indices_ticks[-1]+0.5,
+    )
+    ax10.spines['right'].set_visible(False)
+    ax10.spines['top'].set_visible(False)    
+    ax10.spines['left'].set_color('gray')
+    ax10.spines['bottom'].set_color('gray')         
+    ax10.tick_params(colors='gray')         
+    
+    handles = [
+        Line2D([0],[0],linestyle='-',color='darkred'),
+        Rectangle((0,0),1,1,color='peachpuff'),
+    ]    
+    
+    labels= [
+        'Mean',
+        'Range',     
+    ]    
+    x0 = 0.55 # bbox for legend
+    y0 = 0.25
+    xlen = 0.2
+    ylen = 0.2    
+    # legend_font = 12        
+    ax10.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+    )      
+    
+    ax10.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10
+    )    
+    l+=1     
+
+    # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
+
+    # gmt_indices_123 = [19,10,0]
+    gmt_indices_152535 = [24,15,6]
+    map_letters = {24:'e',15:'d',6:'c'}
+    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        'GMT':gmt_indices_152535,
+        'birth_year':by,
+    }]
+    
+    # since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
+    # so we only take sims or runs valid per GMT level and make sure nans are 0
+    df_list_gs = []
+    for step in gmt_indices_152535:
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
+        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
+        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list_gs.append(df_p_gs_plot_step)
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
+    gdf = cp(gdf_country_borders.reset_index())
+    gdf_p = cp(gdf_country_borders.reset_index())
+    robinson = ccrs.Robinson().proj4_init
+
+    for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
+        gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+        gdf_p.to_crs(robinson).plot(
+            ax=ax,
+            column='pf',
+            cmap=cmap_list_frac,
+            norm=norm,
+            cax=cax00,
+            zorder=2,
+        )
+
+        gdf.to_crs(robinson).plot(
+            ax=ax,
+            color='none', 
+            edgecolor='black',
+            linewidth=0.25,
+            zorder=3,
+        )
+        
+        ax.set_title(
+            '{} °C'.format(gmt_legend[step]),
+            loc='center',
+            fontweight='bold',
+            fontsize=12,
+            color='gray',       
+        )
+        
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            fontsize=10
+        )    
+        l+=1          
+        
+        # pointers connecting 2020, GMT step pixel in heatmap to map panels ------------------
+        if step == gmt_indices_152535[0]:
+            x_h=1 
+        elif step == gmt_indices_152535[1]:
+            x_h=0.95                      
+        elif step == gmt_indices_152535[-1]:
+            x_h=0.9
+        y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
+        x_m=0
+        y_m=0.5
+        con = ConnectionPatch(
+            xyA=(x_h,y_h),
+            xyB=(x_m,y_m),
+            coordsA=ax00.transAxes,
+            coordsB=ax.transAxes,
+            color='gray'
+        )
+        ax00.add_artist(con)          
+        
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cax00, 
+        cmap=cmap_list_frac,
+        norm=norm,
+        orientation='horizontal',
+        spacing='uniform',
+        ticks=ticks,
+        drawedges=False,
+    )
+
+    cb.set_label(
+        # 'Population % living unprecedented exposure to heatwaves',
+        # '$PF_HW$',
+        '$\mathregular{PF_{HW}}$ for 2020 birth cohort',
+        fontsize=14,
+        color='gray'
+    )
+    cb.ax.xaxis.set_label_position('top')
+    cb.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )   
+    cb.outline.set_edgecolor(col_cbedg)
+    cb.outline.set_linewidth(cb_edgthic)   
+    cax00.xaxis.set_label_position('top')                   
+
+    f.savefig('./figures/combined_boxplots_scatter_maps_{}.png'.format(flags['extr']),dpi=1000,bbox_inches='tight')
+    # f.savefig('./figures/combined_boxplots_scatter_maps_{}.eps'.format(flags['extr']),format='eps',bbox_inches='tight')
+    
+    plt.show()            
+
+
 
 #%% ----------------------------------------------------------------
 def emergence_union_plot_egu(
@@ -447,8 +875,10 @@ def emergence_union_plot_egu(
     da_emergence_union,
     da_emergence_mean,
 ):
-    x=14
-    y=9
+    # x=14
+    # y=9
+    x=12.6
+    y=8.1
     markersize=10
     lat = grid_area.lat.values
     lon = grid_area.lon.values
@@ -468,13 +898,13 @@ def emergence_union_plot_egu(
         'tropicalcyclonedarea',
     ]
     extremes_labels = {
-        'burntarea': 'Wildfires',
-        'cropfailedarea': 'Crop failure',
-        'driedarea': 'Droughts',
-        'floodedarea': 'Floods',
-        'heatwavedarea': 'Heatwaves',
-        'tropicalcyclonedarea': 'Tropical cyclones',
-    }
+        'burntarea': 'WF',
+        'cropfailedarea': 'CF',
+        'driedarea': 'DR',
+        'floodedarea': 'FL',
+        'heatwavedarea': 'HW',
+        'tropicalcyclonedarea': 'TC',
+    }  
     colors=[
         mpl.colors.to_rgb('steelblue'),
         mpl.colors.to_rgb('darkgoldenrod'),
@@ -561,32 +991,18 @@ def emergence_union_plot_egu(
 
     # plot 1960
     i=0
-    p_u3 = da_emergence_union.loc[{'GMT':19,'birth_year':1960}].where(mask.notnull())
+    l=0
     
-    ax0.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
-    ax0.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
-    p_u3.plot(
-        ax=ax0,
-        # cmap='Reds',
-        cmap=cmap_list_union,
-        levels=union_levels,
-        add_colorbar=False,
-        add_labels=False,
-        transform=ccrs.PlateCarree(),
-        zorder=5
-    )
-    # ax0.set_title(
-    #     letters[i],
-    #     loc='left',
-    #     fontweight='bold',
-    # )
-    # ax0.set_title(
-    #     # 'Emergence in 1960 cohort lifetimes',
-    #     'All hazards',
-    #     loc='center',
-    #     fontweight='bold',
-    #     color='gray',
-    # )
+    ax00.annotate(
+        '1960 birth cohort',
+        (0.55,1.3),
+        xycoords=ax00.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )          
+
     i+=1
     for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
         
@@ -594,7 +1010,7 @@ def emergence_union_plot_egu(
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
         p3 = da_emergence_mean.loc[{
             'hazard':extr,
-            'GMT':19,
+            'GMT':17,
             'birth_year':1960,
         }]
         p3 = xr.where(p3>0,1,0)
@@ -614,16 +1030,22 @@ def emergence_union_plot_egu(
             fontweight='bold',
             color='gray'
         )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1    
         i+=1
         
-    # plot 2020
-    # union_levels = np.arange(0.5,6.5,1)
-    p_u3 = da_emergence_union.loc[{'GMT':19,'birth_year':2020}].where(mask.notnull())
-    ax1.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
-    ax1.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
+    p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':1960}].where(mask.notnull())
+    
+    ax0.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+    ax0.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
     p_u3.plot(
-        ax=ax1,
-        # cmap='Reds',
+        ax=ax0,
         cmap=cmap_list_union,
         levels=union_levels,
         add_colorbar=False,
@@ -631,14 +1053,33 @@ def emergence_union_plot_egu(
         transform=ccrs.PlateCarree(),
         zorder=5
     )
+    ax0.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    )    
+    l+=1                 
     i+=1
+    
+    # 2020 birth cohort
+    ax02.annotate(
+        '2020 birth cohort',
+        (0.55,1.3),
+        xycoords=ax02.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )       
     for ax,extr in zip((ax02,ax12,ax22,ax03,ax13,ax23),extremes):
         
         ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
         p3 = da_emergence_mean.loc[{
             'hazard':extr,
-            'GMT':19,
+            'GMT':17,
             'birth_year':2020,
         }]
         p3 = xr.where(p3>0,1,0)
@@ -658,7 +1099,37 @@ def emergence_union_plot_egu(
             fontweight='bold',
             color='gray',
         )
-        i+=1    
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1          
+        i+=1  
+        
+    p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
+    ax1.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+    ax1.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
+    p_u3.plot(
+        ax=ax1,
+        # cmap='Reds',
+        cmap=cmap_list_union,
+        levels=union_levels,
+        add_colorbar=False,
+        add_labels=False,
+        transform=ccrs.PlateCarree(),
+        zorder=5
+    )
+    ax1.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    )    
+    l+=1                
         
     cb = mpl.colorbar.ColorbarBase(
         ax=cax, 
@@ -671,7 +1142,7 @@ def emergence_union_plot_egu(
     )
 
     cb.set_label(
-        'Number of \n emerged hazards',
+        'Number of \n emerged extremes',
         fontsize=14,
         labelpad=10,
         color='gray',
@@ -686,7 +1157,7 @@ def emergence_union_plot_egu(
         direction='out'
     )   
         
-    f.savefig('./figures/emergence_locations_egu_all.png',dpi=900)
+    f.savefig('./figures/emergence_locations_egu_all_new.png',dpi=1000)
 
 #%% ----------------------------------------------------------------
 # plotting pop and pop frac for grid scale across hazards
@@ -709,31 +1180,55 @@ def plot_heatmaps_allhazards_egu(
         'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
+    # extremes_labels = {
+    #     'burntarea': 'Wildfires',
+    #     'cropfailedarea': 'Crop failure',
+    #     'driedarea': 'Droughts',
+    #     'floodedarea': 'Floods',
+    #     'heatwavedarea': 'Heatwaves',
+    #     'tropicalcyclonedarea': 'Tropical cyclones',
+    # }   
     extremes_labels = {
-        'burntarea': 'Wildfires',
-        'cropfailedarea': 'Crop failure',
-        'driedarea': 'Droughts',
-        'floodedarea': 'Floods',
-        'heatwavedarea': 'Heatwaves',
-        'tropicalcyclonedarea': 'Tropical cyclones',
-    }    
+        'burntarea': '$\mathregular{PF_{WF}}$',
+        'cropfailedarea': '$\mathregular{PF_{CF}}$',
+        'driedarea': '$\mathregular{PF_{DR}}$',
+        'floodedarea': '$\mathregular{PF_{FL}}$',
+        'heatwavedarea': '$\mathregular{PF_{HW}}$',
+        'tropicalcyclonedarea': '$\mathregular{PF_{TC}}$',
+    }        
     
     # labels for GMT ticks
     GMT_indices_ticks=[6,12,18,24]
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
     
     # --------------------------------------------------------------------
-    # population fractions
+    # population fractions with simulation limits to avoid dry jumps
     
     # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
-            ds_pf_gs_extr = pk.load(f)
-        p = ds_pf_gs_extr['unprec'].loc[{'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')}].sum(dim='country')
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+            ds_pf_gs_extr = pk.load(file)
+        with open('./data/pickles/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+            d_isimip_meta = pk.load(file)        
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)  
+        if extr != 'cropfailedarea':
+            p = ds_pf_gs_extr['unprec'].loc[{
+                'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+                'run':sims_per_step[GMT_labels[-1]]
+            }].sum(dim='country')
+        else:
+            p = ds_pf_gs_extr['unprec'].loc[{
+                'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+                'run':sims_per_step[27]
+            }].sum(dim='country')            
         p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
-        # p.plot(x='birth_year',y='GMT')
-        # plt.show()
         list_extrs_pf.append(p)
         
     ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
@@ -741,8 +1236,8 @@ def plot_heatmaps_allhazards_egu(
     # plot
     mpl.rcParams['xtick.labelcolor'] = 'gray'
     mpl.rcParams['ytick.labelcolor'] = 'gray'
-    x=16
-    y=8
+    x=14
+    y=7
     f,axes = plt.subplots(
         nrows=2,
         ncols=3,
@@ -752,7 +1247,7 @@ def plot_heatmaps_allhazards_egu(
         p = ds_pf_gs_extrs.loc[{
             'hazard':extr,
             'birth_year':np.arange(1960,2021),
-        }].plot(
+        }].plot.contourf(
             x='birth_year',
             y='GMT',
             ax=ax,
@@ -778,6 +1273,7 @@ def plot_heatmaps_allhazards_egu(
         # ax.set_xlabel('Birth year')
         
     # ax stuff
+    l=0
     for n,ax in enumerate(axes.flatten()):
         # ax.set_title(
         #     letters[n],
@@ -790,7 +1286,122 @@ def plot_heatmaps_allhazards_egu(
             fontweight='bold',
             color='gray',
             fontsize=12,
-        )            
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            fontsize=10,
+        )  
+        l+=1                  
+        ax.spines['right'].set_color('gray')
+        ax.spines['top'].set_color('gray')
+        ax.spines['left'].set_color('gray')
+        ax.spines['bottom'].set_color('gray')
+        # plt.rcParams["axes.grid"] = False
+        # ax.grid(b=None)
+        if not np.isin(n,[0,3]):
+            ax.yaxis.set_ticklabels([])
+        else:
+            pass
+            # ax.set_ylabel('GMT warming by 2100 [°C]',fontsize=12,color='gray')
+        if n == 0:
+            ax.annotate(
+                    'GMT warming by 2100 [°C]',
+                    (-.3,-0.6),
+                    xycoords=ax.transAxes,
+                    fontsize=12,
+                    rotation='vertical',
+                    color='gray',
+                    fontweight='bold',        
+                )            
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+        if n >= 3:
+            ax.set_xlabel('Birth year',fontsize=12,color='gray')    
+    
+    
+    # ax.annotate(
+    #     letters[l],
+    #     # (1962,ax.get_ylim()[-1]+2),
+    #     (1960,ax.get_ylim()[-1]+3),
+    #     xycoords=ax.transData,
+    #     fontsize=10,
+    #     rotation='horizontal',
+    #     color='k',
+    #     fontweight='bold',
+    # )        
+ 
+    f.savefig('./figures/pf_heatmap_combined_simlim.png',dpi=1000,bbox_inches='tight')
+    f.savefig('./figures/pf_heatmap_combined_simlim.eps',format='eps',bbox_inches='tight')
+    plt.show()     
+    
+    # --------------------------------------------------------------------
+    # population fractions with all simulations
+    
+    # loop through extremes and concat pop and pop frac
+    list_extrs_pf = []
+    for extr in extremes:
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+            ds_pf_gs_extr = pk.load(file)    
+        p = ds_pf_gs_extr['unprec'].loc[{
+            'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+        }].sum(dim='country')       
+        p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
+        list_extrs_pf.append(p)
+        
+    ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
+    
+    # plot
+    mpl.rcParams['xtick.labelcolor'] = 'gray'
+    mpl.rcParams['ytick.labelcolor'] = 'gray'
+    x=14
+    y=7
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+    for ax,extr in zip(axes.flatten(),extremes):
+        p = ds_pf_gs_extrs.loc[{
+            'hazard':extr,
+            'birth_year':np.arange(1960,2021),
+        }].plot.contourf(
+            x='birth_year',
+            y='GMT',
+            ax=ax,
+            add_labels=False,
+            levels=10,
+            cmap='Reds',
+        ) 
+        
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100,
+            color='gray',
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+            color='gray',
+        )    
+        
+    # ax stuff
+    l=0
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+            color='gray',
+            fontsize=12,
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            fontsize=10,
+        )  
+        l+=1                  
         ax.spines['right'].set_color('gray')
         ax.spines['top'].set_color('gray')
         ax.spines['left'].set_color('gray')
@@ -798,14 +1409,25 @@ def plot_heatmaps_allhazards_egu(
         if not np.isin(n,[0,3]):
             ax.yaxis.set_ticklabels([])
         else:
-            ax.set_ylabel('GMT warming by 2100 [°C]',fontsize=12,color='gray')
+            pass
+        if n == 0:
+            ax.annotate(
+                    'GMT warming by 2100 [°C]',
+                    (-.3,-0.6),
+                    xycoords=ax.transAxes,
+                    fontsize=12,
+                    rotation='vertical',
+                    color='gray',
+                    fontweight='bold',        
+                )            
         if n <= 2:
             ax.tick_params(labelbottom=False)    
         if n >= 3:
             ax.set_xlabel('Birth year',fontsize=12,color='gray')    
- 
-    f.savefig('./figures/pf_heatmap_combined_egu.png',dpi=800)
-    plt.show()     
+    
+    f.savefig('./figures/pf_heatmap_combined_allsims.png',dpi=1000,bbox_inches='tight')
+    f.savefig('./figures/pf_heatmap_combined_allsims.eps',format='eps',bbox_inches='tight')
+    plt.show()         
 
 
 #%% ----------------------------------------------------------------
@@ -1115,6 +1737,7 @@ def boxplot_heatwave_egu(
     )              
     
     f.savefig('./figures/gs_boxplots_heatwave_pf_35.png',dpi=800,bbox_inches='tight')
+    f.savefig('./figures/gs_boxplots_heatwave_pf_35.eps',format='eps',bbox_inches='tight')
     
     
 # %% ======================================================================================================
@@ -1569,7 +2192,7 @@ def plot_conceptual_egu_full(
     colors = dict(zip(GMT_indices_plot,['steelblue','darkgoldenrod','darkred']))
     x=5
     y=1
-
+    l = 0
     gmt_legend={
         GMT_indices_plot[0]:'1.5',
         GMT_indices_plot[1]:'2.5',
@@ -1585,7 +2208,8 @@ def plot_conceptual_egu_full(
         da_test_city.loc[{'birth_year':1960,'GMT':step}].plot.line(
             ax=ax,
             color=colors[step],
-            linewidth=1
+            linewidth=1,
+            # add_labels=False,
         )
         # bold line for emergence
         da = da_test_city.loc[{'birth_year':1960,'GMT':step}]
@@ -1595,9 +2219,29 @@ def plot_conceptual_egu_full(
             color=colors[step],
             linewidth=3,
             zorder=4,
+            # add_labels=False,
         )
+        
+    # ax.set_title(None)
+    # ax.annotate(
+    #     letters[l],
+    #     # (1962,ax.get_ylim()[-1]+2),
+    #     (1960,ax.get_ylim()[-1]+3),
+    #     xycoords=ax.transData,
+    #     fontsize=10,
+    #     rotation='horizontal',
+    #     color='k',
+    #     fontweight='bold',
+    # )    
+    # l+=1    
+    # ax.set_title(
+    #     letters[l],
+    #     loc='left',
+    #     fontweight='bold',
+    #     fontsize=10,
+    # )
+    # l+=1        
     end_year=1960+np.floor(df_life_expectancy_5.loc[1960,cntry])
-    ax.set_title(None)
     ax.set_ylabel(None)
     ax.set_xlabel(None)
     ax.set_xticks(np.arange(1960,2031,10))
@@ -1607,12 +2251,26 @@ def plot_conceptual_egu_full(
     # ax.tick_params(labelleft=False)    
     ax.annotate(
         'Born in 1960',
-        (1962,ax.get_ylim()[-1]+2),
+        # (1962,ax.get_ylim()[-1]+2),
+        (1965,ax.get_ylim()[-1]+2),
         xycoords=ax.transData,
         fontsize=10,
         rotation='horizontal',
         color='gray',
-    )
+    )    
+    ax.set_title(None)
+    ax.annotate(
+        letters[l],
+        # (1962,ax.get_ylim()[-1]+2),
+        (1960,ax.get_ylim()[-1]+2),
+        xycoords=ax.transData,
+        fontsize=10,
+        rotation='horizontal',
+        color='k',
+        fontweight='bold',
+    )    
+    l+=1      
+      
     ax.set_xlim(
         1960,
         end_year,
@@ -1683,6 +2341,13 @@ def plot_conceptual_egu_full(
     ax_pdf.tick_params(colors='gray')
     ax_pdf.spines['left'].set_color('gray')
     ax_pdf.spines['bottom'].set_color('gray')
+    ax_pdf.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10,
+    )
+    l+=1
         
     # ------------------------------------------------------------------       
     # 1990 time series
@@ -1702,6 +2367,7 @@ def plot_conceptual_egu_full(
             ax=ax2,
             color=colors[step],
             linewidth=1,
+            # add_labels=False,
         )
         # bold line for emergence
         da = da_test_city.loc[{'birth_year':1990,'GMT':step}]
@@ -1711,9 +2377,33 @@ def plot_conceptual_egu_full(
             color=colors[step],
             linewidth=3,
             zorder=4,
+            # add_labels=False,
         )    
+        
+    # ax2.set_title(None)
+    # # ax2.set_title(
+    # #     letters[l],
+    # #     loc='left',
+    # #     fontweight='bold',
+    # #     fontsize=10,
+    # # )
+    # ax2.annotate(
+    #     letters[l],
+    #     (1990,ax2.get_ylim()[-1]),
+    #     xycoords=ax2.transData,
+    #     fontsize=10,
+    #     rotation='horizontal',
+    #     color='k',
+    #     fontweight='bold',
+    # )     
+    # l+=1              
     end_year=1990+np.floor(df_life_expectancy_5.loc[1990,cntry])
-    ax2.set_title(None)
+    # ax2.set_title(
+    #     letters[l],
+    #     loc='left',
+    #     fontweight='bold',
+    # )
+    # l+=1
     ax2.set_ylabel(None)
     ax2.set_xlabel(None)
     ax2.set_yticks([0,5,10])
@@ -1736,6 +2426,45 @@ def plot_conceptual_egu_full(
     ax2.tick_params(colors='gray')
     ax2.spines['left'].set_color('gray')
     ax2.spines['bottom'].set_color('gray')
+    
+    ax2.annotate(
+        'Born in 1990',
+        # (1992,ax2.get_ylim()[-1]),
+        (1995,ax2.get_ylim()[-1]),
+        xycoords=ax2.transData,
+        fontsize=10,
+        rotation='horizontal',
+        color='gray',
+    )
+    ax2.set_title(None)
+    # ax2.set_title(
+    #     letters[l],
+    #     loc='left',
+    #     fontweight='bold',
+    #     fontsize=10,
+    # )
+    ax2.annotate(
+        letters[l],
+        (1990,ax2.get_ylim()[-1]),
+        xycoords=ax2.transData,
+        fontsize=10,
+        rotation='horizontal',
+        color='k',
+        fontweight='bold',
+    )     
+    l+=1        
+    
+    # ax2.set_title(None)
+    # ax2.annotate(
+    #     letters[l],
+    #     # (1962,ax.get_ylim()[-1]+2),
+    #     (1990,ax2.get_ylim()[-1]),
+    #     xycoords=ax.transData,
+    #     fontsize=10,
+    #     rotation='horizontal',
+    #     color='k',
+    #     fontweight='bold',
+    # )       
 
     # get time of first line to cross PIC thresh
     emergences = []
@@ -1755,15 +2484,7 @@ def plot_conceptual_egu_full(
         linestyle='--', 
         label='99.99%', 
         zorder=1
-    )
-    ax2.annotate(
-        'Born in 1990',
-        (1992,ax2.get_ylim()[-1]),
-        xycoords=ax2.transData,
-        fontsize=10,
-        rotation='horizontal',
-        color='gray',
-    )
+    )        
 
     # 1990 pdf
     ax2_pdf_l = end_year+5
@@ -1810,6 +2531,24 @@ def plot_conceptual_egu_full(
     ax2_pdf.tick_params(colors='gray')
     ax2_pdf.spines['left'].set_color('gray')
     ax2_pdf.spines['bottom'].set_color('gray')
+    ax2_pdf.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10,
+    )
+    l+=1   
+    
+    ax2_pdf.annotate(
+        '{} \npeople'.format(str(int(np.round(ds_dmg['by_population_y0'].sel({'birth_year':1990,'lat':city_lat,'lon':city_lon},method='nearest').item())))),
+        # (1962,ax.get_ylim()[-1]+2),
+        (1.1,0.6),
+        xycoords=ax2_pdf.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )             
 
     # ------------------------------------------------------------------   
     # 2020 time series
@@ -1828,7 +2567,8 @@ def plot_conceptual_egu_full(
         da_test_city.loc[{'birth_year':2020,'GMT':step}].plot.line(
             ax=ax3,
             color=colors[step],
-            linewidth=1
+            linewidth=1,
+            # add_labels=False,
         )
         # bold line for emergence
         da = da_test_city.loc[{'birth_year':2020,'GMT':step}]
@@ -1838,6 +2578,7 @@ def plot_conceptual_egu_full(
             color=colors[step],
             linewidth=3,
             zorder=4,
+            # add_labels=False,
         )    
     # plot std uncertainty bars
     # for step in GMT_indices_plot:
@@ -1849,7 +2590,27 @@ def plot_conceptual_egu_full(
     #         alpha=0.2
     #     )
     end_year=2020+np.floor(df_life_expectancy_5.loc[2020,cntry])
-    ax3.set_title(None)
+    # ax3.set_title(None)
+    # ax3.set_title(
+    #     letters[l],
+    #     loc='left',
+    #     fontweight='bold',
+    #     fontsize=10,
+    # )
+    # l+=1  
+    # ax3.set_title(None)
+    # ax3.annotate(
+    #     letters[l],
+    #     # (1962,ax.get_ylim()[-1]+2),
+    #     (2020,ax3.get_ylim()[-1]),
+    #     xycoords=ax3.transData,
+    #     fontsize=10,
+    #     rotation='horizontal',
+    #     color='k',
+    #     fontweight='bold',
+    # ) 
+    # l+=1        
+    
     ax3.set_ylabel(None)
     ax3.set_xlabel(None)
     ax3.set_yticks([0,5,10,15,20,25])
@@ -1894,12 +2655,38 @@ def plot_conceptual_egu_full(
     )
     ax3.annotate(
         'Born in 2020',
-        (2022,ax3.get_ylim()[-1]),
+        # (2022,ax3.get_ylim()[-1]),
+        (2025,ax3.get_ylim()[-1]),
         xycoords=ax3.transData,
         fontsize=10,
         rotation='horizontal',
         color='gray',
     )
+    ax3.set_title(None)
+    ax3.annotate(
+        letters[l],
+        # (1962,ax.get_ylim()[-1]+2),
+        (2020,ax3.get_ylim()[-1]),
+        xycoords=ax3.transData,
+        fontsize=10,
+        rotation='horizontal',
+        color='k',
+        fontweight='bold',
+    ) 
+    l+=1      
+    
+    # ax3.set_title(None)
+    # ax3.annotate(
+    #     letters[l],
+    #     # (1962,ax.get_ylim()[-1]+2),
+    #     (2020,ax3.get_ylim()[-1]),
+    #     xycoords=ax.transData,
+    #     fontsize=10,
+    #     rotation='horizontal',
+    #     color='k',
+    #     fontweight='bold',
+    # ) 
+    # l+=1       
 
     # 2020 pdf
     ax3_pdf_l = end_year+5
@@ -1946,6 +2733,24 @@ def plot_conceptual_egu_full(
     ax3_pdf.tick_params(colors='gray')
     ax3_pdf.spines['left'].set_color('gray')
     ax3_pdf.spines['bottom'].set_color('gray')
+    ax3_pdf.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10,
+    )
+    l+=1  
+    
+    ax3_pdf.annotate(
+        '{} \npeople'.format(str(int(np.round(ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest').item())))),
+        # (1962,ax.get_ylim()[-1]+2),
+        (1.1,0.6),
+        xycoords=ax3_pdf.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )                   
 
     # City name
     ax3.annotate(
@@ -2086,11 +2891,12 @@ def plot_conceptual_egu_full(
     )      
 
     f.savefig('./figures/concept_{}_{}_egu.png'.format(city_name,cntry),dpi=900,bbox_inches='tight')
+    f.savefig('./figures/concept_{}_{}_egu.eps'.format(city_name,cntry),format='eps',bbox_inches='tight')
 
     # population estimates
     ds_dmg['population'].sel({'time':1990,'lat':city_lat,'lon':city_lon},method='nearest').sum(dim='age')
 
-    ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest')
+    ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest').item()
 
 # %% ======================================================================================================
 
