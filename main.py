@@ -90,10 +90,11 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
                                                # 1: load those^ pickles
-flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
-                                    # 1: process/load those^ pickles                                     
-flags['testing'] = 0                           
-flags['plot'] = 0
+flags['gridscale_union'] = 1        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
+                                    # 1: process/load those^ pickles                                                          
+flags['plot_ms'] = 1 # 1 yes plot, 0 no plot
+flags['plot_si'] = 1
+flags['testing'] = 0      
 
 # TODO: add rest of flags
 
@@ -450,439 +451,87 @@ if flags['gridscale_union']:
         countries_mask,
         countries_regions,
     )
-
+    
 #%% ----------------------------------------------------------------
-# plot
-# ------------------------------------------------------------------   
+# main text plots
+# ------------------------------------------------------------------       
 
-if flags['plot']:
-    
-    from plot import *
-    
-    plot_stylized_trajectories(
-        df_GMT_strj,
-        GMT_indices,
-        d_isimip_meta,
-    )    
-    
-    plot_sims_per_gmt(
-        GMT_indices_plot,    
-    )    
-    
-    plot_trend(
-        ds_e,
-        flags,
-        gdf_country_borders,
-        df_GMT_strj,
-        GMT_indices,
-        grid_area,
-    )    
-    
-    plot_le_by_GMT_strj(
-        ds_le,
-        df_GMT_strj,
-        ds_cohorts,
-        flags
-    )   
-    
-    plot_pf_ae_by_lines(
-        ds_pf_strj,
-        ds_ae_strj,
-        df_GMT_strj,
-        ds_cohorts,
-        flags,
-    )                  
-    
-    # heatmap of p, pf and ae for country-scale (gmt vs by)
-    plot_p_pf_ae_cs_heatmap(
-        ds_pf_strj,
-        ds_ae_strj,
-        df_GMT_strj,
-        ds_cohorts,
-        flags,
-    )
-    
-    # same heatmap for for grid scale (gmt vs by)
-    plot_p_pf_ae_gs_heatmap(
-        ds_pf_gs,
-        ds_ae_gs,
-        df_GMT_strj,
-        da_gs_popdenom,
-        flags,
-    )    
-    
-    # plotting unprecedented population totals between country level and gridscale level for given region 
-    boxplot_cs_vs_gs_p(
-        ds_pf_strj,
-        ds_pf_gs,
-        df_GMT_strj,
-        flags,
-        sims_per_step,
-        gridscale_countries,
-        ds_cohorts,
-    )    
-    
-    # plotting unprecedented population fracs between country and gridscale levels for given region
-    boxplot_cs_vs_gs_pf(
-        ds_cohorts,
-        da_gs_popdenom,
-        ds_pf_strj,
-        ds_pf_gs,
-        df_GMT_strj,
-        flags,
-        sims_per_step,
-        gridscale_countries,
-    )    
-    
-    # plotting the pf and ae per sim for given GMT and birth year (using country scale)
-    scatter_pf_ae_cs(
-        ds_ae_strj,
-        ds_cohorts,
-        df_GMT_strj,
-        ds_pf_strj,
-        flags,
-    )    
-    
-    # plotting the pf and ae per sim for given GMT and birth year (using grid scale)
-    scatter_pf_ae_gs(
-        ds_ae_gs,
-        df_GMT_strj,
-        ds_pf_gs,
-        da_gs_popdenom,
-        flags,
-    )        
-    
-    # plotting the number of simulations available per GMT step for flags['extr']    
-    lineplot_simcounts(
-        d_isimip_meta,
-        flags,
-    )
-    
-    # plot of heatwave heatmap, scatter plot and maps of 1, 2 and 3 degree pop unprecedented across countries
-    combined_plot_hw_p(
-        df_GMT_strj,
-        ds_pf_gs,
-        da_gs_popdenom,
-        gdf_country_borders,
-        sims_per_step,
-        flags,
-    )    
-    
-    # plot of heatwave heatmap, scatter plot and maps of 1, 2 and 3 degree pop frac unprecedented across countries - country scale
-    combined_plot_hw_pf_cs(
-        df_GMT_strj,
-        ds_pf_strj,
-        ds_cohorts,
-        gdf_country_borders,
-        sims_per_step,
-        flags,
-    )
-        
-    # plot of heatwave heatmap, scatter plot and maps of 1, 2 and 3 degree pop frac unprecedented across countries - gridscale
-    combined_plot_hw_pf_gs(
-        df_GMT_strj,
-        ds_pf_gs,
-        da_gs_popdenom,
-        gdf_country_borders,
-        sims_per_step,
-        flags,
-    )
-    
-    # plot change in emergence for 3 degrees between 1960 and 2020 birth cohorts
-    emergence_union_plot(
-        grid_area,
-        da_emergence_union,
-        da_emergence_mean,
-    )    
-    
-    # combined heatmap plots of absolute pop and pop frac for all hazards computed @ grid scale
-    plot_p_pf_gs_heatmap_combined(
-        df_GMT_strj,
-        da_gs_popdenom,
-    )    
-    
-    # combined heatmap plots of absolute pop and pop frac for all hazards computed @ country scale
-    plot_p_pf_cs_heatmap_combined(
-        df_GMT_strj,
-    )  
-    
-    # box plots of unprecedented population fracs for all hazards computed @ grid scale
-    boxplot_combined_gs_pf(
-        da_gs_popdenom,
-        flags,   
-    )
-    
-    # egu plot
-    boxplot_heatwave_gs_pf(
-        da_gs_popdenom,
-        flags,   
-    )    
-    
-    # box plots of unprecedented population fracs for all hazards computed @ country scale
-    boxplot_combined_cs_pf(
-        ds_cohorts,
-        gridscale_countries,
-        flags,
-    )    
-    
-    # box plots of unprecedented population totals for all hazards computed at grid scale
-    boxplot_combined_gs_p(
-        flags,   
-    )   
-    
-    # box plots of unprecedented population totals for all hazards computed at country scale
-    boxplot_combined_cs_p(
-        flags,   
-        gridscale_countries,
-    )    
-    
-    # combined heatmaps across hazards of age emergence computed at grid scale
-    plot_ae_gs_heatmap_combined(
-        da_gs_popdenom,
-    )    
-    
-    # combined heatmaps across hazards of age emergence computed at country scale
-    plot_ae_cs_heatmap_combined(
-        ds_cohorts,
-    )
-    
-    # conceptual figure
+if flags['plot_ms']:
+
+    from plot_ms import *
+
+    # f1 of ms, conceptual figure of city grid cell
     plot_conceptual(
         da_cohort_size,
         countries_mask,
         countries_regions,
         d_isimip_meta,
-        flags,     
+        flags,
         df_life_expectancy_5,
     )
 
-#%% ----------------------------------------------------------------
-# egu plots
-# ------------------------------------------------------------------   
+    # f2 of ms, combined heatwave plot
+    plot_combined(
+        df_GMT_strj,
+        ds_pf_gs,
+        da_gs_popdenom,
+        gdf_country_borders,
+        sims_per_step,
+        flags,
+    )
 
-# notes:
-# concept figure;
-    # set y axis labels for t series
-    # remove x axis left of y axis on top and mid panels?
-        # hard
-    # pop lines for 1960 one by one and same with histogram
-# box plot
-    # pop 1.5, 2.5 and 3.5
-# combined plot
-    # remove lettering, increase colorbar title label
-    # on t series, find start and end percentages
-    # maps can have frac of countries with majority (>50%) emergence
-        # add this via pp but get data here
-# all hazards
-    # red colouring
-    # 
-# emergence plot
-    # remove lettering
-    # pop number of hazards, explain better (these are locations of emergence in our simulations, this is the sum of emergences from all hazards),
-    # 
+    # f3 of heatmaps across all hazards
+    plot_heatmaps_allhazards(
+        df_GMT_strj,
+        da_gs_popdenom,
+    )
+
+    # f4 of emergence union plot for hazards between 1960 and 2020 in a 2.7 degree world
+    plot_emergence_union(
+        grid_area,
+        da_emergence_union,
+        da_emergence_mean,
+    )
+
+#%% ----------------------------------------------------------------
+# supplementary text plots
+# ------------------------------------------------------------------  
+
+if flags['plot_si']:
+
+    from plot_si import *
+
+    # pf time series for 2020 birth year across GMTs
+    plot_pf_gmt_tseries_allhazards(
+        df_GMT_strj,
+        da_gs_popdenom,
+    )
     
-from plot_egu import *
-
-# conceptual figure
-plot_conceptual_egu_full(
-    da_cohort_size,
-    countries_mask,
-    countries_regions,
-    d_isimip_meta,
-    flags,     
-    df_life_expectancy_5,
-)
-
-plot_conceptual_egu_1960_15(
-    da_cohort_size,
-    countries_mask,
-    countries_regions,
-    d_isimip_meta,
-    flags,     
-    df_life_expectancy_5,
-)
-
-plot_conceptual_egu_1990(
-    da_cohort_size,
-    countries_mask,
-    countries_regions,
-    d_isimip_meta,
-    flags,     
-    df_life_expectancy_5,
-)
-
-plot_conceptual_egu_2020(
-    da_cohort_size,
-    countries_mask,
-    countries_regions,
-    d_isimip_meta,
-    flags,     
-    df_life_expectancy_5,
-)
-
-# heatwave box plot
-boxplot_heatwave_egu(
-    da_gs_popdenom,
-    flags,   
-)   
-
-# plot of heatwave heatmap, scatter plot and maps of 1, 2 and 3 degree pop frac unprecedented across countries - gridscale
-combined_plot_egu(
-    df_GMT_strj,
-    ds_pf_gs,
-    da_gs_popdenom,
-    gdf_country_borders,
-    sims_per_step,
-    flags,
-)
-
-# plot of heatwave box plot, scatter plot and maps of 1, 2 and 3 degree pop frac unprecedented across countries - gridscale
-combined_plot_boxplot(
-    df_GMT_strj,
-    ds_pf_gs,
-    da_gs_popdenom,
-    gdf_country_borders,
-    sims_per_step,
-    flags,
-)
-
-# heatmaps
-plot_heatmaps_allhazards_egu(
-    df_GMT_strj,
-    da_gs_popdenom,
-)
-
-# plot change in emergence for 3 degrees between 1960 and 2020 birth cohorts
-emergence_union_plot_egu(
-    grid_area,
-    da_emergence_union,
-    da_emergence_mean,
-)    
-
-#%% ----------------------------------------------------------------
-# age emergence & pop frac testing
-# ------------------------------------------------------------------   
-
-ds_spatial = xr.Dataset(
-    data_vars={
-        'cumulative_exposure': (
-            ['run','GMT','birth_year','time','lat','lon'],
-            np.full(
-                (len(list(d_isimip_meta.keys())),
-                len(GMT_indices_plot),
-                len(concept_bys),
-                len(year_range),
-                len(da_cntry.lat.data),
-                len(da_cntry.lon.data)),
-                fill_value=np.nan,
-            ),
-        ),
-    },
-    coords={
-        'lat': ('lat', da_cntry.lat.data),
-        'lon': ('lon', da_cntry.lon.data),
-        'birth_year': ('birth_year', concept_bys),
-        'time': ('time', year_range),
-        'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
-        'GMT': ('GMT', GMT_indices_plot)
-    }
-)
-
-# load demography pickle
-with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
-    ds_dmg = pk.load(f)                  
-
-# loop over simulations
-for i in list(d_isimip_meta.keys()): 
-
-    print('simulation {} of {}'.format(i,len(d_isimip_meta)))
-
-    # load AFA data of that run
-    with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
-        da_AFA = pk.load(f)
-        
-    # mask to sample country and reduce spatial extent
-    da_AFA = da_AFA.where(ds_dmg['country_extent']==1,drop=True)
+    # pf time series for 2.7 degree world across birth years
+    plot_pf_by_tseries_allhazards(
+        flags,
+        df_GMT_strj,
+        da_gs_popdenom,
+    )   
     
-    for step in GMT_indices_plot:
-        
-        if d_isimip_meta[i]['GMT_strj_valid'][step]:
-            
-            da_AFA_step = da_AFA.reindex(
-                {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
-            ).assign_coords({'time':year_range})                     
-                                
-            # simple lifetime exposure sum
-            da_le = xr.concat(
-                [(da_AFA_step.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].cumsum(dim='time') +\
-                da_AFA_step.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()) *\
-                (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
-                for by in concept_bys],
-                dim='birth_year',
-            ).assign_coords({'birth_year':concept_bys})
-            
-            da_le = da_le.reindex({'time':year_range})
-            
-            ds_spatial['cumulative_exposure'].loc[{
-                'run':i,
-                'GMT':step,
-                'birth_year':concept_bys,
-                'time':year_range,
-                'lat':ds_dmg['country_extent'].lat.data,
-                'lon':ds_dmg['country_extent'].lon.data,
-            }] = da_le.loc[{
-                'birth_year':concept_bys,
-                'time':year_range,
-                'lat':ds_dmg['country_extent'].lat.data,
-                'lon':ds_dmg['country_extent'].lon.data,
-            }]
-            
-            
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+    # pf box plots for 1.5, 2.5 and 3.5 degree world across birth years
+    plot_boxplots_allhazards(
+        da_gs_popdenom,
+        df_GMT_strj,
+        flags,
+    )     
+    
+    # pf maps for 1..5, 2.5, 3.5 for all hazards
+    plot_pf_maps_allhazards(
+        da_gs_popdenom,
+        gdf_country_borders,
+    )    
 
-robinson = ccrs.Robinson().proj4_init
-df_le = ds_le['lifetime_exposure'].sel(birth_year=2020,GMT=24).weighted(ds_cohorts['by_y0_weights'].sel(birth_year=2020)).mean(dim='run').to_dataframe().reset_index()
-gdf = cp(gdf_country_borders.reset_index())
-gdf_le = cp(gdf_country_borders.reset_index())
-gdf_le['le'] = df_le['lifetime_exposure']
-
-f,ax = plt.subplots(
-    subplot_kw = dict(projection=ccrs.Robinson())
-)
-pos_ax = ax.get_position()
-cax = f.add_axes([
-    pos_ax.x0+0.7,
-    pos_ax.y0+0.112,
-    0.05,
-    pos_ax.height*0.7
-])
-
-ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'),zorder=1)
-
-gdf_le.to_crs(robinson).plot(
-    column='le',
-    legend=True,
-    cax=cax,
-    # levels=9,
-    ax=ax,
-    zorder=2,
-)
-gdf.to_crs(robinson).plot(
-    # column='le',
-    # cax=cax,
-    ax=ax,
-    zorder=3,
-    color='none',
-    edgecolor='black',
-    linewidth=0.25,
-)           
-
-f.savefig('./figures/lifetime_exposure_ex.png',dpi=900,bbox_inches='tight')
 
 #%% ----------------------------------------------------------------
-# age emergence & pop frac testing
+# testing and plot building
 # ------------------------------------------------------------------        
-
+    
 if flags['testing']:
     
     pass
