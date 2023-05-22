@@ -1498,7 +1498,7 @@ def plot_emergence_union(
     ax11 = f.add_subplot(gsn0[4],projection=ccrs.Robinson())
     ax21 = f.add_subplot(gsn0[5],projection=ccrs.Robinson())       
     
-    # union map
+    # colorbar
     pos0 = ax0.get_position()
     cax = f.add_axes([
         pos0.x0+0.19,
@@ -1699,5 +1699,7 @@ def plot_emergence_union(
     la_frac_eu_gteq3 = xr.where(eu>=3,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon'))
     print(la_frac_eu_gteq3)    
         
-    f.savefig('./ms_figures/emergence_union.png',dpi=1000)
+    # f.savefig('./ms_figures/emergence_union.png',dpi=1000)
 
+
+# %%

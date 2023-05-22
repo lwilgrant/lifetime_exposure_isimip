@@ -805,7 +805,7 @@ def get_gridscale_union(
                         (len(extremes),len(GMT_labels),len(birth_years),len(da_population.lat.data),len(da_population.lon.data)),
                         fill_value=np.nan,
                     ),
-                ),        
+                ),                           
                 'emergence_union': (
                     ['GMT','birth_year','lat','lon'],
                     np.full(
@@ -886,11 +886,12 @@ def get_gridscale_union(
                             }] = da_birthyear_emergence_mask
                             
                     # compute mean for extreme - country - GMT, assign into greater dataset for eventual union
-                    da_loc = ds_cntry_emergence['emergence'].loc[{
+                    da_loc_mean = ds_cntry_emergence['emergence'].loc[{
                         'run':sims_per_step[step],
                         'lat':da_cntry.lat.data,
                         'lon':da_cntry.lon.data,
                     }].where(da_cntry==1).mean(dim='run')
+                    
                     ds_emergence_union['emergence_mean'].loc[{
                         'hazard':extr,
                         'GMT':step,
@@ -898,10 +899,10 @@ def get_gridscale_union(
                         'lat':da_cntry.lat.data,
                         'lon':da_cntry.lon.data,
                     }] = xr.where(
-                        da_loc.notnull(),
-                        da_loc,
+                        da_loc_mean.notnull(),
+                        da_loc_mean,
                         ds_emergence_union['emergence_mean'].loc[{'hazard':extr,'GMT':step,'birth_year':birth_years,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
-                    )
+                    )                    
                     
         # if mean greater than 0.5, consider emerged on average, sum across hazards for union        
         ds_emergence_union['emergence_union'].loc[{
@@ -919,22 +920,22 @@ def get_gridscale_union(
         with open('./data/pickles/emergence_union.pkl', 'wb') as f:
             pk.dump(ds_emergence_union['emergence_union'],f)     
             
-        da_emergence_mean = ds_emergence_union['emergence_mean'] 
+        da_emergence_mean = ds_emergence_union['emergence_mean']
         da_emergence_union = ds_emergence_union['emergence_union']
         
         # get subsets of these large objects/pickles for plotting locally
         da_emergence_mean_subset = da_emergence_mean.loc[{
-            'GMT':[0,10,19],
+            'GMT':[6,15,17,24],
             'birth_year':[1960,1980,2000,2020],
-        }]
+        }]  
         da_emergence_union_subset = da_emergence_union.loc[{
-            'GMT':[0,10,19],
+            'GMT':[6,15,17,24],
             'birth_year':[1960,1980,2000,2020],
         }]  
         
         # pickle mean emergence
-        with open('./data/pickles/emergence_hazards_subset.pkl', 'wb') as f:
-            pk.dump(da_emergence_mean_subset,f)  
+        with open('./data/pickles/emergence_hazards_mean_subset.pkl', 'wb') as f:
+            pk.dump(da_emergence_mean_subset,f)         
             
         # pickle emergence union
         with open('./data/pickles/emergence_union_subset.pkl', 'wb') as f:

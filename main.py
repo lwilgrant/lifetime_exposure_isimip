@@ -526,11 +526,20 @@ if flags['plot_si']:
         da_gs_popdenom,
         gdf_country_borders,
     )    
+    
+    # emergence fraction plot for hazards between 1960 and 2020 in a 2.7 degree world
+    plot_emergence_fracs(
+        grid_area,
+        da_emergence_union,
+        da_emergence_mean,
+    )    
 
 
 #%% ----------------------------------------------------------------
 # testing and plot building
 # ------------------------------------------------------------------        
+
+    
     
 if flags['testing']:
     
