@@ -55,13 +55,13 @@ def plot_pf_gmt_tseries_allhazards(
     ]
 
     extremes_labels = {
-        'burntarea': 'WF',
-        'cropfailedarea': 'CF',
-        'driedarea': 'DR',
-        'floodedarea': 'FL',
-        'heatwavedarea': 'HW',
-        'tropicalcyclonedarea': 'TC',
-    }         
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
 
     # labels for GMT ticks
     GMT_indices_ticks=[6,12,18,24]
@@ -210,13 +210,13 @@ def plot_pf_by_tseries_allhazards(
     ]
 
     extremes_labels = {
-        'burntarea': 'WF',
-        'cropfailedarea': 'CF',
-        'driedarea': 'DR',
-        'floodedarea': 'FL',
-        'heatwavedarea': 'HW',
-        'tropicalcyclonedarea': 'TC',
-    }         
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
 
     # labels for GMT ticks
     GMT_indices_ticks=[6,12,18,24]
@@ -378,13 +378,13 @@ def plot_boxplots_allhazards(
     ]
 
     extremes_labels = {
-        'burntarea': 'WF',
-        'cropfailedarea': 'CF',
-        'driedarea': 'DR',
-        'floodedarea': 'FL',
-        'heatwavedarea': 'HW',
-        'tropicalcyclonedarea': 'TC',
-    }         
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
 
     # labels for GMT ticks
     GMT_indices_ticks=[6,12,18,24]
@@ -562,13 +562,13 @@ def plot_pf_maps_allhazards(
     cb_edgthic = 0   # colorbar thickness of edges between colors   
 
     extremes_labels = {
-        'burntarea': 'WF',
-        'cropfailedarea': 'CF',
-        'driedarea': 'DR',
-        'floodedarea': 'FL',
-        'heatwavedarea': 'HW',
-        'tropicalcyclonedarea': 'TC',
-    }     
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',+
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
 
     extremes = [
         'burntarea', 
@@ -734,7 +734,6 @@ def plot_pf_maps_allhazards(
 
 def plot_emergence_fracs(
     grid_area,
-    da_emergence_union,
     da_emergence_mean,
 ):
     x=12
@@ -749,6 +748,7 @@ def plot_emergence_fracs(
     cb_ticlen = 3.5   # colorbar length of ticks
     cb_ticwid = 0.4   # colorbar thickness of ticks
     cb_edgthic = 0   # colorbar thickness of edges between colors    
+    density=6
     extremes = [
         'burntarea', 
         'cropfailedarea', 
@@ -758,12 +758,12 @@ def plot_emergence_fracs(
         'tropicalcyclonedarea',
     ]
     extremes_labels = {
-        'burntarea': 'WF',
-        'cropfailedarea': 'CF',
-        'driedarea': 'DR',
-        'floodedarea': 'FL',
-        'heatwavedarea': 'HW',
-        'tropicalcyclonedarea': 'TC',
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
     }  
 
     # colorbar stuff ------------------------------------------------------------
@@ -869,6 +869,16 @@ def plot_emergence_fracs(
             transform=ccrs.PlateCarree(),
             zorder=5
         )    
+        ax.contourf(
+            p1960.lon.data,
+            p1960.lat.data,
+            p1960.where(p1960>0.25).notnull(),
+            levels=[.5,1.5],
+            colors='none',
+            transform=ccrs.PlateCarree(),
+            hatches=[density*'/',density*'/'],
+            zorder=10,
+        )        
         ax.set_title(
             extremes_labels[extr],
             loc='center',
@@ -919,6 +929,16 @@ def plot_emergence_fracs(
             transform=ccrs.PlateCarree(),
             zorder=5
         )    
+        ax.contourf(
+            p2020.lon.data,
+            p2020.lat.data,
+            p2020.where(p2020>0.25).notnull(),
+            levels=[.5,1.5],
+            colors='none',
+            transform=ccrs.PlateCarree(),
+            hatches=[density*'/',density*'/'],
+            zorder=10,
+        )                
         ax.set_title(
             extremes_labels[extr],
             loc='center',

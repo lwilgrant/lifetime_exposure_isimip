@@ -759,427 +759,427 @@ def plot_conceptual(
     ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest').item()
 
 
-# %% ----------------------------------------------------------------
-# Combined plot for heatwaves showing box plots of 1.5, 2.5 and 3.5, 
-# t series of 2020 by and maps of 2020 by for 1.5, 2.5 and 3.5         
+# # %% ----------------------------------------------------------------
+# # Combined plot for heatwaves showing box plots of 1.5, 2.5 and 3.5, 
+# # t series of 2020 by and maps of 2020 by for 1.5, 2.5 and 3.5         
 
-def plot_combined(
-    df_GMT_strj,
-    ds_pf_gs,
-    da_gs_popdenom,
-    gdf_country_borders,
-    sims_per_step,
-    flags,
-):
+# def plot_combined(
+#     df_GMT_strj,
+#     ds_pf_gs,
+#     da_gs_popdenom,
+#     gdf_country_borders,
+#     sims_per_step,
+#     flags,
+# ):
     
-    x=12
-    y=10
-    markersize=10
-    # cbar stuff
-    col_cbticlbl = 'gray'   # colorbar color of tick labels
-    col_cbtic = 'gray'   # colorbar color of ticks
-    col_cbedg = 'gray'   # colorbar color of edge
-    cb_ticlen = 3.5   # colorbar length of ticks
-    cb_ticwid = 0.4   # colorbar thickness of ticks
-    cb_edgthic = 0   # colorbar thickness of edges between colors   
+#     x=12
+#     y=10
+#     markersize=10
+#     # cbar stuff
+#     col_cbticlbl = 'gray'   # colorbar color of tick labels
+#     col_cbtic = 'gray'   # colorbar color of ticks
+#     col_cbedg = 'gray'   # colorbar color of edge
+#     cb_ticlen = 3.5   # colorbar length of ticks
+#     cb_ticwid = 0.4   # colorbar thickness of ticks
+#     cb_edgthic = 0   # colorbar thickness of edges between colors   
     
-    gmt_legend={
-        GMT_indices_plot[0]:'1.5',
-        GMT_indices_plot[1]:'2.5',
-        GMT_indices_plot[2]:'3.5',
-    }     
+#     gmt_legend={
+#         GMT_indices_plot[0]:'1.5',
+#         GMT_indices_plot[1]:'2.5',
+#         GMT_indices_plot[2]:'3.5',
+#     }     
 
-    f = plt.figure(figsize=(x,y))    
-    gs0 = gridspec.GridSpec(4,4)
-    gs0.update(hspace=0.8,wspace=0.8)
-    ax00 = f.add_subplot(gs0[0:2,0:2]) # heatmap
-    ax10 = f.add_subplot(gs0[2:,0:2]) # scatterplot for 2020 by
-    gs00 = gridspec.GridSpecFromSubplotSpec(
-        3,
-        1, 
-        subplot_spec=gs0[:4,2:],
-        # top=0.8
-    )
-    ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
-    ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
-    ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
-    pos00 = ax00.get_position()
-    cax00 = f.add_axes([
-        pos00.x0+0.415,
-        pos00.y0+0.4,
-        pos00.width * 1.125,
-        pos00.height*0.1
-    ])
+#     f = plt.figure(figsize=(x,y))    
+#     gs0 = gridspec.GridSpec(4,4)
+#     gs0.update(hspace=0.8,wspace=0.8)
+#     ax00 = f.add_subplot(gs0[0:2,0:2]) # heatmap
+#     ax10 = f.add_subplot(gs0[2:,0:2]) # scatterplot for 2020 by
+#     gs00 = gridspec.GridSpecFromSubplotSpec(
+#         3,
+#         1, 
+#         subplot_spec=gs0[:4,2:],
+#         # top=0.8
+#     )
+#     ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+#     ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+#     ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+#     pos00 = ax00.get_position()
+#     cax00 = f.add_axes([
+#         pos00.x0+0.415,
+#         pos00.y0+0.4,
+#         pos00.width * 1.125,
+#         pos00.height*0.1
+#     ])
     
-    l = 0 # letter indexing
+#     l = 0 # letter indexing
     
-    # colorbar stuff ------------------------------------------------------------
-    cmap_whole = plt.cm.get_cmap('Reds')
-    levels = np.arange(0,1.01,0.05)
-    colors = [cmap_whole(i) for i in levels[:-1]]
-    cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
-    ticks = np.arange(0,101,10)
-    norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
+#     # colorbar stuff ------------------------------------------------------------
+#     cmap_whole = plt.cm.get_cmap('Reds')
+#     levels = np.arange(0,1.01,0.05)
+#     colors = [cmap_whole(i) for i in levels[:-1]]
+#     cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+#     ticks = np.arange(0,101,10)
+#     norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
 
-    # pop frac box plot ----------------------------------------------------------
-    GMT_indices_ticks=[6,12,18,24]
-    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+#     # pop frac box plot ----------------------------------------------------------
+#     GMT_indices_ticks=[6,12,18,24]
+#     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
 
-    # levels = np.arange(0,1.01,0.05)
-    levels = np.arange(0,101,5)
-    norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
+#     # levels = np.arange(0,1.01,0.05)
+#     levels = np.arange(0,101,5)
+#     norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
 
-    # get data
-    df_list_gs = []
-    extr='heatwavedarea'
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
-        d_isimip_meta = pk.load(file)              
-    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
-        ds_pf_gs_plot = pk.load(file)
-    da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
-        'GMT':GMT_indices_plot,
-        'birth_year':sample_birth_years,
-    }]
-    sims_per_step = {}
-    for step in GMT_labels:
-        sims_per_step[step] = []
-        print('step {}'.format(step))
-        for i in list(d_isimip_meta.keys()):
-            if d_isimip_meta[i]['GMT_strj_valid'][step]:
-                sims_per_step[step].append(i)    
+#     # get data
+#     df_list_gs = []
+#     extr='heatwavedarea'
+#     with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+#         d_isimip_meta = pk.load(file)              
+#     with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+#         ds_pf_gs_plot = pk.load(file)
+#     da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+#         'GMT':GMT_indices_plot,
+#         'birth_year':sample_birth_years,
+#     }]
+#     sims_per_step = {}
+#     for step in GMT_labels:
+#         sims_per_step[step] = []
+#         print('step {}'.format(step))
+#         for i in list(d_isimip_meta.keys()):
+#             if d_isimip_meta[i]['GMT_strj_valid'][step]:
+#                 sims_per_step[step].append(i)    
 
-    for step in GMT_indices_plot:
-        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
-        df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
-        df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
-        df_pf_gs_plot_step['hazard'] = extr
-        df_list_gs.append(df_pf_gs_plot_step)
-    df_pf_gs_plot = pd.concat(df_list_gs)
+#     for step in GMT_indices_plot:
+#         da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
+#         df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+#         df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+#         df_pf_gs_plot_step['hazard'] = extr
+#         df_list_gs.append(df_pf_gs_plot_step)
+#     df_pf_gs_plot = pd.concat(df_list_gs)
     
-    # pf boxplot
-    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
-    p = sns.boxplot(
-        data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
-        x='birth_year',
-        y='pf',
-        hue='GMT_label',
-        palette=colors,
-        showcaps=False,
-        showfliers=False,
-        boxprops={
-            'linewidth':0,
-            'alpha':0.5
-        },        
-        ax=ax00,
-    )
-    p.legend_.remove()                  
-    ax00.spines['right'].set_visible(False)
-    ax00.spines['top'].set_visible(False)      
-    ax00.tick_params(colors='gray')
-    ax00.set_ylim(0,100)
-    ax00.spines['left'].set_color('gray')
-    ax00.spines['bottom'].set_color('gray')      
-    ax00.set_ylabel('$\mathregular{PF_{HW}}$',color='gray',fontsize=14)
-    ax00.set_xlabel('Birth year',color='gray',fontsize=14)       
-    ax00.set_title(
-        letters[l],
-        loc='left',
-        fontweight='bold',
-        fontsize=10
-    )    
-    l+=1 
+#     # pf boxplot
+#     colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+#     p = sns.boxplot(
+#         data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+#         x='birth_year',
+#         y='pf',
+#         hue='GMT_label',
+#         palette=colors,
+#         showcaps=False,
+#         showfliers=False,
+#         boxprops={
+#             'linewidth':0,
+#             'alpha':0.5
+#         },        
+#         ax=ax00,
+#     )
+#     p.legend_.remove()                  
+#     ax00.spines['right'].set_visible(False)
+#     ax00.spines['top'].set_visible(False)      
+#     ax00.tick_params(colors='gray')
+#     ax00.set_ylim(0,100)
+#     ax00.spines['left'].set_color('gray')
+#     ax00.spines['bottom'].set_color('gray')      
+#     ax00.set_ylabel('$\mathregular{PF_{Heatwaves}}$',color='gray',fontsize=14)
+#     ax00.set_xlabel('Birth year',color='gray',fontsize=14)       
+#     ax00.set_title(
+#         letters[l],
+#         loc='left',
+#         fontweight='bold',
+#         fontsize=10
+#     )    
+#     l+=1 
     
-    # bbox
-    x0 = 0.075
-    y0 = 0.7
-    xlen = 0.2
-    ylen = 0.3
+#     # bbox
+#     x0 = 0.075
+#     y0 = 0.7
+#     xlen = 0.2
+#     ylen = 0.3
     
-    # space between entries
-    legend_entrypad = 0.5
+#     # space between entries
+#     legend_entrypad = 0.5
     
-    # length per entry
-    legend_entrylen = 0.75
+#     # length per entry
+#     legend_entrylen = 0.75
     
-    legend_font = 10
-    legend_lw=3.5   
+#     legend_font = 10
+#     legend_lw=3.5   
     
-    legendcols = list(colors.values())
-    handles = [
-        Rectangle((0,0),1,1,color=legendcols[0]),\
-        Rectangle((0,0),1,1,color=legendcols[1]),\
-        Rectangle((0,0),1,1,color=legendcols[2])
-    ]
+#     legendcols = list(colors.values())
+#     handles = [
+#         Rectangle((0,0),1,1,color=legendcols[0]),\
+#         Rectangle((0,0),1,1,color=legendcols[1]),\
+#         Rectangle((0,0),1,1,color=legendcols[2])
+#     ]
     
-    labels= [
-        '1.5 °C GMT warming by 2100',
-        '2.5 °C GMT warming by 2100',
-        '3.5 °C GMT warming by 2100',    
-    ]
+#     labels= [
+#         '1.5 °C GMT warming by 2100',
+#         '2.5 °C GMT warming by 2100',
+#         '3.5 °C GMT warming by 2100',    
+#     ]
     
-    ax00.legend(
-        handles, 
-        labels, 
-        bbox_to_anchor=(x0, y0, xlen, ylen), 
-        loc = 'upper left',
-        ncol=1,
-        fontsize=legend_font, 
-        mode="expand", 
-        borderaxespad=0.,\
-        frameon=False, 
-        columnspacing=0.05, 
-        handlelength=legend_entrylen, 
-        handletextpad=legend_entrypad
-    )            
+#     ax00.legend(
+#         handles, 
+#         labels, 
+#         bbox_to_anchor=(x0, y0, xlen, ylen), 
+#         loc = 'upper left',
+#         ncol=1,
+#         fontsize=legend_font, 
+#         mode="expand", 
+#         borderaxespad=0.,\
+#         frameon=False, 
+#         columnspacing=0.05, 
+#         handlelength=legend_entrylen, 
+#         handletextpad=legend_entrypad
+#     )            
     
-    # bracket connecting 2020 in box plot to tseries plot panel ------------------
+#     # bracket connecting 2020 in box plot to tseries plot panel ------------------
     
-    # vertical line
-    x_h=0.95
-    y_h=-.075
-    x_s=0.995
-    y_s=1.05    
-    con = ConnectionPatch(
-        xyA=(x_h,y_h),
-        xyB=(x_s,y_s),
-        coordsA=ax00.transAxes,
-        coordsB=ax10.transAxes,
-        color='dimgray',
-    )
-    ax00.add_artist(con)         
+#     # vertical line
+#     x_h=0.95
+#     y_h=-.075
+#     x_s=0.995
+#     y_s=1.05    
+#     con = ConnectionPatch(
+#         xyA=(x_h,y_h),
+#         xyB=(x_s,y_s),
+#         coordsA=ax00.transAxes,
+#         coordsB=ax10.transAxes,
+#         color='dimgray',
+#     )
+#     ax00.add_artist(con)         
     
-    # horizontal line
-    x_s2=0.075
-    y_s2=y_s
-    con = ConnectionPatch(
-        xyA=(x_s,y_s),
-        xyB=(x_s2,y_s2),
-        coordsA=ax10.transAxes,
-        coordsB=ax10.transAxes,
-        color='dimgray'
-    )
-    ax00.add_artist(con)    
+#     # horizontal line
+#     x_s2=0.075
+#     y_s2=y_s
+#     con = ConnectionPatch(
+#         xyA=(x_s,y_s),
+#         xyB=(x_s2,y_s2),
+#         coordsA=ax10.transAxes,
+#         coordsB=ax10.transAxes,
+#         color='dimgray'
+#     )
+#     ax00.add_artist(con)    
     
-    # brace outliers
-    # left 
-    x_s3=x_s2-0.025
-    y_s3=y_s2-0.05  
-    con = ConnectionPatch(
-        xyA=(x_s2,y_s2),
-        xyB=(x_s3,y_s3),
-        coordsA=ax10.transAxes,
-        coordsB=ax10.transAxes,
-        color='dimgray'
-    )
-    ax10.add_artist(con)       
+#     # brace outliers
+#     # left 
+#     x_s3=x_s2-0.025
+#     y_s3=y_s2-0.05  
+#     con = ConnectionPatch(
+#         xyA=(x_s2,y_s2),
+#         xyB=(x_s3,y_s3),
+#         coordsA=ax10.transAxes,
+#         coordsB=ax10.transAxes,
+#         color='dimgray'
+#     )
+#     ax10.add_artist(con)       
     
-    # right
-    x_s4=x_s+0.025
-    y_s4=y_s-0.05    
-    con = ConnectionPatch(
-        xyA=(x_s,y_s),
-        xyB=(x_s4,y_s4),
-        coordsA=ax10.transAxes,
-        coordsB=ax10.transAxes,
-        color='dimgray'
-    )
-    ax10.add_artist(con)
+#     # right
+#     x_s4=x_s+0.025
+#     y_s4=y_s-0.05    
+#     con = ConnectionPatch(
+#         xyA=(x_s,y_s),
+#         xyB=(x_s4,y_s4),
+#         coordsA=ax10.transAxes,
+#         coordsB=ax10.transAxes,
+#         color='dimgray'
+#     )
+#     ax10.add_artist(con)
 
-    # pop frac t series for 2020 ----------------------------------------------------------
+#     # pop frac t series for 2020 ----------------------------------------------------------
     
-    by=2020
-    da_plt = ds_pf_gs['unprec'].sum(dim='country') # summing converts nans from invalid GMT/run combos to 0, use where below to remove these
-    da_plt_gmt = da_plt.loc[{'birth_year':by}].where(da_plt.loc[{'birth_year':by}]!=0)
-    da_plt_gmt = da_plt_gmt / da_gs_popdenom.loc[{'birth_year':by}].sum(dim='country') * 100
-    ax10.plot(
-        GMT_labels,
-        da_plt_gmt.mean(dim='run').values,
-        linestyle='-',
-        color='darkred'
-    )    
-    ax10.fill_between(
-        da_plt_gmt.GMT.values,
-        y1=da_plt_gmt.max(dim='run').values,
-        y2=da_plt_gmt.min(dim='run').values,
-        color='peachpuff',
-    )
-    ax10.set_ylabel(
-        '$\mathregular{PF_{HW}}$ for 2020 birth cohort', 
-        va='center', 
-        rotation='vertical',
-        labelpad=10,
-        fontsize=14,
-        color='gray',
-    )         
+#     by=2020
+#     da_plt = ds_pf_gs['unprec'].sum(dim='country') # summing converts nans from invalid GMT/run combos to 0, use where below to remove these
+#     da_plt_gmt = da_plt.loc[{'birth_year':by}].where(da_plt.loc[{'birth_year':by}]!=0)
+#     da_plt_gmt = da_plt_gmt / da_gs_popdenom.loc[{'birth_year':by}].sum(dim='country') * 100
+#     ax10.plot(
+#         GMT_labels,
+#         da_plt_gmt.mean(dim='run').values,
+#         linestyle='-',
+#         color='darkred'
+#     )    
+#     ax10.fill_between(
+#         da_plt_gmt.GMT.values,
+#         y1=da_plt_gmt.max(dim='run').values,
+#         y2=da_plt_gmt.min(dim='run').values,
+#         color='peachpuff',
+#     )
+#     ax10.set_ylabel(
+#         '$\mathregular{PF_{Heatwaves}}$ for 2020 birth cohort', 
+#         va='center', 
+#         rotation='vertical',
+#         labelpad=10,
+#         fontsize=14,
+#         color='gray',
+#     )         
      
-    ax10.set_xlabel(
-        'GMT anomaly at 2100 [°C]', 
-        va='center', 
-        labelpad=10,
-        fontsize=14,
-        color='gray'
-    )                                           
-    ax10.set_xticks(
-        ticks=GMT_indices_ticks,
-        labels=gmts2100,
-    )    
-    ax10.set_xlim(
-        GMT_indices_ticks[0]-0.5,
-        GMT_indices_ticks[-1]+0.5,
-    )
-    ax10.spines['right'].set_visible(False)
-    ax10.spines['top'].set_visible(False)    
-    ax10.spines['left'].set_color('gray')
-    ax10.spines['bottom'].set_color('gray')         
-    ax10.tick_params(colors='gray')         
+#     ax10.set_xlabel(
+#         'GMT anomaly at 2100 [°C]', 
+#         va='center', 
+#         labelpad=10,
+#         fontsize=14,
+#         color='gray'
+#     )                                           
+#     ax10.set_xticks(
+#         ticks=GMT_indices_ticks,
+#         labels=gmts2100,
+#     )    
+#     ax10.set_xlim(
+#         GMT_indices_ticks[0]-0.5,
+#         GMT_indices_ticks[-1]+0.5,
+#     )
+#     ax10.spines['right'].set_visible(False)
+#     ax10.spines['top'].set_visible(False)    
+#     ax10.spines['left'].set_color('gray')
+#     ax10.spines['bottom'].set_color('gray')         
+#     ax10.tick_params(colors='gray')         
     
-    handles = [
-        Line2D([0],[0],linestyle='-',color='darkred'),
-        Rectangle((0,0),1,1,color='peachpuff'),
-    ]    
+#     handles = [
+#         Line2D([0],[0],linestyle='-',color='darkred'),
+#         Rectangle((0,0),1,1,color='peachpuff'),
+#     ]    
     
-    labels= [
-        'Mean',
-        'Range',     
-    ]    
-    x0 = 0.55 # bbox for legend
-    y0 = 0.25
-    xlen = 0.2
-    ylen = 0.2    
-    ax10.legend(
-        handles, 
-        labels, 
-        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
-        loc=3,
-        ncol=1,
-        fontsize=legend_font, 
-        mode="expand", 
-        borderaxespad=0.,
-        frameon=False, 
-        columnspacing=0.05, 
-    )      
+#     labels= [
+#         'Mean',
+#         'Range',     
+#     ]    
+#     x0 = 0.55 # bbox for legend
+#     y0 = 0.25
+#     xlen = 0.2
+#     ylen = 0.2    
+#     ax10.legend(
+#         handles, 
+#         labels, 
+#         bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+#         loc=3,
+#         ncol=1,
+#         fontsize=legend_font, 
+#         mode="expand", 
+#         borderaxespad=0.,
+#         frameon=False, 
+#         columnspacing=0.05, 
+#     )      
     
-    ax10.set_title(
-        letters[l],
-        loc='left',
-        fontweight='bold',
-        fontsize=10
-    )    
-    l+=1     
+#     ax10.set_title(
+#         letters[l],
+#         loc='left',
+#         fontweight='bold',
+#         fontsize=10
+#     )    
+#     l+=1     
 
-    # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
+#     # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
 
-    # gmt_indices_123 = [19,10,0]
-    gmt_indices_152535 = [24,15,6]
-    map_letters = {24:'e',15:'d',6:'c'}
-    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
-        'GMT':gmt_indices_152535,
-        'birth_year':by,
-    }]
+#     # gmt_indices_123 = [19,10,0]
+#     gmt_indices_152535 = [24,15,6]
+#     map_letters = {24:'e',15:'d',6:'c'}
+#     da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+#         'GMT':gmt_indices_152535,
+#         'birth_year':by,
+#     }]
     
-    # since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
-    # so we only take sims or runs valid per GMT level and make sure nans are 0
-    df_list_gs = []
-    for step in gmt_indices_152535:
-        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
-        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
-        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
-        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-        df_list_gs.append(df_p_gs_plot_step)
-    df_p_gs_plot = pd.concat(df_list_gs)
-    df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
-    gdf = cp(gdf_country_borders.reset_index())
-    gdf_p = cp(gdf_country_borders.reset_index())
-    robinson = ccrs.Robinson().proj4_init
+#     # since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
+#     # so we only take sims or runs valid per GMT level and make sure nans are 0
+#     df_list_gs = []
+#     for step in gmt_indices_152535:
+#         da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
+#         da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
+#         df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
+#         df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+#         df_list_gs.append(df_p_gs_plot_step)
+#     df_p_gs_plot = pd.concat(df_list_gs)
+#     df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
+#     gdf = cp(gdf_country_borders.reset_index())
+#     gdf_p = cp(gdf_country_borders.reset_index())
+#     robinson = ccrs.Robinson().proj4_init
 
-    for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
-        gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
-        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
-        gdf_p.to_crs(robinson).plot(
-            ax=ax,
-            column='pf',
-            cmap=cmap_list_frac,
-            norm=norm,
-            cax=cax00,
-            zorder=2,
-        )
+#     for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
+#         gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
+#         ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+#         gdf_p.to_crs(robinson).plot(
+#             ax=ax,
+#             column='pf',
+#             cmap=cmap_list_frac,
+#             norm=norm,
+#             cax=cax00,
+#             zorder=2,
+#         )
 
-        gdf.to_crs(robinson).plot(
-            ax=ax,
-            color='none', 
-            edgecolor='black',
-            linewidth=0.25,
-            zorder=3,
-        )
+#         gdf.to_crs(robinson).plot(
+#             ax=ax,
+#             color='none', 
+#             edgecolor='black',
+#             linewidth=0.25,
+#             zorder=3,
+#         )
         
-        ax.set_title(
-            '{} °C'.format(gmt_legend[step]),
-            loc='center',
-            fontweight='bold',
-            fontsize=12,
-            color='gray',       
-        )
+#         ax.set_title(
+#             '{} °C'.format(gmt_legend[step]),
+#             loc='center',
+#             fontweight='bold',
+#             fontsize=12,
+#             color='gray',       
+#         )
         
-        ax.set_title(
-            map_letters[step],
-            loc='left',
-            fontweight='bold',
-            fontsize=10
-        )    
-        l+=1          
+#         ax.set_title(
+#             map_letters[step],
+#             loc='left',
+#             fontweight='bold',
+#             fontsize=10
+#         )    
+#         l+=1          
         
-        # pointers connecting 2020, GMT step pixel in heatmap to map panels ------------------
-        if step == gmt_indices_152535[0]:
-            x_h=1 
-        elif step == gmt_indices_152535[1]:
-            x_h=0.95                      
-        elif step == gmt_indices_152535[-1]:
-            x_h=0.9
-        y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
-        x_m=0
-        y_m=0.5
-        con = ConnectionPatch(
-            xyA=(x_h,y_h),
-            xyB=(x_m,y_m),
-            coordsA=ax00.transAxes,
-            coordsB=ax.transAxes,
-            color='gray'
-        )
-        ax00.add_artist(con)          
+#         # pointers connecting 2020, GMT step pixel in heatmap to map panels ------------------
+#         if step == gmt_indices_152535[0]:
+#             x_h=1 
+#         elif step == gmt_indices_152535[1]:
+#             x_h=0.95                      
+#         elif step == gmt_indices_152535[-1]:
+#             x_h=0.9
+#         y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
+#         x_m=0
+#         y_m=0.5
+#         con = ConnectionPatch(
+#             xyA=(x_h,y_h),
+#             xyB=(x_m,y_m),
+#             coordsA=ax00.transAxes,
+#             coordsB=ax.transAxes,
+#             color='gray'
+#         )
+#         ax00.add_artist(con)          
         
-    cb = mpl.colorbar.ColorbarBase(
-        ax=cax00, 
-        cmap=cmap_list_frac,
-        norm=norm,
-        orientation='horizontal',
-        spacing='uniform',
-        ticks=ticks,
-        drawedges=False,
-    )
+#     cb = mpl.colorbar.ColorbarBase(
+#         ax=cax00, 
+#         cmap=cmap_list_frac,
+#         norm=norm,
+#         orientation='horizontal',
+#         spacing='uniform',
+#         ticks=ticks,
+#         drawedges=False,
+#     )
 
-    cb.set_label(
-        # 'Population % living unprecedented exposure to heatwaves',
-        # '$PF_HW$',
-        '$\mathregular{PF_{HW}}$ for 2020 birth cohort',
-        fontsize=14,
-        color='gray'
-    )
-    cb.ax.xaxis.set_label_position('top')
-    cb.ax.tick_params(
-        labelcolor=col_cbticlbl,
-        color=col_cbtic,
-        length=cb_ticlen,
-        width=cb_ticwid,
-        direction='out'
-    )   
-    cb.outline.set_edgecolor(col_cbedg)
-    cb.outline.set_linewidth(cb_edgthic)   
-    cax00.xaxis.set_label_position('top')                   
+#     cb.set_label(
+#         # 'Population % living unprecedented exposure to heatwaves',
+#         # '$PF_HW$',
+#         '$\mathregular{PF_{Heatwaves}}$ for 2020 birth cohort',
+#         fontsize=14,
+#         color='gray'
+#     )
+#     cb.ax.xaxis.set_label_position('top')
+#     cb.ax.tick_params(
+#         labelcolor=col_cbticlbl,
+#         color=col_cbtic,
+#         length=cb_ticlen,
+#         width=cb_ticwid,
+#         direction='out'
+#     )   
+#     cb.outline.set_edgecolor(col_cbedg)
+#     cb.outline.set_linewidth(cb_edgthic)   
+#     cax00.xaxis.set_label_position('top')                   
 
-    f.savefig('./ms_figures/combined_plot_{}.png'.format(flags['extr']),dpi=1000,bbox_inches='tight')
-    # f.savefig('./figures/combined_boxplots_scatter_maps_{}.eps'.format(flags['extr']),format='eps',bbox_inches='tight')
+#     f.savefig('./ms_figures/combined_plot_{}.png'.format(flags['extr']),dpi=1000,bbox_inches='tight')
+#     # f.savefig('./figures/combined_boxplots_scatter_maps_{}.eps'.format(flags['extr']),format='eps',bbox_inches='tight')
     
-    plt.show()            
+#     plt.show()            
 
 #%% ----------------------------------------------------------------
 # plotting pf heatmaps for grid scale across hazards with and without
@@ -1205,12 +1205,12 @@ def plot_heatmaps_allhazards(
         'tropicalcyclonedarea',
     ]
     extremes_labels = {
-        'burntarea': '$\mathregular{PF_{WF}}$',
-        'cropfailedarea': '$\mathregular{PF_{CF}}$',
-        'driedarea': '$\mathregular{PF_{DR}}$',
-        'floodedarea': '$\mathregular{PF_{FL}}$',
-        'heatwavedarea': '$\mathregular{PF_{HW}}$',
-        'tropicalcyclonedarea': '$\mathregular{PF_{TC}}$',
+        'burntarea': '$\mathregular{PF_{Wildfires}}$',
+        'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
+        'driedarea': '$\mathregular{PF_{Droughts}}$',
+        'floodedarea': '$\mathregular{PF_{Floods}}$',
+        'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
+        'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
     }        
     
     # labels for GMT ticks
@@ -1423,7 +1423,6 @@ def plot_heatmaps_allhazards(
 
 def plot_emergence_union(
     grid_area,
-    da_emergence_union,
     da_emergence_mean,
 ):
     x=12.6
@@ -1438,6 +1437,8 @@ def plot_emergence_union(
     cb_ticlen = 3.5   # colorbar length of ticks
     cb_ticwid = 0.4   # colorbar thickness of ticks
     cb_edgthic = 0   # colorbar thickness of edges between colors    
+    density=6  # density of hatched lines showing frac of sims with emergence
+    sim_frac=0.25  # fraction of sims to show emergence
     extremes = [
         'burntarea', 
         'cropfailedarea', 
@@ -1447,12 +1448,12 @@ def plot_emergence_union(
         'tropicalcyclonedarea',
     ]
     extremes_labels = {
-        'burntarea': 'WF',
-        'cropfailedarea': 'CF',
-        'driedarea': 'DR',
-        'floodedarea': 'FL',
-        'heatwavedarea': 'HW',
-        'tropicalcyclonedarea': 'TC',
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
     }  
     colors=[
         mpl.colors.to_rgb('steelblue'),
@@ -1537,20 +1538,38 @@ def plot_emergence_union(
         color='gray',
         fontweight='bold',
     )          
-
+    
     i+=1
+    
+    # raster of falses to populate based on regions where 25% of projections emerge
+    template_1960 = xr.full_like(
+        da_emergence_mean.sel(hazard='heatwavedarea',GMT=17,birth_year=1960),
+        False
+    )
+    
     for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
         
         ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
-        p3 = da_emergence_mean.loc[{
+        p1960 = da_emergence_mean.loc[{
             'hazard':extr,
             'GMT':17,
             'birth_year':1960,
         }]
-        p3 = xr.where(p3>0,1,0)
-        p3 = p3.where(p3).where(mask.notnull())*3
-        p3.plot(
+        ax.contourf(
+            p1960.lon.data,
+            p1960.lat.data,
+            p1960.where(p1960>sim_frac).notnull(),
+            levels=[.5,1.5],
+            colors='none',
+            transform=ccrs.PlateCarree(),
+            hatches=[density*'/',density*'/'],
+            zorder=10
+        )       
+        template_1960 = template_1960+p1960.where(p1960>sim_frac).notnull()
+        p1960 = xr.where(p1960>0,1,0)
+        p1960 = p1960.where(p1960).where(mask.notnull())*3
+        p1960.plot(
             ax=ax,
             cmap=cmap_list,
             levels=levels,
@@ -1575,11 +1594,12 @@ def plot_emergence_union(
         l+=1    
         i+=1
         
-    p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':1960}].where(mask.notnull())
+    # p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':1960}].where(mask.notnull())
+    p_u1960 = template_1960.where(mask.notnull())
     
     ax0.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
     ax0.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
-    p_u3.plot(
+    p_u1960.plot(
         ax=ax0,
         cmap=cmap_list_union,
         levels=union_levels,
@@ -1608,18 +1628,36 @@ def plot_emergence_union(
         color='gray',
         fontweight='bold',
     )       
+    
+    # list of hatched booleans for 2020
+    template_2020 = xr.full_like(
+        da_emergence_mean.sel(hazard='heatwavedarea',GMT=17,birth_year=2020),
+        False
+    )
+    
     for ax,extr in zip((ax02,ax12,ax22,ax03,ax13,ax23),extremes):
         
         ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
-        p3 = da_emergence_mean.loc[{
+        p2020 = da_emergence_mean.loc[{
             'hazard':extr,
             'GMT':17,
             'birth_year':2020,
         }]
-        p3 = xr.where(p3>0,1,0)
-        p3 = p3.where(p3).where(mask.notnull())*3
-        p3.plot(
+        ax.contourf(
+            p2020.lon.data,
+            p2020.lat.data,
+            p2020.where(p2020>0.25).notnull(),
+            levels=[.5,1.5],
+            colors='none',
+            transform=ccrs.PlateCarree(),
+            hatches=[density*'/',density*'/'],
+            zorder=10
+        )      
+        template_2020 = template_2020+p2020.where(p2020>sim_frac).notnull()           
+        p2020 = xr.where(p2020>0,1,0)
+        p2020 = p2020.where(p2020).where(mask.notnull())*3
+        p2020.plot(
             ax=ax,
             cmap=cmap_list,
             levels=levels,
@@ -1644,10 +1682,11 @@ def plot_emergence_union(
         l+=1          
         i+=1  
         
-    p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
+    # p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
+    p_u2020 = template_2020.where(mask.notnull())
     ax1.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
     ax1.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
-    p_u3.plot(
+    p_u2020.plot(
         ax=ax1,
         # cmap='Reds',
         cmap=cmap_list_union,
@@ -1692,14 +1731,301 @@ def plot_emergence_union(
         direction='out'
     )   
     
-    lat = grid_area.lat.values
-    lon = grid_area.lon.values
-    mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
-    eu=da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
-    la_frac_eu_gteq3 = xr.where(eu>=3,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon'))
-    print(la_frac_eu_gteq3)    
+    # lat = grid_area.lat.values
+    # lon = grid_area.lon.values
+    # mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
+    # eu=da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
+    la_frac_eu_gteq3_2020 = xr.where(p_u2020>=3,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon')) * 100
+    la_frac_eu_gteq3_1960 = xr.where(p_u1960>=3,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon')) * 100
+    print('2020 percentage of land area \n with emergence of 3 extremes is {}'.format(la_frac_eu_gteq3_2020.item()))    
+    print('1960 percentage of land area \n with emergence of 3 extremes {}'.format(la_frac_eu_gteq3_1960.item()))  
         
-    # f.savefig('./ms_figures/emergence_union.png',dpi=1000)
+    f.savefig('./ms_figures/emergence_union.png',dpi=1000,bbox_inches='tight')
 
 
-# %%
+# %% ----------------------------------------------------------------
+# Combined plot for heatwaves showing box plots of 1.5, 2.5 and 3.5, 
+# t series of 2020 by and maps of 2020 by for 1.5, 2.5 and 3.5         
+
+def plot_combined(
+    df_GMT_strj,
+    ds_pf_gs,
+    da_gs_popdenom,
+    gdf_country_borders,
+    sims_per_step,
+    flags,
+):
+        
+    x=12
+    y=10
+    markersize=10
+    # cbar stuff
+    col_cbticlbl = 'gray'   # colorbar color of tick labels
+    col_cbtic = 'gray'   # colorbar color of ticks
+    col_cbedg = 'gray'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors   
+    by=2020
+
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    }     
+
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(10,2)
+    # gs0.update(hspace=0.8,wspace=0.8)
+    ax00 = f.add_subplot(gs0[0:8,0:1]) # box plots
+    # ax10 = f.add_subplot(gs0[2:,0:2]) # tseries for 2020 by
+    gs00 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        1, 
+        subplot_spec=gs0[0:7,1:],
+        # top=0.8
+    )
+    ax01 = f.add_subplot(gs00[0],projection=ccrs.Robinson())
+    ax11 = f.add_subplot(gs00[1],projection=ccrs.Robinson())
+    ax21 = f.add_subplot(gs00[2],projection=ccrs.Robinson()) 
+    pos00 = ax21.get_position()
+    cax00 = f.add_axes([
+        pos00.x0-0.0775,
+        pos00.y0-0.075,
+        pos00.width*2.2,
+        pos00.height*0.2
+    ])
+
+    l = 0 # letter indexing
+
+    # colorbar stuff ------------------------------------------------------------
+    cmap_whole = plt.cm.get_cmap('Reds')
+    levels = np.arange(0,1.01,0.05)
+    colors = [cmap_whole(i) for i in levels[:-1]]
+    cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+    ticks = np.arange(0,101,10)
+    norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
+
+    # pop frac box plot ----------------------------------------------------------
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+
+    # levels = np.arange(0,1.01,0.05)
+    levels = np.arange(0,101,5)
+    norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
+
+    # get data
+    df_list_gs = []
+    extr='heatwavedarea'
+    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        d_isimip_meta = pk.load(file)              
+    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        ds_pf_gs_plot = pk.load(file)
+    da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+        'GMT':GMT_indices_plot,
+        'birth_year':sample_birth_years,
+    }]
+    sims_per_step = {}
+    for step in GMT_labels:
+        sims_per_step[step] = []
+        print('step {}'.format(step))
+        for i in list(d_isimip_meta.keys()):
+            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                sims_per_step[step].append(i)    
+
+    for step in GMT_indices_plot:
+        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
+        df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+        df_pf_gs_plot_step['hazard'] = extr
+        df_list_gs.append(df_pf_gs_plot_step)
+    df_pf_gs_plot = pd.concat(df_list_gs)
+
+    # pf boxplot
+    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+    p = sns.boxplot(
+        data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+        x='birth_year',
+        y='pf',
+        hue='GMT_label',
+        palette=colors,
+        showcaps=False,
+        showfliers=False,
+        boxprops={
+            'linewidth':0,
+            'alpha':0.5
+        },        
+        ax=ax00,
+    )
+    p.legend_.remove()                  
+    ax00.spines['right'].set_visible(False)
+    ax00.spines['top'].set_visible(False)      
+    ax00.tick_params(colors='gray')
+    ax00.set_ylim(0,100)
+    ax00.spines['left'].set_color('gray')
+    ax00.spines['bottom'].set_color('gray')      
+    ax00.set_ylabel('$\mathregular{PF_{Heatwaves}}$',color='gray',fontsize=14)
+    ax00.set_xlabel('Birth year',color='gray',fontsize=14)       
+    ax00.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10
+    )    
+    l+=1 
+
+    # bbox
+    x0 = 0.075
+    y0 = 0.7
+    xlen = 0.2
+    ylen = 0.3
+
+    # space between entries
+    legend_entrypad = 0.5
+
+    # length per entry
+    legend_entrylen = 0.75
+
+    legend_font = 10
+    legend_lw=3.5   
+
+    legendcols = list(colors.values())
+    handles = [
+        Rectangle((0,0),1,1,color=legendcols[0]),\
+        Rectangle((0,0),1,1,color=legendcols[1]),\
+        Rectangle((0,0),1,1,color=legendcols[2])
+    ]
+
+    labels= [
+        '1.5 °C GMT warming by 2100',
+        '2.5 °C GMT warming by 2100',
+        '3.5 °C GMT warming by 2100',    
+    ]
+
+    ax00.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), 
+        loc = 'upper left',
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,\
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad
+    )            
+    # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
+
+    # gmt_indices_123 = [19,10,0]
+    gmt_indices_152535 = [24,15,6]
+    map_letters = {24:'d',15:'c',6:'b'}
+    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        'GMT':gmt_indices_152535,
+        'birth_year':by,
+    }]
+
+    # since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
+    # so we only take sims or runs valid per GMT level and make sure nans are 0
+    df_list_gs = []
+    for step in gmt_indices_152535:
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
+        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
+        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list_gs.append(df_p_gs_plot_step)
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
+    gdf = cp(gdf_country_borders.reset_index())
+    gdf_p = cp(gdf_country_borders.reset_index())
+    robinson = ccrs.Robinson().proj4_init
+
+    for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
+        gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+        gdf_p.to_crs(robinson).plot(
+            ax=ax,
+            column='pf',
+            cmap=cmap_list_frac,
+            norm=norm,
+            cax=cax00,
+            zorder=2,
+        )
+
+        gdf.to_crs(robinson).plot(
+            ax=ax,
+            color='none', 
+            edgecolor='black',
+            linewidth=0.25,
+            zorder=3,
+        )
+        
+        ax.set_title(
+            '{} °C'.format(gmt_legend[step]),
+            loc='center',
+            fontweight='bold',
+            fontsize=12,
+            color='gray',       
+        )
+        
+        ax.set_title(
+            map_letters[step],
+            loc='left',
+            fontweight='bold',
+            fontsize=10
+        )    
+        l+=1          
+        
+        # pointers connecting 2020, GMT step pixel in heatmap to map panels ------------------
+        if step == gmt_indices_152535[0]:
+            x_h=1 
+        elif step == gmt_indices_152535[1]:
+            x_h=0.95                      
+        elif step == gmt_indices_152535[-1]:
+            x_h=0.9
+        y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
+        x_m=0
+        y_m=0.5
+        con = ConnectionPatch(
+            xyA=(x_h,y_h),
+            xyB=(x_m,y_m),
+            coordsA=ax00.transAxes,
+            coordsB=ax.transAxes,
+            color='gray'
+        )
+        ax00.add_artist(con)          
+        
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cax00, 
+        cmap=cmap_list_frac,
+        norm=norm,
+        orientation='horizontal',
+        spacing='uniform',
+        ticks=ticks,
+        drawedges=False,
+    )
+
+    cb.set_label(
+        # 'Population % living unprecedented exposure to heatwaves',
+        # '$PF_HW$',
+        '$\mathregular{PF_{Heatwaves}}$ for 2020 birth cohort',
+        fontsize=14,
+        color='gray'
+    )
+    cb.ax.xaxis.set_label_position('top')
+    cb.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )   
+    cb.outline.set_edgecolor(col_cbedg)
+    cb.outline.set_linewidth(cb_edgthic)   
+    cax00.xaxis.set_label_position('top')                   
+
+    f.savefig('./ms_figures/combined_plot_{}.png'.format(flags['extr']),dpi=1000,bbox_inches='tight')
+
+    plt.show()            
+
