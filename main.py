@@ -374,7 +374,7 @@ else: # load pickles
         ds_ae_strj = pk.load(f)    
                  
 #%% ----------------------------------------------------------------
-# grid scale
+# grid scale emergence
 # ------------------------------------------------------------------
 
 from gridscale import *
@@ -534,19 +534,44 @@ if flags['plot_si']:
 
 
 #%% ----------------------------------------------------------------
+# sample analytics for paper
+# ------------------------------------------------------------------
+
+if flags['reporting']:
+    
+    from reporting import *
+    
+    multi_hazard_emergence(
+        grid_area,
+        da_emergence_mean,
+        da_gs_popdenom,
+    )
+    
+    gridscale_cohort_sizes(
+        da_population,
+        gridscale_countries,   
+    )    
+    
+    exposure_locs(
+        grid_area,
+    )
+    
+    emergence_locs_perrun(
+        flags,
+        grid_area,
+        gridscale_countries,
+        countries_mask,
+        countries_regions,
+    )    
+
+#%% ----------------------------------------------------------------
 # testing and plot building
 # ------------------------------------------------------------------        
-with open('./data/pickles/gridscale_cohort_global.pkl', 'rb') as file:
-    da_gridscale_cohortsize = pk.load(file)   
 
-extremes_labels = {
-    'burntarea': 'Wildfires',
-    'cropfailedarea': 'Crop failures',
-    'driedarea': 'Droughts',
-    'floodedarea': 'Floods',
-    'heatwavedarea': 'Heatwaves',
-    'tropicalcyclonedarea': 'Tropical cyclones',
-}  
+gmt_indices_sample = [24,17,15,6]
+lat = grid_area.lat.values
+lon = grid_area.lon.values
+da_mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
 
 extremes = [
     'burntarea', 
@@ -555,67 +580,81 @@ extremes = [
     'floodedarea', 
     'heatwavedarea', 
     'tropicalcyclonedarea',
-]
+]    
 
-density=6
-sim_frac=0.25
-gmt_indices_152535 = [24,15,6]
-gmt = 17 # gmt index to compare multihazard pf
-multiextrn = 3 #number of extremes for multihazard pf comparison
-lat = grid_area.lat.values
-lon = grid_area.lon.values
-mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
+ds_pf_geoconstrained = xr.Dataset(
+    data_vars={
+        'pf': (
+            ['run','birth_year','lat','lon'],
+            np.full(
+                (len(sims_per_step[step]),len(birth_years),len(da_mask.lat.data),len(da_mask.lon.data)),
+                fill_value=np.nan,
+            ),
+        ),                              
+    },
+    coords={
+        'lat': ('lat', da_mask.lat.data),
+        'lon': ('lon', da_mask.lon.data),
+        'birth_year': ('birth_year', birth_years),
+        'run': ('run', sims_per_step[step]),
+        'GMT': ('GMT', GMT_labels),
+    }
+)        
 
-# pf for 1960 birth cohort in multi hazard case
-template_1960 = xr.full_like(
-    da_emergence_mean.sel(hazard='heatwavedarea',GMT=17,birth_year=1960),
-    False
-)
+with open('./data/pickles/gridscale_cohort_global.pkl', 'rb') as file:
+    ds_gridscale_cohortsize = pk.load(file)   
+da_gridscale_cohortsize = ds_gridscale_cohortsize['cohort_size']
+# loop through extremes
+# for extr in extremes:
+extr='heatwavedarea'
+    
+start_time = time.time()
 
-for extr in extremes:
+# first get all regions that have exposure to extr in ensemble
+with open('./data/pickles/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
+    da_exposure_occurrence = pk.load(file)          
 
-    p1960 = da_emergence_mean.loc[{
-        'hazard':extr,
-        'GMT':gmt,
-        'birth_year':1960,
-    }]
-    template_1960 = template_1960+p1960.where(p1960>sim_frac).notnull()
+# get metadata for extreme
+with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+    d_isimip_meta = pk.load(f)
+    
+sims_per_step = {}
+for step in gmt_indices_sample:
+    sims_per_step[step] = []
+    print('step {}'.format(step))
+    for i in list(d_isimip_meta.keys()):
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            sims_per_step[step].append(i)  
 
-p_u1960 = template_1960.where(mask.notnull())
-pf_3extr_1960 = da_gridscale_cohortsize.loc[{
-    'birth_year':1960,
-}].where(p_u1960>=multiextrn).sum(dim=('lat','lon')) / da_gs_popdenom.loc[{'birth_year':1960}].sum(dim='country') * 100
-print('1960 {}-hazard pf is {} for GMT {}'.format(multiextrn,pf_3extr_1960['cohort_size'].item(),str(np.round(df_GMT_strj.loc[2100,gmt],1))))
+# numerator to exposure constrained PF
+# for step in gmt_indices_sample:
+step=6
+    
+with open('./data/pickles/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'rb') as f:
+    da_global_emergence = pk.load(f)
+    
+da_global_emergence = xr.where(da_global_emergence==1,1,0)    
 
-# pf for 2020 birth cohort in multi hazard case
-template_2020 = xr.full_like(
-    da_emergence_mean.sel(hazard='heatwavedarea',GMT=17,birth_year=2020),
-    False
-)
+for r in da_global_emergence.run.data:
+    
+    da_global_emergence.loc[{'run':r}] = da_global_emergence.loc[{'run':r}] * da_gridscale_cohortsize
 
-for extr in extremes:
+da_unprec = da_global_emergence.sum(dim=('lat','lon'))
 
-    p2020 = da_emergence_mean.loc[{
-        'hazard':extr,
-        'GMT':gmt,
-        'birth_year':2020,
-    }]
-    template_2020 = template_2020+p2020.where(p2020>sim_frac).notnull()
+da_total = da_exposure_occurrence * da_gridscale_cohortsize
+da_total = da_total.sum(dim=('lat','lon'))
 
-p_u2020 = template_2020.where(mask.notnull())
-pf_3extr_2020 = da_gridscale_cohortsize.loc[{
-    'birth_year':2020,
-}].where(p_u2020>=multiextrn).sum(dim=('lat','lon')) / da_gs_popdenom.loc[{'birth_year':2020}].sum(dim='country') * 100
-print('2020 {}-hazard pf is {} for GMT {}'.format(multiextrn,pf_3extr_2020['cohort_size'].item(),str(np.round(df_GMT_strj.loc[2100,gmt],1))))
-
-
-# land area
-la_frac_eu_gteq3_2020 = xr.where(p_u2020>=multiextrn,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon')) * 100
-la_frac_eu_gteq3_1960 = xr.where(p_u1960>=multiextrn,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon')) * 100
+da_pf = da_unprec / da_total
 
 
-print('1960 percentage of land area \n with emergence of {} extremes \n is {} in a {} GMT pathway'.format(multiextrn,la_frac_eu_gteq3_1960.item(),str(np.round(df_GMT_strj.loc[2100,gmt],1))))  
-print('2020 percentage of land area \n with emergence of {} extremes \n is {} in a {} GMT pathway'.format(multiextrn,la_frac_eu_gteq3_2020.item(),str(np.round(df_GMT_strj.loc[2100,gmt],1))))    
+
+        
+                        
+    
+        
+        
+        
+        
 
 if flags['testing']:
     
