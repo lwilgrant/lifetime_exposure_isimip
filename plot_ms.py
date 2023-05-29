@@ -1439,6 +1439,7 @@ def plot_emergence_union(
     cb_edgthic = 0   # colorbar thickness of edges between colors    
     density=6  # density of hatched lines showing frac of sims with emergence
     sim_frac=0.25  # fraction of sims to show emergence
+    gmt = 6 # gmt index to compare multihazard pf
     extremes = [
         'burntarea', 
         'cropfailedarea', 
@@ -1553,7 +1554,7 @@ def plot_emergence_union(
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
         p1960 = da_emergence_mean.loc[{
             'hazard':extr,
-            'GMT':17,
+            'GMT':gmt,
             'birth_year':1960,
         }]
         ax.contourf(
@@ -1641,7 +1642,7 @@ def plot_emergence_union(
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
         p2020 = da_emergence_mean.loc[{
             'hazard':extr,
-            'GMT':17,
+            'GMT':gmt,
             'birth_year':2020,
         }]
         ax.contourf(
@@ -1740,7 +1741,7 @@ def plot_emergence_union(
     print('2020 percentage of land area \n with emergence of 3 extremes is {}'.format(la_frac_eu_gteq3_2020.item()))    
     print('1960 percentage of land area \n with emergence of 3 extremes {}'.format(la_frac_eu_gteq3_1960.item()))  
         
-    f.savefig('./ms_figures/emergence_union.png',dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/emergence_union.png',dpi=1000,bbox_inches='tight')
 
 
 # %% ----------------------------------------------------------------

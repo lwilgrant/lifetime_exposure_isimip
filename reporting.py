@@ -352,4 +352,101 @@ def emergence_locs_perrun(
             extr
             )
             )    
+        
+#%% ----------------------------------------------------------------
+# population fraction estimates per run and for selected GMTs 
+# when constraining denominator by geography ie exposed locations
+# in our dataset
+# ------------------------------------------------------------------            
+
+def pf_geoconstrained(
+    flags,
+):
+
+    gmt_indices_sample = [6,15,17,24]
+
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]    
+
+    with open('./data/pickles/gridscale_cohort_global.pkl', 'rb') as file:
+        ds_gridscale_cohortsize = pk.load(file)   
+        
+    da_gridscale_cohortsize = ds_gridscale_cohortsize['cohort_size']
+
+    # loop through extremes
+    for extr in extremes:
+
+        start_time = time.time()
+
+        # first get all regions that have exposure to extr in ensemble
+        with open('./data/pickles/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
+            da_exposure_occurrence = pk.load(file)          
+
+        # get metadata for extreme
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)
+            
+        sims_per_step = {}
+        for step in gmt_indices_sample:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)  
+                    
+        ds_pf_geoconstrained = xr.Dataset(
+            data_vars={
+                'pf_perrun': (
+                    ['GMT','run','birth_year'],
+                    np.full(
+                        (len(gmt_indices_sample),len(sims_per_step[gmt_indices_sample[0]]),len(birth_years)),
+                        fill_value=np.nan,
+                    ),
+                ),                              
+            },
+            coords={
+                'birth_year': ('birth_year', birth_years),
+                'run': ('run', sims_per_step[gmt_indices_sample[0]]),
+                'GMT': ('GMT', gmt_indices_sample),
+            }
+        )       
+        # numerator to exposure constrained PF
+        for step in gmt_indices_sample:
+            
+            with open('./data/pickles/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'rb') as f:
+                da_global_emergence = pk.load(f)
+                
+            da_global_emergence = xr.where(da_global_emergence==1,1,0)    
+
+            for r in da_global_emergence.run.data:
+                
+                da_global_emergence.loc[{'run':r}] = da_global_emergence.loc[{'run':r}] * da_gridscale_cohortsize
+
+            da_unprec_p = da_global_emergence.sum(dim=('lat','lon'))
+
+            da_total_p = da_exposure_occurrence * da_gridscale_cohortsize
+            da_total_p = da_total_p.sum(dim=('lat','lon'))
+
+            da_pf = da_unprec_p / da_total_p
+
+            ds_pf_geoconstrained.loc[{
+                'GMT':step,
+                'run':da_pf.run.data,
+                'birth_year':birth_years,
+            }] = da_pf
+        
+        with open('./data/pickles/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'wb') as f:
+            pk.dump(ds_pf_geoconstrained,f)  
+        
+        print("--- {} minutes for {} pf in under geo constraints ---".format(
+            np.floor((time.time() - start_time) / 60),
+            extr
+            )
+            )                
                    

@@ -531,6 +531,11 @@ if flags['plot_si']:
         grid_area,
         da_emergence_mean,
     )    
+    
+    # plot locations where exposure occurs at all in our dataset
+    plot_exposure_locations(
+        grid_area,
+    )    
 
 
 #%% ----------------------------------------------------------------
@@ -541,21 +546,25 @@ if flags['reporting']:
     
     from reporting import *
     
+    # estimates of land area and (potential) pf for 1960 and 2020 emergencve of multiple hazards
     multi_hazard_emergence(
         grid_area,
         da_emergence_mean,
         da_gs_popdenom,
     )
     
+    # get birth year cohort sizes at grid scale
     gridscale_cohort_sizes(
         da_population,
         gridscale_countries,   
     )    
     
+    # per hazard, locations where exposure occurs across whole ensemble
     exposure_locs(
         grid_area,
     )
     
+    # per run for 1.5, 2.5, 2.7 and 3.5, collect maps of emergence locations to be used in geographically constrained pf estimates
     emergence_locs_perrun(
         flags,
         grid_area,
@@ -563,16 +572,21 @@ if flags['reporting']:
         countries_mask,
         countries_regions,
     )    
+    
+    # compute geographically constrained pf
+    pf_geoconstrained()
 
 #%% ----------------------------------------------------------------
 # testing and plot building
 # ------------------------------------------------------------------        
 
-gmt_indices_sample = [24,17,15,6]
-lat = grid_area.lat.values
-lon = grid_area.lon.values
-da_mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
 
+# x=10
+# y=6
+# f,axes = plt.subplots(
+#     nrows=3,
+#     ncols=2,
+# )
 extremes = [
     'burntarea', 
     'cropfailedarea', 
@@ -580,79 +594,186 @@ extremes = [
     'floodedarea', 
     'heatwavedarea', 
     'tropicalcyclonedarea',
-]    
+]         
 
-ds_pf_geoconstrained = xr.Dataset(
-    data_vars={
-        'pf': (
-            ['run','birth_year','lat','lon'],
-            np.full(
-                (len(sims_per_step[step]),len(birth_years),len(da_mask.lat.data),len(da_mask.lon.data)),
-                fill_value=np.nan,
-            ),
-        ),                              
-    },
-    coords={
-        'lat': ('lat', da_mask.lat.data),
-        'lon': ('lon', da_mask.lon.data),
-        'birth_year': ('birth_year', birth_years),
-        'run': ('run', sims_per_step[step]),
-        'GMT': ('GMT', GMT_labels),
-    }
-)        
+extremes_labels = {
+    'burntarea': 'Wildfires',
+    'cropfailedarea': 'Crop failures',
+    'driedarea': 'Droughts',
+    'floodedarea': 'Floods',
+    'heatwavedarea': 'Heatwaves',
+    'tropicalcyclonedarea': 'Tropical cyclones',
+}  
 
-with open('./data/pickles/gridscale_cohort_global.pkl', 'rb') as file:
-    ds_gridscale_cohortsize = pk.load(file)   
-da_gridscale_cohortsize = ds_gridscale_cohortsize['cohort_size']
-# loop through extremes
-# for extr in extremes:
-extr='heatwavedarea'
-    
-start_time = time.time()
+gmt_indices_sample = [6,15,24]
+gmt_legend={
+    gmt_indices_sample[0]:'1.5',
+    gmt_indices_sample[1]:'2.5',
+    gmt_indices_sample[2]:'3.5',
+}
+colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+df_list = []
 
-# first get all regions that have exposure to extr in ensemble
-with open('./data/pickles/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
-    da_exposure_occurrence = pk.load(file)          
-
-# get metadata for extreme
-with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
-    d_isimip_meta = pk.load(f)
-    
-sims_per_step = {}
-for step in gmt_indices_sample:
-    sims_per_step[step] = []
-    print('step {}'.format(step))
-    for i in list(d_isimip_meta.keys()):
-        if d_isimip_meta[i]['GMT_strj_valid'][step]:
-            sims_per_step[step].append(i)  
-
-# numerator to exposure constrained PF
-# for step in gmt_indices_sample:
-step=6
-    
-with open('./data/pickles/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'rb') as f:
-    da_global_emergence = pk.load(f)
-    
-da_global_emergence = xr.where(da_global_emergence==1,1,0)    
-
-for r in da_global_emergence.run.data:
-    
-    da_global_emergence.loc[{'run':r}] = da_global_emergence.loc[{'run':r}] * da_gridscale_cohortsize
-
-da_unprec = da_global_emergence.sum(dim=('lat','lon'))
-
-da_total = da_exposure_occurrence * da_gridscale_cohortsize
-da_total = da_total.sum(dim=('lat','lon'))
-
-da_pf = da_unprec / da_total
-
-
-
-        
+# for extr,ax in zip(extremes,axes.flatten()):   
+for extr in extremes:
                         
+    with open('./data/pickles/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'rb') as f:
+        ds_pf_geoconstrained = pk.load(f)      
+        
+    # get metadata for extreme
+    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        d_isimip_meta = pk.load(f)
     
+    # maybe not necessary since means are ignoring nans for runs not included in some steps
+    sims_per_step = {}
+    for step in gmt_indices_sample:
+        sims_per_step[step] = []
+        print('step {}'.format(step))
+        for i in list(d_isimip_meta.keys()):
+            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                sims_per_step[step].append(i)          
+        
+    da_pf_gc = ds_pf_geoconstrained['pf_perrun'].loc[{
+        'GMT':gmt_indices_sample,
+        'birth_year': sample_birth_years,
+    }]*100    #  .mean(dim='run') * 100
+    
+    for step in gmt_indices_sample:
+        da_pf_gs_plot_step = da_pf_gc.loc[{'run':sims_per_step[step],'GMT':step}]
+        df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+        df_pf_gs_plot_step['hazard'] = extr
+        df_list.append(df_pf_gs_plot_step)    
+    
+    df_pf_gs_plot = pd.concat(df_list)
+    
+# pf boxplot
+x=14
+y=7
+f,axes = plt.subplots(
+    nrows=2,
+    ncols=3,
+    figsize=(x,y),
+)
+l = 0
+for ax,extr in zip(axes.flatten(),extremes):
+    
+    p = sns.boxplot(
+        data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+        x='birth_year',
+        y='pf',
+        hue='GMT_label',
+        palette=colors,
+        showcaps=False,
+        showfliers=False,
+        boxprops={
+            'linewidth':0,
+            'alpha':0.5
+        },        
+        ax=ax,
+    )
+    p.legend_.remove()                  
+    ax.set_ylabel(
+        None, 
+    )         
+    ax.set_xlabel(
+        'Birth year', 
+        va='center', 
+        labelpad=10,
+        fontsize=12,
+        color='gray'
+    )                                            
+    ax.set_title(
+        extremes_labels[extr],
+        loc='center',
+        fontweight='bold',
+        color='gray',
+        fontsize=12,
+    )
+    ax.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10,
+    )  
+    if l <= 2:
+        ax.tick_params(labelbottom=False)    
+        ax.set_xlabel(
+            None, 
+        )   
+    if (l == 0) or (l == 3):
+        ax.set_ylabel(
+            'Population %', 
+            va='center', 
+            rotation='vertical',
+            labelpad=10,
+            fontsize=12,
+            color='gray',
+        )     
+    if l == 0:
+        # bbox
+        x0 = 0.065
+        y0 = 0.7
+        xlen = 0.2
+        ylen = 0.3
+
+        # space between entries
+        legend_entrypad = 0.5
+
+        # length per entry
+        legend_entrylen = 0.75
+
+        legend_font = 10
+        legend_lw=3.5   
+
+        legendcols = list(colors.values())
+        handles = [
+            Rectangle((0,0),1,1,color=legendcols[0]),\
+            Rectangle((0,0),1,1,color=legendcols[1]),\
+            Rectangle((0,0),1,1,color=legendcols[2])
+        ]
+
+        labels= [
+            '1.5 °C GMT warming by 2100',
+            '2.5 °C GMT warming by 2100',
+            '3.5 °C GMT warming by 2100',    
+        ]
+
+        ax.legend(
+            handles, 
+            labels, 
+            bbox_to_anchor=(x0, y0, xlen, ylen), 
+            loc = 'upper left',
+            ncol=1,
+            fontsize=legend_font, 
+            mode="expand", 
+            borderaxespad=0.,\
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad
+        )             
+                
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)    
+    ax.spines['left'].set_color('gray')
+    ax.spines['bottom'].set_color('gray')         
+    ax.tick_params(colors='gray')      
+    l+=1
         
         
+            
+    # da_pf_gc1960.plot(
+    #     hue='GMT',
+        
+    # )
+    
+    # ax.fill_between(
+    #     birth_years,
+    #     y1=da_plt.max(dim='run').values,
+    #     y2=da_plt.min(dim='run').values,
+    #     color='peachpuff',
+    # )         
         
         
 

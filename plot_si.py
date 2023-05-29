@@ -393,7 +393,7 @@ def plot_boxplots_allhazards(
         GMT_indices_plot[0]:'1.5',
         GMT_indices_plot[1]:'2.5',
         GMT_indices_plot[2]:'3.5',
-    }     
+    }
     colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
 
     # get data
@@ -990,4 +990,104 @@ def plot_emergence_fracs(
     # print(la_frac_eu_gteq3)    
         
     f.savefig('./si_figures/emergence_fracs.png',dpi=1000,bbox_inches='tight')    
-# %%
+    
+#%% ----------------------------------------------------------------
+# plot of locations of exposure for showing geograpical constraints
+
+def plot_exposure_locations(
+    grid_area,
+):
+    x=8
+    y=6
+    markersize=10
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+    mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
+    col_cbticlbl = 'gray'   # colorbar color of tick labels
+    col_cbtic = 'gray'   # colorbar color of ticks
+    col_cbedg = '0'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors    
+    density=6
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
+
+    # colorbar stuff ------------------------------------------------------------
+    colors=[
+        mpl.colors.to_rgb('steelblue'),
+        mpl.colors.to_rgb('darkgoldenrod'),
+        mpl.colors.to_rgb('peru'),
+    ]
+    cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+    levels = np.arange(0.5,3.6,1)
+
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(3,2)
+    gs0.update(wspace=0.25)
+
+    # maps per hazard
+    ax00 = f.add_subplot(gs0[0],projection=ccrs.Robinson())
+    ax10 = f.add_subplot(gs0[1],projection=ccrs.Robinson())
+    ax20 = f.add_subplot(gs0[2],projection=ccrs.Robinson()) 
+
+    ax01 = f.add_subplot(gs0[3],projection=ccrs.Robinson())
+    ax11 = f.add_subplot(gs0[4],projection=ccrs.Robinson())
+    ax21 = f.add_subplot(gs0[5],projection=ccrs.Robinson())       
+
+    # plot 1960
+    i=0
+    l=0     
+
+    for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
+        
+        # first get all regions that have exposure to extr in ensemble
+        with open('./data/pickles/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
+            da_exposure_occurrence = pk.load(file)   
+            
+        da_exposure_occurrence = da_exposure_occurrence.where(da_exposure_occurrence).where(mask.notnull())*3 
+        
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
+        da_exposure_occurrence.plot(
+            ax=ax,
+            cmap=cmap_list,
+            levels=levels,
+            add_colorbar=False,
+            add_labels=False,
+            transform=ccrs.PlateCarree(),
+            zorder=5
+        )   
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            color='gray'
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1    
+        i+=1
+
+        
+    f.savefig('./si_figures/exposure_locations.png',dpi=1000,bbox_inches='tight')    
+
