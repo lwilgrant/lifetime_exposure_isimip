@@ -330,6 +330,7 @@ def emergence_locs_perrun(
                             'lon':da_cntry.lon.data,
                         }] = da_birthyear_emergence_mask      
                         
+                ds_cntry_emergence['emergence'] = ds_cntry_emergence['emergence'].where(da_cntry == 1)
                 
                 ds_global_emergence['emergence'].loc[{
                     'run':sims_per_step[step],
@@ -361,6 +362,7 @@ def emergence_locs_perrun(
 
 def pf_geoconstrained(
     flags,
+    countries_mask,
 ):
 
     gmt_indices_sample = [6,15,17,24]
@@ -402,13 +404,20 @@ def pf_geoconstrained(
                     
         ds_pf_geoconstrained = xr.Dataset(
             data_vars={
+                'p_perrun': (
+                    ['GMT','run','birth_year'],
+                    np.full(
+                        (len(gmt_indices_sample),len(sims_per_step[gmt_indices_sample[0]]),len(birth_years)),
+                        fill_value=np.nan,
+                    ),
+                ),                
                 'pf_perrun': (
                     ['GMT','run','birth_year'],
                     np.full(
                         (len(gmt_indices_sample),len(sims_per_step[gmt_indices_sample[0]]),len(birth_years)),
                         fill_value=np.nan,
                     ),
-                ),                              
+                ),                                        
             },
             coords={
                 'birth_year': ('birth_year', birth_years),
@@ -430,16 +439,22 @@ def pf_geoconstrained(
 
             da_unprec_p = da_global_emergence.sum(dim=('lat','lon'))
 
-            da_total_p = da_exposure_occurrence * da_gridscale_cohortsize
+            da_total_p = da_exposure_occurrence.where(countries_mask.notnull()) * da_gridscale_cohortsize
             da_total_p = da_total_p.sum(dim=('lat','lon'))
 
             da_pf = da_unprec_p / da_total_p
 
-            ds_pf_geoconstrained.loc[{
+            ds_pf_geoconstrained['p_perrun'].loc[{
                 'GMT':step,
                 'run':da_pf.run.data,
                 'birth_year':birth_years,
-            }] = da_pf
+            }] = da_unprec_p
+            
+            ds_pf_geoconstrained['pf_perrun'].loc[{
+                'GMT':step,
+                'run':da_pf.run.data,
+                'birth_year':birth_years,
+            }] = da_pf        
         
         with open('./data/pickles/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'wb') as f:
             pk.dump(ds_pf_geoconstrained,f)  
@@ -449,4 +464,54 @@ def pf_geoconstrained(
             extr
             )
             )                
+
+#%% ----------------------------------------------------------------
+# read in geoconstrained pf and print for 1960 and 2020 across GMTs
+# ------------------------------------------------------------------                    
                    
+                   
+def print_pf_geoconstrained(
+    flags,    
+    da_gs_popdenom,
+):
+
+    gmt_indices_sample = [6,15,17,24]
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+
+    for extr in extremes:
+        
+        with open('./data/pickles/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_geoconstrained = pk.load(f)      
+            
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_gs = pk.load(f)      
+            
+        # get metadata for extreme
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)    
+            
+        # maybe not necessary since means are ignoring nans for runs not included in some steps
+        sims_per_step = {}
+        for step in gmt_indices_sample:
+            sims_per_step[step] = []
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)             
+        
+        for step in gmt_indices_sample:
+            
+            pf_geo = ds_pf_geoconstrained['pf_perrun'].loc[{'GMT':step,'run':sims_per_step[step]}].mean(dim='run') * 100
+            pf = ds_pf_gs['unprec'].loc[{'GMT':step,'run':sims_per_step[step]}].fillna(0).sum(dim='country').mean(dim='run') / da_gs_popdenom.sum(dim='country') * 100
+            
+            print('{} under GMT step {} has geoconstrained pf of {} for 1960 and {} for 2020'.format(extr,step,pf_geo.loc[{'birth_year':1960}].item(),pf_geo.loc[{'birth_year':2020}].item()))
+            print('{} under GMT step {} has regular pf of {} for 1960 and {} for 2020'.format(extr,step,pf.loc[{'birth_year':1960}].item(),pf.loc[{'birth_year':2020}].item()))
+            
+            
+# %%
