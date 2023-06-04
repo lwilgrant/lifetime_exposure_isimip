@@ -548,6 +548,11 @@ if flags['plot_si']:
         df_GMT_strj,
         d_isimip_meta,
     )
+    
+    # plot heatmaps of pf for country level emergence
+    plot_heatmaps_allhazards_countryemergence(
+        df_GMT_strj,
+    )     
 
 #%% ----------------------------------------------------------------
 # sample analytics for paper
@@ -593,76 +598,16 @@ if flags['reporting']:
         da_gs_popdenom,
     )    
 
-#%% ----------------------------------------------------------------
-# testing pf geoconstrained vs normal pf
-# ------------------------------------------------------------------        
-    
-# checking for signifiance of change in means between 1960 and 2020 pf per event and for a GMT level
-# low sensitivity to ttest_ind() or ttest_rel() choice
-
-extremes = [
-    'burntarea', 
-    'cropfailedarea', 
-    'driedarea', 
-    'floodedarea', 
-    'heatwavedarea', 
-    'tropicalcyclonedarea',
-]
-
-# GMT step representing CAT policy pledges for 2.7 degree warming
-gmtlevel=6
-# loop through extremes and concat pop and pop frac
-list_extrs_pf = []
-for extr in extremes:
-    
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
-        d_isimip_meta = pk.load(file)               
-    
-    sims_per_step = {}
-    for step in GMT_labels:
-        sims_per_step[step] = []
-        for i in list(d_isimip_meta.keys()):
-            if d_isimip_meta[i]['GMT_strj_valid'][step]:
-                sims_per_step[step].append(i)         
-    
-    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
-        ds_pf_gs_extr = pk.load(file)    
-    
-    da_plt = ds_pf_gs_extr['unprec'].loc[{
-        'birth_year':birth_years,
-        'GMT':gmtlevel,
-        'run':sims_per_step[gmtlevel]
-    }].sum(dim='country') # summing converts nans from invalid GMT/run combos to 0, use where below to remove these
-    da_plt_gmt = da_plt.where(da_plt!=0) / da_gs_popdenom.sum(dim='country') * 100 
-    
-    list_extrs_pf.append(da_plt_gmt)
-    
-ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
-
-for extr in extremes:
-    
-    # coefficient of  of variation
-    mean = ds_pf_gs_extrs.sel(hazard=extr).mean(dim=('run','birth_year')).item()
-    std = ds_pf_gs_extrs.sel(hazard=extr).std(dim=('run','birth_year')).item()
-    cv = std / mean
-    print('CV is {}'.format(cv))
-    mean_1960 = ds_pf_gs_extrs.sel(hazard=extr,birth_year=1960).mean(dim=('run')).item()
-    mean_2020 = ds_pf_gs_extrs.sel(hazard=extr,birth_year=2020).mean(dim=('run')).item()
-    delta_mean = mean_2020 - mean_1960
-    delta_ratio = delta_mean / mean
-    print('delta mean ratio is {}'.format(delta_ratio))
-    
-    # 2 sample t test
-    extr_1960=ds_pf_gs_extrs.sel(hazard=extr,birth_year=1960).values
-    extr_2020=ds_pf_gs_extrs.sel(hazard=extr,birth_year=2020).values
-    result = sts.ttest_ind(
-        extr_1960, 
-        extr_2020,
-        nan_policy='omit',
+    # checking for signifiance of change in means between 1960 and 2020 pf per event and for a GMT level
+    paired_ttest(
+        flags,
+        da_gs_popdenom,
     )
-    print('{} p value for difference of means: {}'.format(extr,result.pvalue))
 
-    print('')
+#%% ----------------------------------------------------------------
+# testing
+# ------------------------------------------------------------------        
+
 
 if flags['testing']:
     

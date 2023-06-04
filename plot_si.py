@@ -29,6 +29,7 @@ import pandas as pd
 import regionmask as rm
 import geopandas as gpd
 from scipy import interpolate
+from scipy import stats as sts
 import cartopy.crs as ccrs
 import seaborn as sns
 import cartopy as cr
@@ -729,6 +730,189 @@ def plot_pf_maps_allhazards(
 
     f.savefig('./si_figures/maps_pf_allhazards.png',dpi=1000,bbox_inches='tight')    
     
+# %% ---------------------------------------------------------------
+# population fractions box plot tseries for all hazards when computed with geoconstraints
+
+def plot_geoconstrained_boxplots(
+    flags,
+):
+        
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]         
+
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
+
+    gmt_indices_sample = [6,15,24]
+    gmt_legend={
+        gmt_indices_sample[0]:'1.5',
+        gmt_indices_sample[1]:'2.5',
+        gmt_indices_sample[2]:'3.5',
+    }
+    colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+    df_list = []
+
+    # for extr,ax in zip(extremes,axes.flatten()):   
+    for extr in extremes:
+                            
+        with open('./data/pickles/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_geoconstrained = pk.load(f)      
+            
+        # get metadata for extreme
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)
+        
+        # maybe not necessary since means are ignoring nans for runs not included in some steps
+        sims_per_step = {}
+        for step in gmt_indices_sample:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)          
+            
+        da_pf_gc = ds_pf_geoconstrained['pf_perrun'].loc[{
+            'GMT':gmt_indices_sample,
+            'birth_year': sample_birth_years,
+        }] * 100
+        
+        for step in gmt_indices_sample:
+            da_pf_gs_plot_step = da_pf_gc.loc[{'run':sims_per_step[step],'GMT':step}]
+            df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+            df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+            df_pf_gs_plot_step['hazard'] = extr
+            df_list.append(df_pf_gs_plot_step)    
+        
+        df_pf_gs_plot = pd.concat(df_list)
+        
+    # pf boxplot
+    x=14
+    y=7
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+    l = 0
+    for ax,extr in zip(axes.flatten(),extremes):
+        
+        p = sns.boxplot(
+            data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+            x='birth_year',
+            y='pf',
+            hue='GMT_label',
+            palette=colors,
+            showcaps=False,
+            showfliers=False,
+            boxprops={
+                'linewidth':0,
+                'alpha':0.5
+            },        
+            ax=ax,
+        )
+        p.legend_.remove()                  
+        ax.set_ylabel(
+            None, 
+        )         
+        ax.set_xlabel(
+            'Birth year', 
+            va='center', 
+            labelpad=10,
+            fontsize=12,
+            color='gray'
+        )                                            
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            color='gray',
+            fontsize=12,
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            fontsize=10,
+        )  
+        if l <= 2:
+            ax.tick_params(labelbottom=False)    
+            ax.set_xlabel(
+                None, 
+            )   
+        if (l == 0) or (l == 3):
+            ax.set_ylabel(
+                'Population %', 
+                va='center', 
+                rotation='vertical',
+                labelpad=10,
+                fontsize=12,
+                color='gray',
+            )     
+        if l == 0:
+            # bbox
+            x0 = 0.065
+            y0 = 0.7
+            xlen = 0.2
+            ylen = 0.3
+
+            # space between entries
+            legend_entrypad = 0.5
+
+            # length per entry
+            legend_entrylen = 0.75
+
+            legend_font = 10
+            legend_lw=3.5   
+
+            legendcols = list(colors.values())
+            handles = [
+                Rectangle((0,0),1,1,color=legendcols[0]),\
+                Rectangle((0,0),1,1,color=legendcols[1]),\
+                Rectangle((0,0),1,1,color=legendcols[2])
+            ]
+
+            labels= [
+                '1.5 °C GMT warming by 2100',
+                '2.5 °C GMT warming by 2100',
+                '3.5 °C GMT warming by 2100',    
+            ]
+
+            ax.legend(
+                handles, 
+                labels, 
+                bbox_to_anchor=(x0, y0, xlen, ylen), 
+                loc = 'upper left',
+                ncol=1,
+                fontsize=legend_font, 
+                mode="expand", 
+                borderaxespad=0.,\
+                frameon=False, 
+                columnspacing=0.05, 
+                handlelength=legend_entrylen, 
+                handletextpad=legend_entrypad
+            )             
+                    
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)    
+        ax.spines['left'].set_color('gray')
+        ax.spines['bottom'].set_color('gray')         
+        ax.tick_params(colors='gray')      
+        l+=1
+        
+    f.savefig('./si_figures/pf_geoconstrained_boxplots_allhazards.png',dpi=1000)
+    
 #%% ----------------------------------------------------------------
 # plot of locations of emergence
 
@@ -996,6 +1180,7 @@ def plot_emergence_fracs(
 
 def plot_exposure_locations(
     grid_area,
+    countries_mask,
 ):
     x=8
     y=6
@@ -1060,6 +1245,7 @@ def plot_exposure_locations(
             da_exposure_occurrence = pk.load(file)   
             
         da_exposure_occurrence = da_exposure_occurrence.where(da_exposure_occurrence).where(mask.notnull())*3 
+        da_exposure_occurrence = da_exposure_occurrence.where(countries_mask.notnull())
         
         ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
@@ -1090,4 +1276,410 @@ def plot_exposure_locations(
 
         
     f.savefig('./si_figures/exposure_locations.png',dpi=1000,bbox_inches='tight')    
+    
+#%% ----------------------------------------------------------------
+# plot gmt pathways in rcps and ar6
 
+def plot_gmt_pathways(
+    df_GMT_strj,
+    d_isimip_meta,
+):
+
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=5
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 10
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_hi = 'darkred'       # mean color for GMT trajectories above 2.5 at 2100
+    col_med = 'darkgoldenrod'   # mean color for GMT trajectories above 1.5 to 2.5 at 2100     
+    col_low = 'steelblue'       # mean color for GMT trajectories from min to 1.5 at 2100
+    gmt_indices_sample = [6,15,17,24]
+    colors_rcp = {
+        'rcp26': col_low,
+        'rcp60': col_med,
+        'rcp85': col_hi,
+    }
+    colors = {
+        '3.5':'firebrick',
+        'CP':'darkorange',
+        '2.5':'yellow',
+        '1.5':'steelblue',
+    }    
+    legend_lw=3.5 # legend line width
+    x0 = 0.15 # bbox for legend
+    y0 = 0.5
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1960
+    xmax = 2100
+
+    ymin=0
+    ymax=4
+
+    axar6_ylab = 'GMT [°C]'
+    axar6_xlab = 'Time'
+
+    gcms = ['gfdl-esm2m','hadgem2-es','ipsl-cm5a-lr','miroc5']
+    rcps = ['rcp26','rcp60','rcp85']
+    GMTs = {}
+    for gcm in gcms:
+        GMTs[gcm] = {}
+        for rcp in rcps:
+            i=0
+            while i < 1:
+                for k,v in list(d_isimip_meta.items()):
+                    if v['gcm'] == gcm and v['rcp'] == rcp:
+                        GMTs[gcm][rcp] = v['GMT']
+                        i+=1
+                    if i == 1:
+                        break
+            
+                
+
+    f,(axrcp,axar6) = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot GMTs
+
+    # plot all new scenarios in grey, then overlay marker scens
+    df_GMT_strj.loc[:,6:24].plot(
+        ax=axar6,
+        color='grey',
+        zorder=1,
+        lw=lw_mean,
+    )
+
+    # plot smooth gmts from RCPs
+    for gcm in gcms:
+        for rcp in rcps:  
+            GMTs[gcm][rcp].plot(
+                ax=axrcp,
+                color=colors_rcp[rcp],
+                zorder=2,
+                lw=lw_mean,
+                style='-'
+            )  
+            
+    # plot new ar6 marker scenarios in color
+
+    df_GMT_15 = df_GMT_strj.loc[:,gmt_indices_sample[0]]
+    df_GMT_15.plot(
+        ax=axar6,
+        color=colors['1.5'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_25 = df_GMT_strj.loc[:,gmt_indices_sample[1]]
+    df_GMT_25.plot(
+        ax=axar6,
+        color=colors['2.5'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_NDC = df_GMT_strj.loc[:,gmt_indices_sample[2]]
+    df_GMT_NDC.plot(
+        ax=axar6,
+        color=colors['CP'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_35 = df_GMT_strj.loc[:,gmt_indices_sample[3]]
+    df_GMT_35.plot(
+        ax=axar6,
+        color=colors['3.5'],
+        zorder=1,
+        lw=lw_mean,
+    )
+    df_GMT_35.loc[1960:2009].plot(
+        ax=axar6,
+        color='grey',
+        zorder=3,
+        lw=2,
+    )                
+
+
+    axrcp.set_ylabel(
+        axar6_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )
+
+    axar6.set_ylabel(
+        None, 
+    )
+
+    axrcp.set_xlabel(
+        axar6_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+
+    axar6.set_xlabel(
+        axar6_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+    )    
+
+
+    for i,ax in enumerate([axrcp,axar6]):
+        ax.set_title(letters[i],loc='left',fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        ax.set_ylim(ymin,ymax)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_xticks(
+            ticks=np.arange(1960,2101,20),
+            labels=[None,1980,None,2020,None,2060,None,2100],
+        )    
+        ax.set_axisbelow(True) 
+
+    handles_ar6 = [
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['1.5']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['2.5']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['CP']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['3.5']),
+    ]    
+
+    handles_rcp = [
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp85']),
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp60']),
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp26'])         
+    ]
+
+    labels_ar6= [
+        '1.5 °C',
+        '2.5 °C',
+        'Current pledges',
+        '3.5 °C',
+    ]
+    labels_rcp = [
+        'RCP 8.5',
+        'RCP 6.0',
+        'RCP 2.6',        
+    ]    
+        
+    axar6.legend(
+        handles_ar6, 
+        labels_ar6, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )  
+    axrcp.legend(
+        handles_rcp, 
+        labels_rcp, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )               
+            
+    f.savefig('./si_figures/GMT_trajectories.png',bbox_inches='tight',dpi=1000)    
+    
+#%% ----------------------------------------------------------------
+# plot heatmaps for countrylevel emergence
+
+def plot_heatmaps_allhazards_countryemergence(
+    df_GMT_strj,
+):
+    
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': '$\mathregular{PF_{Wildfires}}$',
+        'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
+        'driedarea': '$\mathregular{PF_{Droughts}}$',
+        'floodedarea': '$\mathregular{PF_{Floods}}$',
+        'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
+        'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
+    }        
+
+    # labels for GMT ticks
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+
+    # using fracs already computed
+    # # loop through extremes and concat pop and pop frac
+    list_extrs_pf = []
+    for extr in extremes:
+        with open('./data/pickles/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            da_pf = pk.load(f)['mean_frac_unprec_all_b_y0'].loc[{
+                'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+            }] *100    
+        with open('./data/pickles/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+            d_isimip_meta = pk.load(file)        
+        list_extrs_pf.append(da_pf)
+        
+    da_pf_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
+
+    # compute fracs to account for runs per step
+    # loop through extremes and concat pop and pop frac
+    # list_extrs_p = []
+    # gmts = np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')
+
+    # for extr in extremes:
+    #     with open('./data/pickles/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+    #         d_isimip_meta = pk.load(file)   
+            
+    #     with open('./data/pickles/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+    #         da_p = pk.load(f)['unprec_all_b_y0'].loc[{
+    #             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+    #         }] *1000            
+                
+    #     sims_per_step = {}
+    #     for step in gmts:
+    #         sims_per_step[step] = []
+    #         # print('step {}'.format(step))
+    #         for i in list(d_isimip_meta.keys()):
+    #             if d_isimip_meta[i]['GMT_strj_valid'][step]:
+    #                 sims_per_step[step].append(i)
+    #     steps=[]
+    #     for step in gmts:
+    #         da_p_step = da_p.loc[{
+    #             'run':sims_per_step[step],
+    #             'GMT':step,
+    #         }].mean(dim='run')
+    #         steps.append(da_p_step)
+    #     da_p_extr = xr.concat(steps,dim='GMT').assign_coords({'GMT':gmts})
+            
+    #     list_extrs_p.append(da_p_extr)
+        
+    # da_pf_extrs = xr.concat(list_extrs_p,dim='hazard').assign_coords({'hazard':extremes}) / ds_cohorts['by_population_y0'].sum(dim='country') * 1000
+
+    # plot
+    mpl.rcParams['xtick.labelcolor'] = 'gray'
+    mpl.rcParams['ytick.labelcolor'] = 'gray'
+    x=14
+    y=7
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+    for ax,extr in zip(axes.flatten(),extremes):
+        p = da_pf_extrs.loc[{
+            'hazard':extr,
+            'birth_year':np.arange(1960,2021),
+        }].plot(
+            x='birth_year',
+            y='GMT',
+            ax=ax,
+            add_labels=False,
+            levels=10,
+            cmap='Reds',
+        ) 
+        
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100,
+            color='gray',
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+            color='gray',
+        )    
+        
+    # ax stuff
+    l=0
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+            color='gray',
+            fontsize=12,
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            fontsize=10,
+        )  
+        l+=1                  
+        ax.spines['right'].set_color('gray')
+        ax.spines['top'].set_color('gray')
+        ax.spines['left'].set_color('gray')
+        ax.spines['bottom'].set_color('gray')
+        if not np.isin(n,[0,3]):
+            ax.yaxis.set_ticklabels([])
+        else:
+            pass
+        if n == 0:
+            ax.annotate(
+                    'GMT warming by 2100 [°C]',
+                    (-.3,-0.6),
+                    xycoords=ax.transAxes,
+                    fontsize=12,
+                    rotation='vertical',
+                    color='gray',
+                    fontweight='bold',        
+                )            
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+        if n >= 3:
+            ax.set_xlabel('Birth year',fontsize=12,color='gray')    
+
+    f.savefig('./si_figures/pf_heatmap_combined_allsims_countryemergence.png',dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/pf_heatmap_combined_allsims.eps',format='eps',bbox_inches='tight')
+    plt.show()         
+
+# %%
