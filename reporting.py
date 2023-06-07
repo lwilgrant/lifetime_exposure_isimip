@@ -585,4 +585,209 @@ def paired_ttest(
         print('{} p value for difference of means: {}'.format(extr,result.pvalue))
         print('')
             
-# %%
+#%% ----------------------------------------------------------------
+# print latex table of ensemble members per hazard and gmt pathway
+# ------------------------------------------------------------------      
+
+def print_latex_table(
+    flags,
+    df_GMT_strj,
+):
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
+
+    gmts = np.arange(6,25).astype('int')
+    gmts2100 = np.round(df_GMT_strj.loc[2100,gmts].values,1)   
+    gmt_dict = dict(zip(gmts,gmts2100))
+
+    sims_per_step = {}
+    for extr in extremes:
+        
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+            d_isimip_meta = pk.load(file)        
+
+        sims_per_step[extr] = {}
+        for step in gmts:
+            sims_per_step[extr][step] = []
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[extr][step].append(i)      
+                    
+    headers = list(extremes_labels.values())
+    data = {}
+    for step in gmts:
+        data[str(gmt_dict[step])] = [len(sims_per_step[extr][step]) for extr in extremes]
+
+    textabular = f"l|{'r'*len(headers)}"
+    texheader = " & " + " & ".join(headers) + "\\\\"
+    texdata = "\\hline\n"
+    for label in sorted(data):
+        if label == "z":
+            texdata += "\\hline\n"
+        texdata += f"{label} & {' & '.join(map(str,data[label]))} \\\\\n"
+
+    print("\\begin{tabular}{"+textabular+"}")
+    print(texheader)
+    print(texdata,end="")
+    print("\\end{tabular}")                
+
+#%% ----------------------------------------------------------------
+# millions excess children between 1.5 and 2.7 deg warming by 2100
+# living unprecedented exposure to events
+# ------------------------------------------------------------------  
+
+def print_millions_excess(
+    flags,
+    df_GMT_strj,
+):
+
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
+
+    gmts = np.arange(6,25).astype('int')
+    gmts2100 = np.round(df_GMT_strj.loc[2100,gmts].values,1)   
+    gmt_dict = dict(zip(gmts,gmts2100))
+    sumlist=[]
+    for extr in extremes:
+        
+        print(extr)
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+            d_isimip_meta = pk.load(file)    
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_gs = pk.load(f)            
+
+        sims_per_step = {}
+        for step in gmts:
+            sims_per_step[step] = []
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)  
+        # millions children unprecedented in 1.5 pathway
+        step=6
+        unprec_15 = ds_pf_gs['unprec'].sum(dim='country').loc[{'GMT':step,'run':sims_per_step[step],'birth_year':np.arange(2003,2021)}].sum(dim='birth_year').mean(dim='run') / 10**6
+        print('in 1.5 degree pathway, {} chidren live unprecedented exposure to {}'.format(np.around(unprec_15.item()),extr))
+        
+        # millions children unprecedented in 2.7 pathway
+        step=17
+        unprec_27 = ds_pf_gs['unprec'].sum(dim='country').loc[{'GMT':step,'run':sims_per_step[step],'birth_year':np.arange(2003,2021)}].sum(dim='birth_year').mean(dim='run') / 10**6
+        print('in 2.7 degree pathway, {} children live unprecedented exposure to {}'.format(np.around(unprec_27.item()),extr))    
+            
+        # difference between 1.5 and 2.7 deg pathways
+        print('{} more million children will live through unprecedented exposure to {}'.format(np.around((unprec_27.item()-unprec_15.item())),extr))
+        print('')
+        
+        sumlist.append(np.around((unprec_27.item()-unprec_15.item())))
+        
+    print(np.sum(sumlist))
+    
+#%% ----------------------------------------------------------------
+# ratio of pfs reporting
+# ------------------------------------------------------------------  
+def print_pf_ratios(
+    df_GMT_strj,
+    da_gs_popdenom,
+):
+
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': '$\mathregular{PF_{Wildfires}}$',
+        'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
+        'driedarea': '$\mathregular{PF_{Droughts}}$',
+        'floodedarea': '$\mathregular{PF_{Floods}}$',
+        'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
+        'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
+    }        
+
+    # labels for GMT ticks
+    GMT_indices_ticks=[6,12,18,24]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+
+    # loop through extremes and concat pop and pop frac
+    list_extrs_pf = []
+    for extr in extremes:
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+            ds_pf_gs_extr = pk.load(file)    
+        p = ds_pf_gs_extr['unprec'].loc[{
+            'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+        }].sum(dim='country')       
+        p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
+        list_extrs_pf.append(p)
+        
+    ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})    
+
+    for extr in extremes:
+        
+        # looking across birth years (1960 to 2020 for current policies)
+        pf_1960 = ds_pf_gs_extrs.loc[{
+            'birth_year':1960,
+            'GMT':17,
+            'hazard':extr
+        }].item()
+        
+        pf_2020 = ds_pf_gs_extrs.loc[{
+            'birth_year':2020,
+            'GMT':17,
+            'hazard':extr
+        }].item()    
+        
+        pf_2020_1960_ratio = np.around(pf_2020 / pf_1960,1)
+        
+        print('change in pf for {} in 2.7 degree \n scenario between 2020 and 1960 is {}'.format(extr,pf_2020_1960_ratio))
+        
+        # looking across GMTs for 2020
+        pf15 = ds_pf_gs_extrs.loc[{
+            'birth_year':2020,
+            'GMT':6,
+            'hazard':extr
+        }].item()
+        
+        pf27 = ds_pf_gs_extrs.loc[{
+            'birth_year':2020,
+            'GMT':17,
+            'hazard':extr
+        }].item()    
+        
+        pf_27_15_ratio = np.around(pf27 / pf15,1)    
+        
+        print('change in pf for {} and 2020 cohort \n between 1.5 and 2.7 pathways is {}'.format(extr,pf_27_15_ratio))
+        
+        print('')    
