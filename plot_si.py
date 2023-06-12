@@ -551,8 +551,8 @@ def plot_pf_maps_allhazards(
     gdf_country_borders,
 ):
     # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
-    x=16
-    y=5
+    x=8
+    y=10
     markersize=10
     # cbar stuff
     col_cbticlbl = 'gray'   # colorbar color of tick labels
@@ -564,11 +564,11 @@ def plot_pf_maps_allhazards(
 
     extremes_labels = {
         'burntarea': 'Wildfires',
-        'cropfailedarea': 'Crop failures',
+        'cropfailedarea': 'Crop \nfailures',
         'driedarea': 'Droughts',
         'floodedarea': 'Floods',
-        'heatwavedarea': 'Heatwaves',+
-        'tropicalcyclonedarea': 'Tropical cyclones',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical \ncyclones',
     }  
 
     extremes = [
@@ -595,7 +595,22 @@ def plot_pf_maps_allhazards(
     }     
 
     by=2020
-    gmt_indices_152535 = [24,15,6]
+    gmt_indices_152535 = [6,15,24]
+    
+    fig,axes = plt.subplots(
+        nrows=6,
+        ncols=3,
+        figsize=(x,y),
+        subplot_kw={'projection': ccrs.Robinson()}
+    )    
+
+    pos00 = axes[-1,0].get_position()
+    cax = fig.add_axes([
+        pos00.x0,
+        0.05,
+        0.685,
+        pos00.height*0.2
+    ])    
 
     # since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
     # so we only take sims or runs valid per GMT level and make sure nans are 0
@@ -612,7 +627,6 @@ def plot_pf_maps_allhazards(
         sims_per_step = {}
         for step in GMT_labels:
             sims_per_step[step] = []
-            print('step {}'.format(step))
             for i in list(d_isimip_meta.keys()):
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     sims_per_step[step].append(i)        
@@ -628,28 +642,9 @@ def plot_pf_maps_allhazards(
     gdf_p = cp(gdf_country_borders.reset_index())
     robinson = ccrs.Robinson().proj4_init
 
-    f,axes = plt.subplots(
-        nrows=3,
-        ncols=6,
-        figsize=(x,y),
-        subplot_kw={'projection': ccrs.Robinson()}
-    )    
-
-    pos00 = axes[0,-1].get_position()
-    cax = f.add_axes([
-        pos00.x0+0.15,
-        pos00.y0-0.51,
-        0.025,
-        pos00.height*3.2
-    ])
-
-    # gmt_indices_123 = [19,10,0]
-    by=2020
-    gmt_indices_152535 = [24,15,6]
-
     l=0
-    for i,step in enumerate(gmt_indices_152535):
-        for ax,extr in zip(axes[i],extremes):
+    for i,extr in enumerate(extremes):
+        for ax,step in zip(axes[i],gmt_indices_152535):
             gdf_p['pf']=df_p_gs_plot['pf'][(df_p_gs_plot['GMT']==step)&(df_p_gs_plot['extreme']==extr)].values
             ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
             gdf_p.to_crs(robinson).plot(
@@ -676,26 +671,27 @@ def plot_pf_maps_allhazards(
                 fontsize=10
             )    
             
-            if l == 0 or l == 6 or l ==12:
+            if np.any(np.isin([0,3,6,9,12,15],l)):
                 
                 ax.annotate(
-                    '{} °C'.format(gmt_legend[step]),
-                    xy=(-0.2,0.2),
+                    extremes_labels[extr],
+                    xy=(-0.2,0.5),
                     xycoords=ax.transAxes,
-                    fontsize=12,
+                    fontsize=10,
                     rotation='vertical',
+                    va='center',
                     color='gray',
                     fontweight='bold',     
                 )  
                 
-            if l < 6:
+            if l < 3:
                 
                 ax.set_title(
-                    extremes_labels[extr],
+                    '{} °C'.format(gmt_legend[step]),
                     loc='center',
                     color='gray',
                     fontweight='bold',
-                    fontsize=12                
+                    fontsize=10                
                 )
             
             l+=1    
@@ -705,7 +701,7 @@ def plot_pf_maps_allhazards(
         ax=cax, 
         cmap=cmap_list_frac,
         norm=norm,
-        orientation='vertical',
+        orientation='horizontal',
         spacing='uniform',
         ticks=ticks,
         drawedges=False,
@@ -728,7 +724,7 @@ def plot_pf_maps_allhazards(
     cb.outline.set_linewidth(cb_edgthic)
     cax.yaxis.set_label_position('right')
 
-    f.savefig('./si_figures/maps_pf_allhazards.png',dpi=1000,bbox_inches='tight')    
+    fig.savefig('./si_figures/maps_pf_allhazards_vertical.png',dpi=1000,bbox_inches='tight')    
     
 # %% ---------------------------------------------------------------
 # population fractions box plot tseries for all hazards when computed with geoconstraints
@@ -778,7 +774,6 @@ def plot_geoconstrained_boxplots(
         sims_per_step = {}
         for step in gmt_indices_sample:
             sims_per_step[step] = []
-            print('step {}'.format(step))
             for i in list(d_isimip_meta.keys()):
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     sims_per_step[step].append(i)          
@@ -1681,5 +1676,318 @@ def plot_heatmaps_allhazards_countryemergence(
     f.savefig('./si_figures/pf_heatmap_combined_allsims_countryemergence.png',dpi=1000,bbox_inches='tight')
     # f.savefig('./ms_figures/pf_heatmap_combined_allsims.eps',format='eps',bbox_inches='tight')
     plt.show()         
+
+#%% ----------------------------------------------------------------
+# testing for pie charts plot
+# ------------------------------------------------------------------    
+def plot_allhazards_piecharts(
+    da_gs_popdenom,
+    df_countries,
+):
+
+    x=6
+    y=10
+    fig,axes = plt.subplots(
+        nrows=6,
+        ncols=3,
+        figsize=(x,y),
+    )
+
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop \nfailures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical \ncyclones',
+    }  
+
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]    
+
+    gmt_indices_sample = [24,15,6]
+    gmt_legend={
+        gmt_indices_sample[0]:'1.5',
+        gmt_indices_sample[1]:'2.5',
+        gmt_indices_sample[2]:'3.5',
+    }
+    colors = dict(zip([6,15,24],['steelblue','darkgoldenrod','darkred']))
+
+    by_sample = [1960,1990,2020]
+
+    incomegroups = df_countries['incomegroup'].unique()
+    income_countries = {}
+    for category in incomegroups:
+        income_countries[category] = list(df_countries.index[df_countries['incomegroup']==category])
+    ig_dict = {
+        'Low income':'LI',
+        'Lower middle income': 'LMI',
+        'Upper middle income': 'UMI',
+        'High income': 'HI',
+    }
+
+    l=0
+    for e,extr in enumerate(extremes):
+        
+        with open('./data/pickles/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+            d_isimip_meta = pk.load(file)         
+        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+            ds_pf_gs = pk.load(f)  
+
+        ax00,ax10,ax20 = axes[e]
+
+        income_unprec = {}
+        da_unprec = ds_pf_gs['unprec']
+        for category in list(income_countries.keys()):
+            income_unprec[category] = da_unprec.loc[{
+                'country':income_countries[category],
+                'GMT':gmt_indices_sample,
+            }]
+
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)
+                
+        pi_totals = {}
+        pi_ratios = {}
+        for by in by_sample:
+            
+            # populate each birth year with totals per income group
+            pi_totals[by] = [da_gs_popdenom.loc[{
+                'country':income_countries[category],
+                'birth_year':by,
+            }].sum(dim='country').item() for category in list(income_countries.keys())]
+            
+            
+            pi_ratios[by] = {}
+            for category in list(income_countries.keys()):
+                pi_ratios[by][category] = {}
+                for step in gmt_indices_sample:
+                    unprec = income_unprec[category].loc[{
+                        'GMT':step,
+                        'run':sims_per_step[step],
+                        'birth_year':by
+                    }].sum(dim='country').mean(dim='run').item()
+                    if extr == 'heatwavedarea':
+                        pi_ratios[by][category][step] = unprec / da_gs_popdenom.loc[{
+                            'country':income_countries[category],
+                            'birth_year':by,
+                        }].sum(dim='country').item()
+                    elif extr == 'cropfailedarea':
+                        pi_ratios[by][category][step] = unprec / da_gs_popdenom.loc[{
+                            'country':income_countries[category],
+                            'birth_year':by,
+                        }].sum(dim='country').item() / 0.4                    
+                    else:
+                        pi_ratios[by][category][step] = unprec / da_gs_popdenom.loc[{
+                            'country':income_countries[category],
+                            'birth_year':by,
+                        }].sum(dim='country').item() / 0.2            
+
+        for by,ax in zip(by_sample,[ax00,ax10,ax20]):
+            for i,category in enumerate(list(income_countries.keys())):
+                order = np.argsort(list(pi_ratios[by][category].values())) # indices that would sort pf across gmt steps
+                order = order[::-1] # want decreasing pf order, so we reverse the indices
+                ordered_gmts = [gmt_indices_sample[o] for o in order]
+                for step in ordered_gmts:
+                    colors_list =['None']*4
+                    colors_list[i] = 'white'
+                    # first paint white where we want actual color (semi transparent, white makes it look good) per category with nothing in other categories
+                    ax.pie(
+                        x=pi_totals[by],
+                        colors=colors_list,
+                        radius=pi_ratios[by][category][step],
+                        wedgeprops={
+                            'width':pi_ratios[by][category][step], 
+                            'edgecolor':'None',
+                            'linewidth': 0.5,
+                            'alpha':0.5,
+                        }     
+                    )
+                    # then paint actual color and radius
+                    colors_list[i] = colors[step]
+                    ax.pie(
+                        x=pi_totals[by],
+                        colors=colors_list,
+                        radius=pi_ratios[by][category][step],
+                        wedgeprops={
+                            'width':pi_ratios[by][category][step], 
+                            'edgecolor':'None',
+                            'linewidth': 0.5,
+                            'alpha':0.5,
+                        }
+                    )
+                                    
+            ax.set_title(
+                letters[l],
+                loc='left',
+                fontweight='bold',
+                fontsize=10
+            )  
+            
+            if l < 3: 
+                
+                ax.set_title(
+                    by,
+                    loc='center',
+                    fontweight='bold',
+                    fontsize=12,
+                    color='gray',       
+                )   
+                
+            if np.any(np.isin([0,3,6,9,12,15],l)):
+                
+                ax.annotate(
+                    extremes_labels[extr],
+                    xy=(-0.4,0.5),
+                    xycoords=ax.transAxes,
+                    fontsize=10,
+                    rotation='vertical',
+                    va='center',
+                    color='gray',
+                    fontweight='bold',     
+                )            
+            # l+=1             
+            
+            if extr == 'heatwavedarea':
+                percents = ['25%','50%','75%','100%']
+                for i,r in enumerate(np.arange(0.25,1.01,0.25)):
+                    if r < 1:
+                        ax.pie(
+                            x=pi_totals[by],
+                            colors=['None']*4,
+                            radius=r,
+                            wedgeprops={
+                                'width':r, 
+                                'edgecolor':'0.5',
+                                'linewidth': 0.5,
+                            }
+                        )      
+                    else:
+                        ax.pie(
+                            x=pi_totals[by],
+                            colors=['None']*4,
+                            radius=r,
+                            labels=list(ig_dict.values()),
+                            wedgeprops={
+                                'width':r, 
+                                'edgecolor':'0.5',
+                                'linewidth': 0.5,
+                            },
+                            textprops={
+                                'color':'0.5'
+                            }
+                        )        
+                    
+                    if by == 1990:
+                        ax.annotate(
+                            percents[i],
+                            xy=(0,r+0.05),
+                            color='gray',
+                            ha='center',
+                            fontsize=6
+                        )            
+            elif extr == 'cropfailedarea':
+                percents = ['10%','20%','30%','40%']
+                # for i,r in enumerate([0.3333,0.6666,1]):
+                for i,r in enumerate(np.arange(0.25,1.01,0.25)):
+                    if r < 1:
+                        ax.pie(
+                            x=pi_totals[by],
+                            colors=['None']*4,
+                            radius=r,
+                            wedgeprops={
+                                'width':r, 
+                                'edgecolor':'0.5',
+                                'linewidth': 0.5,
+                            }
+                        )      
+                    else:
+                        ax.pie(
+                            x=pi_totals[by],
+                            colors=['None']*4,
+                            radius=r,
+                            labels=list(ig_dict.values()),
+                            wedgeprops={
+                                'width':r, 
+                                'edgecolor':'0.5',
+                                'linewidth': 0.5,
+                            },
+                            textprops={
+                                'color':'0.5'
+                            }
+                        )        
+                
+                    if by == 1990:
+                        ax.annotate(
+                            percents[i],
+                            xy=(0,r+0.05),
+                            color='gray',
+                            ha='center',
+                            fontsize=6
+                        )
+            else:
+                percents = ['5%','10%','15%','20%']
+                # for i,r in enumerate([0.3333,0.6666,1]):
+                for i,r in enumerate(np.arange(0.25,1.01,0.25)):
+                    if r < 1:
+                        ax.pie(
+                            x=pi_totals[by],
+                            colors=['None']*4,
+                            radius=r,
+                            wedgeprops={
+                                'width':r, 
+                                'edgecolor':'0.5',
+                                'linewidth': 0.5,
+                            }
+                        )      
+                    else:
+                        ax.pie(
+                            x=pi_totals[by],
+                            colors=['None']*4,
+                            radius=r,
+                            labels=list(ig_dict.values()),
+                            wedgeprops={
+                                'width':r, 
+                                'edgecolor':'0.5',
+                                'linewidth': 0.5,
+                            },
+                            textprops={
+                                'color':'0.5'
+                            }
+                        )        
+                
+                    if by == 1990:
+                        ax.annotate(
+                            percents[i],
+                            xy=(0,r+0.05),
+                            color='gray',
+                            ha='center',
+                            fontsize=6
+                        )            
+                    
+            l += 1    
+                        
+        if extr == extremes[-1]:
+            for i,k in enumerate(list(ig_dict.keys())):
+                ax00.annotate(
+                    '{}: {}'.format(ig_dict[k],k),
+                    xy=(0,-0.25-i*0.125),
+                    color='gray',
+                    # ha='center',
+                    xycoords=ax00.transAxes
+                )
+
+    fig.savefig('./si_figures/all_hazards_piecharts.png',dpi=1000,bbox_inches='tight')
+
 
 # %%
