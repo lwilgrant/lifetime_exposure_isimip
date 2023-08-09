@@ -316,7 +316,7 @@ def plot_pf_by_tseries_allhazards(
             )   
         if (l == 0) or (l == 3):
             ax.set_ylabel(
-                'Population %', 
+                'CF [%]', 
                 va='center', 
                 rotation='vertical',
                 labelpad=10,
@@ -358,7 +358,8 @@ def plot_pf_by_tseries_allhazards(
         ax.tick_params(colors='gray')      
         l+=1  
         
-        f.savefig('./si_figures/pf_2.7_tseries_allhazards.png',dpi=1000)
+        # f.savefig('./si_figures/pf_2.7_tseries_allhazards.png',dpi=1000)
+        f.savefig('./si_figures/pf_2.7_tseries_allhazards.pdf',dpi=500)
 
 # %% ---------------------------------------------------------------
 # population fractions box plot tseries for all hazards
@@ -483,7 +484,7 @@ def plot_boxplots_allhazards(
             )   
         if (l == 0) or (l == 3):
             ax.set_ylabel(
-                'Population %', 
+                'CF [%]', 
                 va='center', 
                 rotation='vertical',
                 labelpad=10,
@@ -541,7 +542,8 @@ def plot_boxplots_allhazards(
         ax.tick_params(colors='gray')      
         l+=1
           
-        f.savefig('./si_figures/pf_boxplots_allhazards.png',dpi=1000)
+        # f.savefig('./si_figures/pf_boxplots_allhazards.png',dpi=1000)
+        f.savefig('./si_figures/pf_boxplots_allhazards.pdf',dpi=500)
 
 # %% ---------------------------------------------------------------
 # population fractions maps for all hazards for 2020 birth cohort
@@ -708,7 +710,7 @@ def plot_pf_maps_allhazards(
     )
 
     cb.set_label(
-        '$\mathregular{PF_{HW}}$ for 2020 birth cohort',
+        '$\mathregular{CF}$ for 2020 birth cohort [%]',
         fontsize=14,
         color='gray'
     )
@@ -848,7 +850,7 @@ def plot_geoconstrained_boxplots(
             )   
         if (l == 0) or (l == 3):
             ax.set_ylabel(
-                'Population %', 
+                'CF [%]', 
                 va='center', 
                 rotation='vertical',
                 labelpad=10,
@@ -1518,7 +1520,8 @@ def plot_gmt_pathways(
         handletextpad=legend_entrypad,
     )               
             
-    f.savefig('./si_figures/GMT_trajectories.png',bbox_inches='tight',dpi=1000)    
+    # f.savefig('./si_figures/GMT_trajectories.png',bbox_inches='tight',dpi=1000)    
+    f.savefig('./si_figures/GMT_trajectories.pdf',bbox_inches='tight',dpi=500)    
     
 #%% ----------------------------------------------------------------
 # plot heatmaps for countrylevel emergence
@@ -1539,13 +1542,22 @@ def plot_heatmaps_allhazards_countryemergence(
         'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
+    # extremes_labels = {
+    #     'burntarea': '$\mathregular{PF_{Wildfires}}$',
+    #     'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
+    #     'driedarea': '$\mathregular{PF_{Droughts}}$',
+    #     'floodedarea': '$\mathregular{PF_{Floods}}$',
+    #     'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
+    #     'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
+    # }       
+    
     extremes_labels = {
-        'burntarea': '$\mathregular{PF_{Wildfires}}$',
-        'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
-        'driedarea': '$\mathregular{PF_{Droughts}}$',
-        'floodedarea': '$\mathregular{PF_{Floods}}$',
-        'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
-        'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
+        'burntarea': '$\mathregular{CF_{Wildfires}}$',
+        'cropfailedarea': '$\mathregular{CF_{Crop failures}}$',
+        'driedarea': '$\mathregular{CF_{Droughts}}$',
+        'floodedarea': '$\mathregular{CF_{Floods}}$',
+        'heatwavedarea': '$\mathregular{CF_{Heatwaves}}$',
+        'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$',
     }        
 
     # labels for GMT ticks

@@ -50,7 +50,8 @@ def plot_conceptual(
     # get data
     cntry='Belgium'
     city_name='Brussels'
-    concept_bys = np.arange(1960,2021,30)
+    # concept_bys = np.arange(1960,2021,30)
+    concept_bys = np.arange(1960,2021,1)
     print(cntry)
     da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
     da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='ages') # cohort relative sizes in sample country
@@ -751,13 +752,26 @@ def plot_conceptual(
     )      
 
     f.savefig('./ms_figures/concept_{}_{}.png'.format(city_name,cntry),dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/concept_{}_{}.pdf'.format(city_name,cntry),dpi=1000,bbox_inches='tight')
     # f.savefig('./ms_figures/concept_{}_{}.eps'.format(city_name,cntry),format='eps',bbox_inches='tight')
 
     # population estimates
     ds_dmg['population'].sel({'time':1990,'lat':city_lat,'lon':city_lon},method='nearest').sum(dim='age')
 
     ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest').item()
-
+    
+    # getting estimate of all birth years that emerge in 1.5 and 3.5 pathways and how many these cohorts sum to
+    valid_bys=da_test_city.birth_year.where(da_test_city.loc[{'GMT':6}].max(dim='time')>da_pic_city_9999)
+    y1 = valid_bys.min(dim='birth_year')
+    y2 = valid_bys.max(dim='birth_year')
+    unprecedented=ds_dmg['by_population_y0'].sel(birth_year=np.arange(y1,y2+1),lat=city_lat,lon=city_lon,method='nearest').sum(dim='birth_year').round().item()    
+    print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,6))
+    
+    valid_bys=da_test_city.birth_year.where(da_test_city.loc[{'GMT':24}].max(dim='time')>da_pic_city_9999)
+    y1 = valid_bys.min(dim='birth_year')
+    y2 = valid_bys.max(dim='birth_year')
+    unprecedented=ds_dmg['by_population_y0'].sel(birth_year=np.arange(y1,y2+1),lat=city_lat,lon=city_lon,method='nearest').sum(dim='birth_year').round().item()    
+    print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,24))        
 
 # # %% ----------------------------------------------------------------
 # # Combined plot for heatwaves showing box plots of 1.5, 2.5 and 3.5, 
@@ -1204,14 +1218,22 @@ def plot_heatmaps_allhazards(
         'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
+    # extremes_labels = {
+    #     'burntarea': '$\mathregular{PF_{Wildfires}}$',
+    #     'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
+    #     'driedarea': '$\mathregular{PF_{Droughts}}$',
+    #     'floodedarea': '$\mathregular{PF_{Floods}}$',
+    #     'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
+    #     'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
+    # }    
     extremes_labels = {
-        'burntarea': '$\mathregular{PF_{Wildfires}}$',
-        'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
-        'driedarea': '$\mathregular{PF_{Droughts}}$',
-        'floodedarea': '$\mathregular{PF_{Floods}}$',
-        'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
-        'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
-    }        
+        'burntarea': '$\mathregular{CF_{Wildfires}}$',
+        'cropfailedarea': '$\mathregular{CF_{Crop failures}}$',
+        'driedarea': '$\mathregular{CF_{Droughts}}$',
+        'floodedarea': '$\mathregular{CF_{Floods}}$',
+        'heatwavedarea': '$\mathregular{CF_{Heatwaves}}$',
+        'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$',
+    }            
     
     # labels for GMT ticks
     GMT_indices_ticks=[6,12,18,24]
@@ -1362,6 +1384,7 @@ def plot_heatmaps_allhazards(
             add_labels=False,
             levels=10,
             cmap='Reds',
+            # cbar_kwargs={'label':'%','color':'gray'}
         ) 
         
         ax.set_yticks(
@@ -1415,6 +1438,7 @@ def plot_heatmaps_allhazards(
             ax.set_xlabel('Birth year',fontsize=12,color='gray')    
     
     f.savefig('./ms_figures/pf_heatmap_combined_allsims.png',dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/pf_heatmap_combined_allsims.pdf',dpi=500,bbox_inches='tight')    
     f.savefig('./ms_figures/pf_heatmap_combined_allsims.eps',format='eps',bbox_inches='tight')
     plt.show()         
 
@@ -1565,6 +1589,7 @@ def plot_emergence_union(
             colors='none',
             transform=ccrs.PlateCarree(),
             hatches=[density*'/',density*'/'],
+            rasterized=True,
             zorder=10
         )       
         template_1960 = template_1960+p1960.where(p1960>sim_frac).notnull()
@@ -1577,6 +1602,7 @@ def plot_emergence_union(
             add_colorbar=False,
             add_labels=False,
             transform=ccrs.PlateCarree(),
+            rasterized=True,
             zorder=5
         )    
         ax.set_title(
@@ -1653,6 +1679,7 @@ def plot_emergence_union(
             colors='none',
             transform=ccrs.PlateCarree(),
             hatches=[density*'/',density*'/'],
+            rasterized=True,
             zorder=10
         )      
         template_2020 = template_2020+p2020.where(p2020>sim_frac).notnull()           
@@ -1664,6 +1691,7 @@ def plot_emergence_union(
             levels=levels,
             add_colorbar=False,
             add_labels=False,
+            rasterized=True,
             transform=ccrs.PlateCarree(),
             zorder=5
         )    
@@ -1695,6 +1723,7 @@ def plot_emergence_union(
         add_colorbar=False,
         add_labels=False,
         transform=ccrs.PlateCarree(),
+        rasterized=True,
         zorder=5
     )
     ax1.set_title(
@@ -1742,6 +1771,7 @@ def plot_emergence_union(
     print('1960 percentage of land area \n with emergence of 3 extremes {}'.format(la_frac_eu_gteq3_1960.item()))  
         
     # f.savefig('./ms_figures/emergence_union.png',dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/emergence_union.pdf',dpi=500,bbox_inches='tight')
 
 
 # %% ----------------------------------------------------------------
@@ -2164,7 +2194,8 @@ def plot_combined_piechart(
     ax0.set_ylim(0,100)
     ax0.spines['left'].set_color('gray')
     ax0.spines['bottom'].set_color('gray')      
-    ax0.set_ylabel('$\mathregular{PF_{Heatwaves}}$',color='gray',fontsize=14)
+    # ax0.set_ylabel('$\mathregular{PF_{Heatwaves}}$',color='gray',fontsize=14)
+    ax0.set_ylabel('$\mathregular{CF_{Heatwaves}}$ [%]',color='gray',fontsize=14)
     ax0.set_xlabel('Birth year',color='gray',fontsize=14)       
     ax0.set_title(
         letters[l],
@@ -2252,6 +2283,7 @@ def plot_combined_piechart(
             norm=norm,
             cax=cax00,
             zorder=2,
+            rasterized=True,
         )
 
         gdf.to_crs(robinson).plot(
@@ -2310,7 +2342,8 @@ def plot_combined_piechart(
     cb.set_label(
         # 'Population % living unprecedented exposure to heatwaves',
         # '$PF_HW$',
-        '$\mathregular{PF_{Heatwaves}}$ for 2020 birth cohort',
+        # '$\mathregular{PF_{Heatwaves}}$ for 2020 birth cohort',
+        '$\mathregular{CF_{Heatwaves}}$ for 2020 birth cohort [%]',
         fontsize=14,
         color='gray'
     )
@@ -2547,6 +2580,8 @@ def plot_combined_piechart(
         )
             
     f.savefig('./ms_figures/combined_plot_piecharts.png',dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/combined_plot_piecharts_50.pdf',dpi=50,bbox_inches='tight')
+    f.savefig('./ms_figures/combined_plot_piecharts_500.pdf',dpi=500,bbox_inches='tight')
 
                         
     

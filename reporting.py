@@ -790,4 +790,195 @@ def print_pf_ratios(
         
         print('change in pf for {} and 2020 cohort \n between 1.5 and 2.7 pathways is {}'.format(extr,pf_27_15_ratio))
         
-        print('')    
+        print('')  
+        
+
+#%% ----------------------------------------------------------------
+# print number of unprecedented people
+# ------------------------------------------------------------------          
+        
+def print_absolute_unprecedented(
+    ds_pf_gs,     
+):
+    
+    step=6
+    by=2020
+    unprec=ds_pf_gs['unprec'].sum(dim='country').loc[{'run':sims_per_step[step],'GMT':step, 'birth_year':by}].median(dim='run')
+    print('{} million'.format(unprec.item()/10**6))               
+    
+
+#%% ----------------------------------------------------------------
+# get pickle of cities that are valid for f1 concept plot
+# ------------------------------------------------------------------  
+
+def find_valid_cities(
+     df_countries,
+     da_cohort_size,
+     countries_mask,
+     countries_regions,
+     d_isimip_meta,
+     flags,
+):
+    if not os.path.isfile('./data/pickles/valid_cities.pkl'):
+        # excel file of cities, their coords and population
+        df_cities = pd.read_excel('./data/city_locations/worldcities.xlsx')
+        df_cities = df_cities.drop(columns=['city_ascii','iso2','iso3','admin_name','capital','id']).nlargest(n=200,columns=['population'])
+        concept_bys = np.arange(1960,2021,30)
+
+        # loop through countries
+        cntry_concat = []
+        for cntry in list(df_countries.index):
+            
+            print(cntry)
+            da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
+            da_smple_cht_prp = da_smple_cht / da_smple_cht.sum(dim='ages') # cohort relative sizes in sample country
+            da_cntry = xr.DataArray(
+                np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+                dims=countries_mask.dims,
+                coords=countries_mask.coords,
+            )
+            da_cntry = da_cntry.where(da_cntry,drop=True)
+            lat_weights = np.cos(np.deg2rad(da_cntry.lat))
+            lat_weights.name = "weights" 
+
+            ds_spatial = xr.Dataset(
+                data_vars={
+                    'cumulative_exposure': (
+                        ['run','GMT','birth_year','time','lat','lon'],
+                        np.full(
+                            (len(list(d_isimip_meta.keys())),
+                            len(GMT_indices_plot),
+                            len(concept_bys),
+                            len(year_range),
+                            len(da_cntry.lat.data),
+                            len(da_cntry.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),
+                },
+                coords={
+                    'lat': ('lat', da_cntry.lat.data),
+                    'lon': ('lon', da_cntry.lon.data),
+                    'birth_year': ('birth_year', concept_bys),
+                    'time': ('time', year_range),
+                    'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
+                    'GMT': ('GMT', GMT_indices_plot)
+                }
+            )
+
+            # load demography pickle
+            with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+                ds_dmg = pk.load(f)   
+
+            # load PIC pickle
+            with open('./data/pickles/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+                ds_pic = pk.load(f)                   
+
+            # loop over simulations
+            for i in list(d_isimip_meta.keys()): 
+
+                # print('simulation {} of {}'.format(i,len(d_isimip_meta)))
+
+                # load AFA data of that run
+                with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
+                    da_AFA = pk.load(f)
+
+                # mask to sample country and reduce spatial extent
+                da_AFA = da_AFA.where(ds_dmg['country_extent']==1,drop=True)
+
+                for step in GMT_indices_plot:
+
+                    if d_isimip_meta[i]['GMT_strj_valid'][step]:
+
+                        da_AFA_step = da_AFA.reindex(
+                            {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
+                        ).assign_coords({'time':year_range})                     
+
+                        # simple lifetime exposure sum
+                        da_le = xr.concat(
+                            [(da_AFA_step.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].cumsum(dim='time') +\
+                            da_AFA_step.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()) *\
+                            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
+                            for by in concept_bys],
+                            dim='birth_year',
+                        ).assign_coords({'birth_year':concept_bys})
+
+                        da_le = da_le.reindex({'time':year_range})
+
+                        ds_spatial['cumulative_exposure'].loc[{
+                            'run':i,
+                            'GMT':step,
+                            'birth_year':concept_bys,
+                            'time':year_range,
+                            'lat':ds_dmg['country_extent'].lat.data,
+                            'lon':ds_dmg['country_extent'].lon.data,
+                        }] = da_le.loc[{
+                            'birth_year':concept_bys,
+                            'time':year_range,
+                            'lat':ds_dmg['country_extent'].lat.data,
+                            'lon':ds_dmg['country_extent'].lon.data,
+                        }]
+
+            # select country from excel database of city coords
+            df_cntry = df_cities.loc[df_cities['country']==cntry].copy()
+            df_cntry['valid'] = np.nan
+
+            # loop through cities in country
+            for city_i in list(df_cntry.index):   
+
+                # get city info from 
+                # city = df_cntry.loc[city_i,'city']
+                city_lat = df_cntry.loc[city_i,'lat']
+                city_lon = df_cntry.loc[city_i,'lng']
+
+                # pic
+                da_pic_city_9999 = ds_pic['99.99'].sel({'lat':city_lat,'lon':city_lon},method='nearest').item()            
+
+                # mean for city            
+                da_test_city = ds_spatial['cumulative_exposure'].sel({'lat':city_lat,'lon':city_lon},method='nearest').mean(dim='run')
+                da_test_city = da_test_city.rolling(time=5,min_periods=5).mean()   
+
+                # sequence booleans for showing that gmt+1 is greater than gmt (relevant for 2.5 and 3.5)
+                sequence_bools = {}
+                for i,gmt in enumerate(GMT_indices_plot):
+
+                    sequence_bools[gmt] = []
+
+                    for by in da_test_city.birth_year:
+
+                        da_by = da_test_city.sel(birth_year=by).max(dim='time')
+                        bool_entry = da_by.sel(GMT=gmt) > da_by.sel(GMT=GMT_indices_plot[i-1])
+                        sequence_bools[gmt].append(bool_entry.item())
+
+                # pre-industrial comparison to make sure 1960 lifetime exposure for 1.5, 2.5 and 3.5 is below pic 99.99
+                pic_bools = []
+                by=1960
+                for i,gmt in enumerate(GMT_indices_plot):
+
+                    da_by = da_test_city.sel(birth_year=by,GMT=gmt).max(dim='time')
+                    bool_entry = da_by < da_pic_city_9999
+                    pic_bools.append(bool_entry.item())        
+
+                # check that sequence bools for 2.5 and 3.5 and pic bools are all True
+                sequence_bools_highgmts = sequence_bools[15]+sequence_bools[24]
+                all_bools = sequence_bools_highgmts + pic_bools
+                if np.all(all_bools):
+                    df_cntry.loc[city_i,'valid'] = True
+                else:
+                    df_cntry.loc[city_i,'valid'] = False
+
+            # only keep cities that match criteria
+            df_cntry = df_cntry.drop(df_cntry.index[df_cntry['valid']==False])
+            cntry_concat.append(df_cntry)    
+
+        df_valid_cities = pd.concat(cntry_concat)
+        df_valid_cities = df_valid_cities.sort_values(by=['population'],ascending=False)
+        print(df_valid_cities)    
+        # pickle selection of cities
+        with open('./data/pickles/valid_cities.pkl', 'wb') as f:
+            pk.dump(df_valid_cities,f)   
+            
+    else:
+        
+        with open('./data/pickles/valid_cities.pkl', 'rb') as f:
+            df_valid_cities = pk.load(f)        
