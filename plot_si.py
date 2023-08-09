@@ -2001,5 +2001,104 @@ def plot_allhazards_piecharts(
 
     fig.savefig('./si_figures/all_hazards_piecharts.png',dpi=1000,bbox_inches='tight')
 
+#%% ----------------------------------------------------------------
+# plot stacked bar chart
+# ------------------------------------------------------------------
 
+def plot_cohort_sizes(
+    df_countries,
+    da_gs_popdenom,
+):
+    x=8
+    y=6
+    colors = {
+        'Low income': plt.cm.get_cmap('tab20b')(1),
+        'Lower middle income': plt.cm.get_cmap('tab20b')(5),
+        'Upper middle income': plt.cm.get_cmap('tab20b')(9),
+        'High income': plt.cm.get_cmap('tab20b')(13),
+    }
+    incomegroups = df_countries['incomegroup'].unique()
+    income_countries = {}
+    for category in incomegroups:
+        income_countries[category] = list(df_countries.index[df_countries['incomegroup']==category])
+
+    heights={}
+    heights['all'] = da_gs_popdenom.loc[{'birth_year':np.arange(1960,2021,10)}].sum(dim='country').values / 10**6
+    for category in incomegroups:
+        heights[category] = da_gs_popdenom.loc[{
+            'birth_year':np.arange(1960,2021,10),'country':income_countries[category]
+        }].sum(dim='country').values / 10**6
+
+    f,ax=plt.subplots(
+        figsize=(x,y)
+    )
+
+    for i,by in enumerate(np.arange(1960,2021,10)):
+        pops = {}
+        for category in incomegroups:
+            pops[category] = heights[category][i]
+        pops_plot = sorted(list(pops.values()),reverse=True)
+        keys_plot = [list(pops.keys())[k] for k in list(np.argsort(list(pops.values())))[::-1]]
+        for p,k in enumerate(keys_plot):
+            if p == 0:
+                pop = sum(pops_plot[:])
+            else:
+                pop = sum(pops_plot[p:])
+            ax.bar(
+                x=by,
+                height=pop,
+                width=5,
+                color=colors[k]
+            )                
+
+    ax.set_ylabel('Global cohort sizes [in millions]',color='gray',fontsize=14)
+    ax.set_xlabel('Birth year',color='gray',fontsize=14)
+
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)      
+    ax.tick_params(colors='gray')
+    ax.spines['left'].set_color('gray')
+    ax.spines['bottom'].set_color('gray')     
+
+    # bbox for legend
+    x0 = 0.03
+    y0 = 0.7
+    xlen = 0.2
+    ylen = 0.3
+
+    # space between entries
+    legend_entrypad = 0.5
+
+    # length per entry
+    legend_entrylen = 0.75
+    legend_font = 10
+    legend_lw=3.5   
+
+    legendcols = list(colors.values())
+    handles = [
+        Rectangle((0,0),1,1,color=legendcols[0]),\
+        Rectangle((0,0),1,1,color=legendcols[1]),\
+        Rectangle((0,0),1,1,color=legendcols[2]),\
+        Rectangle((0,0),1,1,color=legendcols[3])
+    ]
+
+    labels= list(colors.keys())
+
+    ax.legend(
+        handles, 
+        labels, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), 
+        loc = 'upper left',
+        ncol=1,
+        fontsize=legend_font, 
+        labelcolor='gray',
+        mode="expand", 
+        borderaxespad=0.,\
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad
+    )      
+
+    f.savefig('./si_figures/cohort_sizes.png',dpi=100)
 # %%
