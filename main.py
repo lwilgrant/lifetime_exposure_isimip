@@ -56,7 +56,7 @@ scriptsdir = os.getcwd()
 global flags
 
 flags = {}
-flags['extr'] = 'floodedarea' # 0: all
+flags['extr'] = 'heatwavedarea' # 0: all
                                 # 1: burntarea
                                 # 2: cropfailedarea
                                 # 3: driedarea
@@ -676,3 +676,601 @@ if flags['reporting']:
         flags,
         da_gs_popdenom,
     )    
+    
+    print_latex_table_unprecedented_sideways(
+        flags,
+        da_gs_popdenom,
+    )    
+
+# %%
+
+#%% ----------------------------------------------------------------
+# plot tseries, pie charts and maps of heatwave PF
+# ------------------------------------------------------------------        
+
+x=12
+y=7
+markersize=10
+# cbar stuff
+col_cbticlbl = 'gray'   # colorbar color of tick labels
+col_cbtic = 'gray'   # colorbar color of ticks
+col_cbedg = 'gray'   # colorbar color of edge
+cb_ticlen = 3.5   # colorbar length of ticks
+cb_ticwid = 0.4   # colorbar thickness of ticks
+cb_edgthic = 0   # colorbar thickness of edges between colors   
+by=2020
+
+gmt_legend={
+    GMT_indices_plot[0]:'1.5',
+    GMT_indices_plot[1]:'2.5',
+    GMT_indices_plot[2]:'3.5',
+}     
+
+f = plt.figure(figsize=(x,y))    
+gs0 = gridspec.GridSpec(10,3)
+# gs0.update(hspace=0.8,wspace=0.8)
+
+# box plots
+ax0 = f.add_subplot(gs0[0:5,0:2]) 
+
+# pie charts
+gs10 = gridspec.GridSpecFromSubplotSpec(
+    1,
+    3, 
+    subplot_spec=gs0[7:,0:2],
+    # top=0.8
+)
+ax00 = f.add_subplot(gs10[0])
+ax10 = f.add_subplot(gs10[1])
+ax20 = f.add_subplot(gs10[2]) 
+
+# maps
+gs01 = gridspec.GridSpecFromSubplotSpec(
+    3,
+    1, 
+    subplot_spec=gs0[0:9,2:],
+    # top=0.8
+)
+ax01 = f.add_subplot(gs01[0],projection=ccrs.Robinson())
+ax11 = f.add_subplot(gs01[1],projection=ccrs.Robinson())
+ax21 = f.add_subplot(gs01[2],projection=ccrs.Robinson()) 
+pos00 = ax21.get_position()
+cax00 = f.add_axes([
+    pos00.x0-0.05,
+    pos00.y0-0.1,
+    pos00.width*1.95,
+    pos00.height*0.2
+])
+
+l = 0 # letter indexing
+
+# colorbar stuff ------------------------------------------------------------
+cmap_whole = plt.cm.get_cmap('Reds')
+levels = np.arange(0,1.01,0.05)
+colors = [cmap_whole(i) for i in levels[:-1]]
+cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+ticks = np.arange(0,101,10)
+norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
+
+# pop frac box plot ----------------------------------------------------------
+GMT_indices_ticks=[6,12,18,24]
+gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+
+# levels = np.arange(0,1.01,0.05)
+levels = np.arange(0,101,5)
+norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
+
+# get data
+df_list_gs = []
+extr='heatwavedarea'
+with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+    d_isimip_meta = pk.load(file)              
+with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+    ds_pf_gs_plot = pk.load(file)
+da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+    'GMT':GMT_indices_plot,
+    'birth_year':sample_birth_years,
+}]
+sims_per_step = {}
+for step in GMT_labels:
+    sims_per_step[step] = []
+    for i in list(d_isimip_meta.keys()):
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            sims_per_step[step].append(i)    
+
+for step in GMT_indices_plot:
+    da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
+    df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+    df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+    df_pf_gs_plot_step['hazard'] = extr
+    df_list_gs.append(df_pf_gs_plot_step)
+df_pf_gs_plot = pd.concat(df_list_gs)
+
+# pf boxplot
+colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
+p = sns.boxplot(
+    data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+    x='birth_year',
+    y='pf',
+    hue='GMT_label',
+    palette=colors,
+    showcaps=False,
+    showfliers=False,
+    boxprops={
+        'linewidth':0,
+        'alpha':0.5
+    },        
+    ax=ax0,
+    zorder=5,
+)
+p.legend_.remove()                  
+ax0.spines['right'].set_visible(False)
+ax0.spines['top'].set_visible(False)      
+ax0.tick_params(colors='gray')
+ax0.set_ylim(0,100)
+ax0.spines['left'].set_color('gray')
+ax0.spines['bottom'].set_color('gray')      
+# ax0.set_ylabel('$\mathregular{PF_{Heatwaves}}$',color='gray',fontsize=14)
+ax0.set_ylabel('$\mathregular{CF_{Heatwaves}}$ [%]',color='gray',fontsize=14)
+ax0.set_xlabel('Birth year',color='gray',fontsize=14)       
+ax0.set_title(
+    letters[l],
+    loc='left',
+    fontweight='bold',
+    fontsize=10
+)    
+l+=1 
+
+# bbox
+x0 = 0.075
+y0 = 0.7
+xlen = 0.2
+ylen = 0.3
+
+# space between entries
+legend_entrypad = 0.5
+
+# length per entry
+legend_entrylen = 0.75
+
+legend_font = 10
+legend_lw=3.5   
+
+legendcols = list(colors.values())
+handles = [
+    Rectangle((0,0),1,1,color=legendcols[0]),\
+    Rectangle((0,0),1,1,color=legendcols[1]),\
+    Rectangle((0,0),1,1,color=legendcols[2])
+]
+
+labels= [
+    '1.5 °C GMT warming by 2100',
+    '2.5 °C GMT warming by 2100',
+    '3.5 °C GMT warming by 2100',    
+]
+
+ax0.legend(
+    handles, 
+    labels, 
+    bbox_to_anchor=(x0, y0, xlen, ylen), 
+    loc = 'upper left',
+    ncol=1,
+    fontsize=legend_font, 
+    labelcolor='gray',
+    mode="expand", 
+    borderaxespad=0.,\
+    frameon=False, 
+    columnspacing=0.05, 
+    handlelength=legend_entrylen, 
+    handletextpad=legend_entrypad
+)            
+# maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
+
+# gmt_indices_123 = [19,10,0]
+gmt_indices_152535 = [24,15,6]
+map_letters = {24:'g',15:'f',6:'e'}
+da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+    'GMT':gmt_indices_152535,
+    'birth_year':by,
+}]
+
+# since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
+# so we only take sims or runs valid per GMT level and make sure nans are 0
+df_list_gs = []
+for step in gmt_indices_152535:
+    da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
+    da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
+    df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
+    df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    df_list_gs.append(df_p_gs_plot_step)
+df_p_gs_plot = pd.concat(df_list_gs)
+df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
+gdf = cp(gdf_country_borders.reset_index())
+gdf_p = cp(gdf_country_borders.reset_index())
+robinson = ccrs.Robinson().proj4_init
+
+for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
+    gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
+    ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+    gdf_p.to_crs(robinson).plot(
+        ax=ax,
+        column='pf',
+        cmap=cmap_list_frac,
+        norm=norm,
+        cax=cax00,
+        zorder=2,
+        rasterized=True,
+    )
+
+    gdf.to_crs(robinson).plot(
+        ax=ax,
+        color='none', 
+        edgecolor='black',
+        linewidth=0.25,
+        zorder=3,
+    )
+    
+    ax.set_title(
+        '{} °C'.format(gmt_legend[step]),
+        loc='center',
+        fontweight='bold',
+        fontsize=12,
+        color='gray',       
+    )
+    
+    ax.set_title(
+        map_letters[step],
+        loc='left',
+        fontweight='bold',
+        fontsize=10
+    )
+    
+    # triangles showing connections between GMT step box plot to map panels ---------------
+    from matplotlib.patches import Circle, Wedge, Polygon
+    from matplotlib.collections import PatchCollection
+    if step == gmt_indices_152535[0]:
+        x_h=1 
+    elif step == gmt_indices_152535[1]:
+        x_h=0.95                      
+    elif step == gmt_indices_152535[-1]:
+        x_h=0.9
+    y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
+    x_m=0
+    y_m_i=0
+    y_m_f=1.0
+    con_low = ConnectionPatch(
+        xyA=(x_h,y_h),
+        xyB=(x_m,y_m_i),
+        coordsA=ax0.transAxes,
+        coordsB=ax.transAxes,
+        color='lightgray',
+        alpha=0.5,
+        zorder=0,
+    )
+    con_hi = ConnectionPatch(
+        xyA=(x_h,y_h),
+        xyB=(x_m,y_m_f),
+        coordsA=ax0.transAxes,
+        coordsB=ax.transAxes,
+        color='lightgray',
+        alpha=0.5,
+        zorder=0,
+    )   
+    con_vert = ConnectionPatch(
+        xyA=(x_m,y_m_i),
+        xyB=(x_m,y_m_f),
+        coordsA=ax.transAxes,
+        coordsB=ax.transAxes,
+        color='lightgray',
+        alpha=0.5,
+        zorder=0,
+    )
+    
+    line_low = con_low.get_path().vertices
+    line_hi = con_hi.get_path().vertices
+    
+    ax0.add_artist(con_low)  
+    ax0.add_artist(con_hi) 
+    
+    tri_coords = np.stack(
+        (con_low.get_path().vertices[0],con_low.get_path().vertices[-1],con_hi.get_path().vertices[-1]),
+        axis=0,
+    )
+    triangle = plt.Polygon(tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=0,clip_on=False)    
+    ax0.add_artist(triangle)   
+    
+cb = mpl.colorbar.ColorbarBase(
+    ax=cax00, 
+    cmap=cmap_list_frac,
+    norm=norm,
+    orientation='horizontal',
+    spacing='uniform',
+    ticks=ticks,
+    drawedges=False,
+)
+
+cb.set_label(
+    '$\mathregular{CF_{Heatwaves}}$ for 2020 birth cohort [%]',
+    fontsize=14,
+    color='gray'
+)
+cb.ax.xaxis.set_label_position('top')
+cb.ax.tick_params(
+    labelcolor=col_cbticlbl,
+    color=col_cbtic,
+    length=cb_ticlen,
+    width=cb_ticwid,
+    direction='out'
+)   
+cb.outline.set_edgecolor(col_cbedg)
+cb.outline.set_linewidth(cb_edgthic)   
+cax00.xaxis.set_label_position('top')   
+
+gmt_indices_sample = [24,15,6]
+gmt_legend={
+    gmt_indices_sample[0]:'1.5',
+    gmt_indices_sample[1]:'2.5',
+    gmt_indices_sample[2]:'3.5',
+}
+colors = dict(zip([6,15,24],['steelblue','darkgoldenrod','darkred']))
+
+by_sample = [1960,1990,2020]
+incomegroups = df_countries['incomegroup'].unique()
+income_countries = {}
+for category in incomegroups:
+    income_countries[category] = list(df_countries.index[df_countries['incomegroup']==category])
+ig_dict = {
+    'Low income':'LI',
+    'Lower middle income': 'LMI',
+    'Upper middle income': 'UMI',
+    'High income': 'HI',
+}
+
+
+income_unprec = {}
+da_unprec = ds_pf_gs['unprec']
+for category in list(income_countries.keys()):
+    income_unprec[category] = da_unprec.loc[{
+        'country':income_countries[category],
+        'GMT':gmt_indices_sample,
+    }]
+
+    
+sims_per_step = {}
+for step in GMT_labels:
+    sims_per_step[step] = []
+    for i in list(d_isimip_meta.keys()):
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            sims_per_step[step].append(i)
+        
+pi_totals = {}
+pi_ratios = {}
+for by in by_sample:
+    
+    # populate each birth year with totals per income group
+    pi_totals[by] = [da_gs_popdenom.loc[{
+        'country':income_countries[category],
+        'birth_year':by,
+    }].sum(dim='country').item() for category in list(income_countries.keys())]
+    
+    
+    pi_ratios[by] = {}
+    for category in list(income_countries.keys()):
+        pi_ratios[by][category] = {}
+        for step in gmt_indices_sample:
+            unprec = income_unprec[category].loc[{
+                'GMT':step,
+                'run':sims_per_step[step],
+                'birth_year':by
+            }].sum(dim='country').mean(dim='run').item()
+            pi_ratios[by][category][step] = unprec / da_gs_popdenom.loc[{
+                'country':income_countries[category],
+                'birth_year':by,
+            }].sum(dim='country').item()
+    
+
+for by,ax in zip(by_sample,[ax00,ax10,ax20]):
+    for i,category in enumerate(list(income_countries.keys())):
+        order = np.argsort(list(pi_ratios[by][category].values())) # indices that would sort pf across gmt steps
+        order = order[::-1] # want decreasing pf order, so we reverse the indices
+        ordered_gmts = [gmt_indices_sample[o] for o in order]
+        for step in ordered_gmts:
+            colors_list =['None']*4
+            colors_list[i] = 'white'
+            # first paint white where we want actual color (semi transparent, white makes it look good) per category with nothing in other categories
+            ax.pie(
+                x=pi_totals[by],
+                colors=colors_list,
+                radius=pi_ratios[by][category][step],
+                wedgeprops={
+                    'width':pi_ratios[by][category][step], 
+                    'edgecolor':'None',
+                    'linewidth': 0.5,
+                    'alpha':0.5,
+                }     
+            )
+            # then paint actual color and radius
+            colors_list[i] = colors[step]
+            ax.pie(
+                x=pi_totals[by],
+                colors=colors_list,
+                radius=pi_ratios[by][category][step],
+                wedgeprops={
+                    'width':pi_ratios[by][category][step], 
+                    'edgecolor':'None',
+                    'linewidth': 0.5,
+                    'alpha':0.5,
+                }
+            )                     
+    ax.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        fontsize=10
+    )    
+    ax.set_title(
+        by,
+        loc='center',
+        fontweight='bold',
+        fontsize=12,
+        color='gray',       
+    )        
+    l+=1             
+    percents = ['25%','50%','75%','100%']
+    for i,r in enumerate(np.arange(0.25,1.01,0.25)):
+        if r < 1:
+            ax.pie(
+                x=pi_totals[by],
+                colors=['None']*4,
+                radius=r,
+                wedgeprops={
+                    'width':r, 
+                    'edgecolor':'0.5',
+                    'linewidth': 0.5,
+                }
+            )      
+        else:
+            ax.pie(
+                x=pi_totals[by],
+                colors=['None']*4,
+                radius=r,
+                labels=list(ig_dict.values()),
+                wedgeprops={
+                    'width':r, 
+                    'edgecolor':'0.5',
+                    'linewidth': 0.5,
+                },
+                textprops={
+                    'color':'0.5'
+                }
+            )        
+        
+        if by == 1960:
+            ax.annotate(
+                percents[i],
+                xy=(0,r+0.05),
+                color='gray',
+                ha='center',
+                fontsize=6
+            )
+
+    # triangles showing connections between box plot years on x axis to pie chart years ---------------
+    if ax == ax00:
+        x_b=0.075 
+        x_p_i=x_b - x_b/2
+        x_p_f=x_b + x_b*2
+    elif ax == ax10:
+        x_b=0.5   
+        x_p_i=0.425
+        x_p_f=0.575                         
+    elif ax == ax20:
+        x_b=0.925
+        x_p_i=x_b - 0.075*2
+        x_p_f=x_b + 0.075/2
+        
+    y_b=-0.1
+    y_p=-0.35
+
+    con_le = ConnectionPatch(
+        xyA=(x_b,y_b),
+        xyB=(x_p_i,y_p),
+        coordsA=ax0.transAxes,
+        coordsB=ax0.transAxes,
+        color='lightgray',
+        alpha=0.5,
+        zorder=0,
+    )
+    con_ri = ConnectionPatch(
+        xyA=(x_b,y_b),
+        xyB=(x_p_f,y_p),
+        coordsA=ax0.transAxes,
+        coordsB=ax0.transAxes,
+        color='lightgray',
+        alpha=0.5,
+        zorder=0,
+    )   
+    con_ho = ConnectionPatch(
+        xyA=(x_p_i,y_p),
+        xyB=(x_p_f,y_p),
+        coordsA=ax0.transAxes,
+        coordsB=ax0.transAxes,
+        color='lightgray',
+        alpha=0.5,
+        zorder=0,
+    )
+    
+    line_le = con_le.get_path().vertices
+    line_ri = con_ri.get_path().vertices
+    line_ho = con_ho.get_path().vertices
+    
+    ax0.add_artist(con_le)  
+    ax0.add_artist(con_ri) 
+    ax0.add_artist(con_ho)  
+    
+    pi_tri_coords = np.stack(
+        (con_le.get_path().vertices[0].copy(),
+         con_le.get_path().vertices[-1].copy(),
+         con_ri.get_path().vertices[-1].copy()),
+        axis=0,
+    )
+    pi_tri = plt.Polygon(pi_tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=0,clip_on=False)    
+    ax0.add_artist(pi_tri)       
+    
+        
+for i,k in enumerate(list(ig_dict.keys())):
+    ax0.annotate(
+        '{}: {}'.format(ig_dict[k],k),
+        xy=(0,-1.1-i*0.1),
+        color='gray',
+        # ha='center',
+        xycoords=ax0.transAxes
+    )
+            
+    # f.savefig('./ms_figures/combined_plot_piecharts.png',dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/combined_plot_piecharts_50.pdf',dpi=50,bbox_inches='tight')
+    # f.savefig('./ms_figures/combined_plot_piecharts_500.pdf',dpi=500,bbox_inches='tight')
+
+# %%
+
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gs
+import numpy as np
+
+fig, ax = plt.subplots()
+ax.axis('off')
+
+grid_t = gs.GridSpec(4,3)
+ax0a = fig.add_subplot(grid_t[0:1,0:1])
+ax0b = fig.add_subplot(grid_t[0:1,1:2])
+ax0c = fig.add_subplot(grid_t[0:1,2:3])
+ax1 = fig.add_subplot(grid_t[1:4,:])
+
+xl = ax0a.get_xlim()
+yl = ax0a.get_ylim()
+ptAl = (xl[0], yl[0])
+ptAr = (xl[1], yl[0])
+
+ptD1 = (0,0)
+ptD2 = (1,1)
+ptD3 = (2,1)
+
+ax1.plot([-1,0,1,2,3],[2,0,1,1,-1],'ko')
+
+from matplotlib.patches import ConnectionPatch
+
+for pts,axs,num in [[ptD1,ax0a,1],[ptD2,ax0b,2],[ptD3,ax0c,3]]:
+
+    con1 = ConnectionPatch(xyA=pts, xyB=ptAl, coordsA="data", coordsB="data",
+                          axesA=ax1, axesB=axs,color='grey',shrinkA=0,shrinkB=0)
+    ax1.add_artist(con1)
+    con2 = ConnectionPatch(xyA=pts, xyB=ptAr, coordsA="data", coordsB="data",
+                          axesA=ax1, axesB=axs,color='grey',shrinkA=0,shrinkB=0)
+    ax1.add_artist(con2)
+
+    line2=con2.get_path().vertices
+    line1=con1.get_path().vertices
+
+    zoomcoords = sorted(np.concatenate((line1[1:],line2)),key=lambda x: x[0])
+    triangle = plt.Polygon(zoomcoords,ec='black',fc='red',zorder=100,clip_on=False)
+    ax1.add_artist(triangle)
+# %%

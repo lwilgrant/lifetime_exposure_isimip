@@ -20,6 +20,8 @@ import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
 from matplotlib.patches import ConnectionPatch
+from matplotlib.patches import Circle, Wedge, Polygon
+from matplotlib.collections import PatchCollection
 import mapclassify as mc
 from copy import deepcopy as cp
 import matplotlib.pyplot as plt
@@ -1204,18 +1206,16 @@ def plot_heatmaps_allhazards(
     da_gs_popdenom,
 ):
     
-    # --------------------------------------------------------------------
-    # plotting utils
     letters = ['a', 'b', 'c',\
                 'd', 'e', 'f',\
                 'g', 'h', 'i',\
                 'j', 'k', 'l']
     extremes = [
-        'burntarea', 
+        'heatwavedarea',     
         'cropfailedarea', 
+        'burntarea', 
         'driedarea', 
         'floodedarea', 
-        'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
     # extremes_labels = {
@@ -1226,18 +1226,21 @@ def plot_heatmaps_allhazards(
     #     'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
     #     'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
     # }    
-    extremes_labels = {
-        'burntarea': '$\mathregular{CF_{Wildfires}}$',
-        'cropfailedarea': '$\mathregular{CF_{Crop failures}}$',
-        'driedarea': '$\mathregular{CF_{Droughts}}$',
-        'floodedarea': '$\mathregular{CF_{Floods}}$',
-        'heatwavedarea': '$\mathregular{CF_{Heatwaves}}$',
-        'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$',
+    extremes_labels = {    
+        'heatwavedarea': '$\mathregular{CF_{Heatwaves}}$ [%]',
+        'cropfailedarea': '$\mathregular{CF_{Crop failures}}$ [%]',
+        'burntarea': '$\mathregular{CF_{Wildfires}}$ [%]',
+        'driedarea': '$\mathregular{CF_{Droughts}}$ [%]',
+        'floodedarea': '$\mathregular{CF_{Floods}}$ [%]',
+        'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$ [%]',
     }            
-    
+
     # labels for GMT ticks
     GMT_indices_ticks=[6,12,18,24]
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    levels_hw=np.arange(0,101,10)
+    levels_cf=np.arange(0,31,5)
+    levels_other=np.arange(0,16,1)
     
     # --------------------------------------------------------------------
     # population fractions with simulation limits to avoid dry jumps
@@ -1281,28 +1284,71 @@ def plot_heatmaps_allhazards(
         ncols=3,
         figsize=(x,y),
     )
-    for ax,extr in zip(axes.flatten(),extremes):
-        p = ds_pf_gs_extrs.loc[{
-            'hazard':extr,
-            'birth_year':np.arange(1960,2021),
-        }].plot(
-            x='birth_year',
-            y='GMT',
-            ax=ax,
-            add_labels=False,
-            levels=10,
-            cmap='Reds',
-        ) 
+    # for ax,extr in zip(axes.flatten(),extremes):
+    #     p = ds_pf_gs_extrs.loc[{
+    #         'hazard':extr,
+    #         'birth_year':np.arange(1960,2021),
+    #     }].plot(
+    #         x='birth_year',
+    #         y='GMT',
+    #         ax=ax,
+    #         add_labels=False,
+    #         levels=10,
+    #         cmap='Reds',
+    #     ) 
         
-        ax.set_yticks(
-            ticks=GMT_indices_ticks,
-            labels=gmts2100,
-            color='gray',
-        )
-        ax.set_xticks(
-            ticks=np.arange(1960,2025,10),
-            color='gray',
-        )    
+    #     ax.set_yticks(
+    #         ticks=GMT_indices_ticks,
+    #         labels=gmts2100,
+    #         color='gray',
+    #     )
+    #     ax.set_xticks(
+    #         ticks=np.arange(1960,2025,10),
+    #         color='gray',
+    #     )    
+    for ax,extr in zip(axes.flatten(),extremes):
+        if extr == 'heatwavedarea':
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_hw,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,101,20)}
+            ) 
+        elif extr == 'cropfailedarea':
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_cf,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,31,5)}
+            )         
+        else:
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_other,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,16,3)}
+            )       
         
     # ax stuff
     l=0
@@ -1362,7 +1408,7 @@ def plot_heatmaps_allhazards(
         list_extrs_pf.append(p)
         
     ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
-    
+
     # plot
     mpl.rcParams['xtick.labelcolor'] = 'gray'
     mpl.rcParams['ytick.labelcolor'] = 'gray'
@@ -1374,18 +1420,48 @@ def plot_heatmaps_allhazards(
         figsize=(x,y),
     )
     for ax,extr in zip(axes.flatten(),extremes):
-        p = ds_pf_gs_extrs.loc[{
-            'hazard':extr,
-            'birth_year':np.arange(1960,2021),
-        }].plot(
-            x='birth_year',
-            y='GMT',
-            ax=ax,
-            add_labels=False,
-            levels=10,
-            cmap='Reds',
-            # cbar_kwargs={'label':'%','color':'gray'}
-        ) 
+        if extr == 'heatwavedarea':
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_hw,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,101,20)}
+            ) 
+        elif extr == 'cropfailedarea':
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_cf,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,31,5)}
+            )         
+        else:
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_other,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,16,3)}
+            )         
         
         ax.set_yticks(
             ticks=GMT_indices_ticks,
@@ -1435,7 +1511,7 @@ def plot_heatmaps_allhazards(
         if n <= 2:
             ax.tick_params(labelbottom=False)    
         if n >= 3:
-            ax.set_xlabel('Birth year',fontsize=12,color='gray')    
+            ax.set_xlabel('Birth year',fontsize=12,color='gray')
     
     f.savefig('./ms_figures/pf_heatmap_combined_allsims.png',dpi=1000,bbox_inches='tight')
     f.savefig('./ms_figures/pf_heatmap_combined_allsims.pdf',dpi=500,bbox_inches='tight')    
@@ -2310,7 +2386,28 @@ def plot_combined_piechart(
         )    
         # l+=1          
         
-        # pointers connecting 2020, GMT step pixel in heatmap to map panels ------------------
+        # pointers connecting 2020, GMT step box plot to map panels ------------------
+        # if step == gmt_indices_152535[0]:
+        #     x_h=1 
+        # elif step == gmt_indices_152535[1]:
+        #     x_h=0.95                      
+        # elif step == gmt_indices_152535[-1]:
+        #     x_h=0.9
+        # y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
+        # x_m=0
+        # y_m=0.5
+        # con = ConnectionPatch(
+        #     xyA=(x_h,y_h),
+        #     xyB=(x_m,y_m),
+        #     coordsA=ax0.transAxes,
+        #     coordsB=ax.transAxes,
+        #     color='gray'
+        # )
+        # ax0.add_artist(con)   
+        
+        # triangles showing connections between GMT step box plot to map panels ---------------
+        from matplotlib.patches import Circle, Wedge, Polygon
+        from matplotlib.collections import PatchCollection
         if step == gmt_indices_152535[0]:
             x_h=1 
         elif step == gmt_indices_152535[1]:
@@ -2319,15 +2416,51 @@ def plot_combined_piechart(
             x_h=0.9
         y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
         x_m=0
-        y_m=0.5
-        con = ConnectionPatch(
+        y_m_i=0
+        y_m_f=1.0
+        con_low = ConnectionPatch(
             xyA=(x_h,y_h),
-            xyB=(x_m,y_m),
+            xyB=(x_m,y_m_i),
             coordsA=ax0.transAxes,
             coordsB=ax.transAxes,
-            color='gray'
+            color='lightgray',
+            alpha=0.5,
+            zorder=0,
         )
-        ax0.add_artist(con)          
+        con_hi = ConnectionPatch(
+            xyA=(x_h,y_h),
+            xyB=(x_m,y_m_f),
+            coordsA=ax0.transAxes,
+            coordsB=ax.transAxes,
+            color='lightgray',
+            alpha=0.5,
+            zorder=0,
+        )   
+        con_vert = ConnectionPatch(
+            xyA=(x_m,y_m_i),
+            xyB=(x_m,y_m_f),
+            coordsA=ax.transAxes,
+            coordsB=ax.transAxes,
+            color='lightgray',
+            alpha=0.5,
+            zorder=0,
+        )
+        
+        line_low = con_low.get_path().vertices
+        line_hi = con_hi.get_path().vertices
+        
+        ax0.add_artist(con_low)  
+        ax0.add_artist(con_hi) 
+        
+        tri_coords = np.stack(
+            (con_low.get_path().vertices[0],con_low.get_path().vertices[-1],con_hi.get_path().vertices[-1]),
+            axis=0,
+        )
+        triangle = plt.Polygon(tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=0,clip_on=False)    
+        ax0.add_artist(triangle)           
+        
+        # triangles showing connections between GMT step box plot to map panels ---------------
+             
         
     cb = mpl.colorbar.ColorbarBase(
         ax=cax00, 
@@ -2355,7 +2488,6 @@ def plot_combined_piechart(
     cb.outline.set_edgecolor(col_cbedg)
     cb.outline.set_linewidth(cb_edgthic)   
     cax00.xaxis.set_label_position('top')   
-
 
     gmt_indices_sample = [24,15,6]
     gmt_legend={
@@ -2496,7 +2628,7 @@ def plot_combined_piechart(
                     }
                 )        
             
-            if by == 1990:
+            if by == 1960:
                 ax.annotate(
                     percents[i],
                     xy=(0,r+0.05),
@@ -2504,6 +2636,68 @@ def plot_combined_piechart(
                     ha='center',
                     fontsize=6
                 )
+                
+        # triangles showing connections between box plot years on x axis to pie chart years ---------------
+        if ax == ax00:
+            x_b=0.075 
+            x_p_i=x_b - x_b/2
+            x_p_f=x_b + x_b*2
+        elif ax == ax10:
+            x_b=0.5   
+            x_p_i=0.425
+            x_p_f=0.575                         
+        elif ax == ax20:
+            x_b=0.925
+            x_p_i=x_b - 0.075*2
+            x_p_f=x_b + 0.075/2
+            
+        y_b=-0.1
+        y_p=-0.35
+
+        con_le = ConnectionPatch(
+            xyA=(x_b,y_b),
+            xyB=(x_p_i,y_p),
+            coordsA=ax0.transAxes,
+            coordsB=ax0.transAxes,
+            color='lightgray',
+            alpha=0.5,
+            zorder=0,
+        )
+        con_ri = ConnectionPatch(
+            xyA=(x_b,y_b),
+            xyB=(x_p_f,y_p),
+            coordsA=ax0.transAxes,
+            coordsB=ax0.transAxes,
+            color='lightgray',
+            alpha=0.5,
+            zorder=0,
+        )   
+        con_ho = ConnectionPatch(
+            xyA=(x_p_i,y_p),
+            xyB=(x_p_f,y_p),
+            coordsA=ax0.transAxes,
+            coordsB=ax0.transAxes,
+            color='lightgray',
+            alpha=0.5,
+            zorder=0,
+        )
+        
+        line_le = con_le.get_path().vertices
+        line_ri = con_ri.get_path().vertices
+        line_ho = con_ho.get_path().vertices
+        
+        ax0.add_artist(con_le)  
+        ax0.add_artist(con_ri) 
+        ax0.add_artist(con_ho)  
+        
+        pi_tri_coords = np.stack(
+            (con_le.get_path().vertices[0].copy(),
+            con_le.get_path().vertices[-1].copy(),
+            con_ri.get_path().vertices[-1].copy()),
+            axis=0,
+        )
+        pi_tri = plt.Polygon(pi_tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=0,clip_on=False)    
+        ax0.add_artist(pi_tri)                    
             
     for i,k in enumerate(list(ig_dict.keys())):
         ax0.annotate(
@@ -2514,9 +2708,9 @@ def plot_combined_piechart(
             xycoords=ax0.transAxes
         )
             
-    f.savefig('./ms_figures/combined_plot_piecharts.png',dpi=1000,bbox_inches='tight')
-    f.savefig('./ms_figures/combined_plot_piecharts_50.pdf',dpi=50,bbox_inches='tight')
-    f.savefig('./ms_figures/combined_plot_piecharts_500.pdf',dpi=500,bbox_inches='tight')
+    f.savefig('./ms_figures/combined_plot_piecharts_new.png',dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/combined_plot_piecharts_50.pdf',dpi=50,bbox_inches='tight')
+    # f.savefig('./ms_figures/combined_plot_piecharts_500.pdf',dpi=500,bbox_inches='tight')
 
 #%% ----------------------------------------------------------------
 # combined plot showing absolute cohort sizes and pie charts
