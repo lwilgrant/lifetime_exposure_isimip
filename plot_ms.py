@@ -220,6 +220,7 @@ def plot_conceptual(
         (1965,ax.get_ylim()[-1]+2),
         xycoords=ax.transData,
         fontsize=10,
+        fontweight='bold',
         rotation='horizontal',
         color='gray',
     )    
@@ -366,6 +367,7 @@ def plot_conceptual(
         (1995,ax2.get_ylim()[-1]),
         xycoords=ax2.transData,
         fontsize=10,
+        fontweight='bold',
         rotation='horizontal',
         color='gray',
     )
@@ -455,13 +457,13 @@ def plot_conceptual(
     l+=1   
     
     ax2_pdf.annotate(
-        '{} \npeople'.format(str(int(np.round(ds_dmg['by_population_y0'].sel({'birth_year':1990,'lat':city_lat,'lon':city_lon},method='nearest').item())))),
-        (1.1,0.6),
+        'Unprecedented\nlifetime\nexposure\nfor {} people'.format(str(int(np.round(ds_dmg['by_population_y0'].sel({'birth_year':1990,'lat':city_lat,'lon':city_lon},method='nearest').item())))),
+        (1.1,0.3),
         xycoords=ax2_pdf.transAxes,
         fontsize=14,
         rotation='horizontal',
         color='gray',
-        fontweight='bold',
+        # fontweight='bold',
     )             
 
     # ------------------------------------------------------------------   
@@ -538,6 +540,7 @@ def plot_conceptual(
         (2025,ax3.get_ylim()[-1]),
         xycoords=ax3.transData,
         fontsize=10,
+        fontweight='bold',
         rotation='horizontal',
         color='gray',
     )
@@ -607,13 +610,13 @@ def plot_conceptual(
     l+=1  
     
     ax3_pdf.annotate(
-        '{} \npeople'.format(str(int(np.round(ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest').item())))),
+        'Unprecedented\nlifetime\nexposure\nfor {} people'.format(str(int(np.round(ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest').item())))),
         (1.1,0.6),
         xycoords=ax3_pdf.transAxes,
         fontsize=14,
         rotation='horizontal',
         color='gray',
-        fontweight='bold',
+        # fontweight='bold',
     )                   
 
     # City name
@@ -1525,7 +1528,108 @@ def plot_emergence_union(
     grid_area,
     da_emergence_mean,
 ):
-    x=12.6
+    # x=12.6
+    # y=8.1
+    # markersize=10
+    # lat = grid_area.lat.values
+    # lon = grid_area.lon.values
+    # mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
+    # col_cbticlbl = 'gray'   # colorbar color of tick labels
+    # col_cbtic = 'gray'   # colorbar color of ticks
+    # col_cbedg = '0'   # colorbar color of edge
+    # cb_ticlen = 3.5   # colorbar length of ticks
+    # cb_ticwid = 0.4   # colorbar thickness of ticks
+    # cb_edgthic = 0   # colorbar thickness of edges between colors    
+    # density=6  # density of hatched lines showing frac of sims with emergence
+    # sim_frac=0.25  # fraction of sims to show emergence
+    # gmt = 6 # gmt index to compare multihazard pf
+    # extremes = [
+    #     'burntarea', 
+    #     'cropfailedarea', 
+    #     'driedarea', 
+    #     'floodedarea', 
+    #     'heatwavedarea', 
+    #     'tropicalcyclonedarea',
+    # ]
+    # extremes_labels = {
+    #     'burntarea': 'Wildfires',
+    #     'cropfailedarea': 'Crop failures',
+    #     'driedarea': 'Droughts',
+    #     'floodedarea': 'Floods',
+    #     'heatwavedarea': 'Heatwaves',
+    #     'tropicalcyclonedarea': 'Tropical cyclones',
+    # }  
+    # colors=[
+    #     mpl.colors.to_rgb('steelblue'),
+    #     mpl.colors.to_rgb('darkgoldenrod'),
+    #     mpl.colors.to_rgb('peru'),
+    # ]
+    # cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
+
+    # cmap_reds = plt.cm.get_cmap('Reds')
+    # colors_union = [
+    #     'white',
+    #     cmap_reds(0.15),
+    #     cmap_reds(0.3),
+    #     cmap_reds(0.45),
+    #     cmap_reds(0.6),
+    #     cmap_reds(0.75),
+    #     cmap_reds(0.9),
+    # ]
+    # cmap_list_union = mpl.colors.ListedColormap(colors_union,N=len(colors_union))
+    # levels = np.arange(0.5,3.6,1)
+    # union_levels = np.arange(-0.5,6.6,1)
+    # norm=mpl.colors.BoundaryNorm(union_levels,ncolors=len(union_levels)-1)
+
+    # f = plt.figure(figsize=(x,y))    
+    # gs0 = gridspec.GridSpec(4,2)
+    # gs0.update(wspace=0.25)
+    # ax0 = f.add_subplot(gs0[3:4,0:1],projection=ccrs.Robinson())
+
+    # # left side for 1960
+    # # masp per hazard
+    # gsn0 = gridspec.GridSpecFromSubplotSpec(
+    #     3,
+    #     2,
+    #     subplot_spec=gs0[0:3,0:1],
+    #     wspace=0,
+    #     hspace=0,
+    # )
+    # ax00 = f.add_subplot(gsn0[0],projection=ccrs.Robinson())
+    # ax10 = f.add_subplot(gsn0[1],projection=ccrs.Robinson())
+    # ax20 = f.add_subplot(gsn0[2],projection=ccrs.Robinson()) 
+
+    # ax01 = f.add_subplot(gsn0[3],projection=ccrs.Robinson())
+    # ax11 = f.add_subplot(gsn0[4],projection=ccrs.Robinson())
+    # ax21 = f.add_subplot(gsn0[5],projection=ccrs.Robinson())       
+    
+    # # colorbar
+    # pos0 = ax0.get_position()
+    # cax = f.add_axes([
+    #     pos0.x0+0.19,
+    #     pos0.y0+0.075,
+    #     pos0.width*1.5,
+    #     pos0.height*0.2
+    # ])
+
+    # # right side for 2020
+    # ax1 = f.add_subplot(gs0[3:4,1:2],projection=ccrs.Robinson()) # map of emergence union
+    # gsn1 = gridspec.GridSpecFromSubplotSpec(
+    #     3,
+    #     2,
+    #     subplot_spec=gs0[0:3,1:2],
+    #     wspace=0,
+    #     hspace=0,
+    # )
+    # ax02 = f.add_subplot(gsn1[0],projection=ccrs.Robinson())
+    # ax12 = f.add_subplot(gsn1[1],projection=ccrs.Robinson())
+    # ax22 = f.add_subplot(gsn1[2],projection=ccrs.Robinson()) 
+
+    # ax03 = f.add_subplot(gsn1[3],projection=ccrs.Robinson())
+    # ax13 = f.add_subplot(gsn1[4],projection=ccrs.Robinson())
+    # ax23 = f.add_subplot(gsn1[5],projection=ccrs.Robinson()) 
+    
+    x=11
     y=8.1
     markersize=10
     lat = grid_area.lat.values
@@ -1564,31 +1668,38 @@ def plot_emergence_union(
     cmap_list = mpl.colors.ListedColormap(colors,N=len(colors))
 
     cmap_reds = plt.cm.get_cmap('Reds')
+    # colors_union = [
+    #     'white',
+    #     cmap_reds(0.15),
+    #     cmap_reds(0.3),
+    #     cmap_reds(0.45),
+    #     cmap_reds(0.6),
+    #     cmap_reds(0.75),
+    #     cmap_reds(0.9),
+    # ]
     colors_union = [
         'white',
-        cmap_reds(0.15),
-        cmap_reds(0.3),
-        cmap_reds(0.45),
-        cmap_reds(0.6),
+        cmap_reds(0.25),
+        cmap_reds(0.50),
         cmap_reds(0.75),
-        cmap_reds(0.9),
     ]
     cmap_list_union = mpl.colors.ListedColormap(colors_union,N=len(colors_union))
+    cmap_list_union.set_over(cmap_reds(0.99))
     levels = np.arange(0.5,3.6,1)
-    union_levels = np.arange(-0.5,6.6,1)
+    union_levels = np.arange(-0.5,3.6,1)
     norm=mpl.colors.BoundaryNorm(union_levels,ncolors=len(union_levels)-1)
 
     f = plt.figure(figsize=(x,y))    
-    gs0 = gridspec.GridSpec(4,2)
-    gs0.update(wspace=0.25)
-    ax0 = f.add_subplot(gs0[3:4,0:1],projection=ccrs.Robinson())
+    gs0 = gridspec.GridSpec(8,2)
+    gs0.update(wspace=0.25,hspace=0.2)
+    ax0 = f.add_subplot(gs0[5:8,0:1],projection=ccrs.Robinson())
 
     # left side for 1960
     # masp per hazard
     gsn0 = gridspec.GridSpecFromSubplotSpec(
         3,
         2,
-        subplot_spec=gs0[0:3,0:1],
+        subplot_spec=gs0[0:5,0:1],
         wspace=0,
         hspace=0,
     )
@@ -1599,22 +1710,30 @@ def plot_emergence_union(
     ax01 = f.add_subplot(gsn0[3],projection=ccrs.Robinson())
     ax11 = f.add_subplot(gsn0[4],projection=ccrs.Robinson())
     ax21 = f.add_subplot(gsn0[5],projection=ccrs.Robinson())       
-    
-    # colorbar
+
+    # colorbars
     pos0 = ax0.get_position()
-    cax = f.add_axes([
-        pos0.x0+0.19,
-        pos0.y0+0.075,
+    # colorbar for emergence
+    cax_e = f.add_axes([
+        pos0.x0-0.07,
+        pos0.y0-0.075,
+        pos0.width*.15,
+        pos0.height*0.25
+    ])
+    # colorbar for union
+    cax_u = f.add_axes([
+        pos0.x0-0.07,
+        pos0.y0-0.175,
         pos0.width*1.5,
-        pos0.height*0.2
+        pos0.height*0.15
     ])
 
     # right side for 2020
-    ax1 = f.add_subplot(gs0[3:4,1:2],projection=ccrs.Robinson()) # map of emergence union
+    ax1 = f.add_subplot(gs0[5:8,1:2],projection=ccrs.Robinson()) # map of emergence union
     gsn1 = gridspec.GridSpecFromSubplotSpec(
         3,
         2,
-        subplot_spec=gs0[0:3,1:2],
+        subplot_spec=gs0[0:5,1:2],
         wspace=0,
         hspace=0,
     )
@@ -1624,12 +1743,12 @@ def plot_emergence_union(
 
     ax03 = f.add_subplot(gsn1[3],projection=ccrs.Robinson())
     ax13 = f.add_subplot(gsn1[4],projection=ccrs.Robinson())
-    ax23 = f.add_subplot(gsn1[5],projection=ccrs.Robinson()) 
+    ax23 = f.add_subplot(gsn1[5],projection=ccrs.Robinson())     
 
     # plot 1960
     i=0
     l=0
-    
+
     ax00.annotate(
         '1960 birth cohort',
         (0.55,1.3),
@@ -1639,15 +1758,15 @@ def plot_emergence_union(
         color='gray',
         fontweight='bold',
     )          
-    
+
     i+=1
-    
+
     # raster of falses to populate based on regions where 25% of projections emerge
     template_1960 = xr.full_like(
         da_emergence_mean.sel(hazard='heatwavedarea',GMT=17,birth_year=1960),
         False
     )
-    
+
     for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
         
         ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
@@ -1685,6 +1804,7 @@ def plot_emergence_union(
             extremes_labels[extr],
             loc='center',
             fontweight='bold',
+            fontsize=9,
             color='gray'
         )
         ax.set_title(
@@ -1697,9 +1817,8 @@ def plot_emergence_union(
         l+=1    
         i+=1
         
-    # p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':1960}].where(mask.notnull())
     p_u1960 = template_1960.where(mask.notnull())
-    
+
     ax0.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
     ax0.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
     p_u1960.plot(
@@ -1720,7 +1839,7 @@ def plot_emergence_union(
     )    
     l+=1                 
     i+=1
-    
+
     # 2020 birth cohort
     ax02.annotate(
         '2020 birth cohort',
@@ -1731,13 +1850,13 @@ def plot_emergence_union(
         color='gray',
         fontweight='bold',
     )       
-    
+
     # list of hatched booleans for 2020
     template_2020 = xr.full_like(
         da_emergence_mean.sel(hazard='heatwavedarea',GMT=17,birth_year=2020),
         False
     )
-    
+
     for ax,extr in zip((ax02,ax12,ax22,ax03,ax13,ax23),extremes):
         
         ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
@@ -1775,6 +1894,7 @@ def plot_emergence_union(
             extremes_labels[extr],
             loc='center',
             fontweight='bold',
+            fontsize=9,
             color='gray',
         )
         ax.set_title(
@@ -1787,13 +1907,11 @@ def plot_emergence_union(
         l+=1          
         i+=1  
         
-    # p_u3 = da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
     p_u2020 = template_2020.where(mask.notnull())
     ax1.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
     ax1.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white'))
     p_u2020.plot(
         ax=ax1,
-        # cmap='Reds',
         cmap=cmap_list_union,
         levels=union_levels,
         add_colorbar=False,
@@ -1809,26 +1927,64 @@ def plot_emergence_union(
         color='k',
         fontsize=10,
     )    
-    l+=1                
-        
-    cb = mpl.colorbar.ColorbarBase(
-        ax=cax, 
+    l+=1  
+
+    # colorbar for emergence per extreme
+    colors_emergence_cb = ['white','peru']
+    cmap_list_emergence_cb = mpl.colors.ListedColormap(colors_emergence_cb,N=len(colors_emergence_cb))
+    levels_emergence_cb = np.arange(-0.5,1.6,1)
+    norm_e=mpl.colors.BoundaryNorm(levels_emergence_cb,ncolors=len(levels_emergence_cb)-1)
+    cb_e = mpl.colorbar.ColorbarBase(
+        ax=cax_e, 
+        cmap=cmap_list_emergence_cb,
+        # norm=norm,
+        orientation='vertical',
+        spacing='uniform',
+        ticks=[0.25,0.75],
+        drawedges=False,
+    )
+    cb_e.ax.set_yticklabels(['No emergence in ensemble','Emergence in ensemble'])
+
+    cb_e.ax.set_title(
+        '(' + r"$\bf{a}$" + '-' + r"$\bf{f}$" + ',' + r"$\bf{h}$" + '-' + r"$\bf{m}$"+')',
+        fontsize=10,
+    )
+    cb_e.ax.xaxis.set_label_position('top')
+    cb_e.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        labelsize=10,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )                 
+
+    # colorbar for union of emergence across extremes
+    cb_u = mpl.colorbar.ColorbarBase(
+        ax=cax_u, 
         cmap=cmap_list_union,
         norm=norm,
         orientation='horizontal',
+        extend='max',
         spacing='uniform',
         ticks=np.arange(0,7).astype('int'),
         drawedges=False,
     )
+    cb_u.ax.set_title(
+        '(' + r"$\bf{g}$" + ',' + r"$\bf{n}$" + ')',
+        y=1.06,
+        fontsize=10,
+        loc='left',
+    )
 
-    cb.set_label(
-        'Number of \n emerged extremes',
-        fontsize=14,
-        labelpad=10,
+    cb_u.set_label(
+        'Number of emerged extremes',
+        fontsize=10,
+        labelpad=8,
         color='gray',
     )
-    cb.ax.xaxis.set_label_position('top')
-    cb.ax.tick_params(
+    cb_u.ax.xaxis.set_label_position('top')
+    cb_u.ax.tick_params(
         labelcolor=col_cbticlbl,
         labelsize=12,
         color=col_cbtic,
@@ -1836,19 +1992,18 @@ def plot_emergence_union(
         width=cb_ticwid,
         direction='out'
     )   
-    
-    # lat = grid_area.lat.values
-    # lon = grid_area.lon.values
-    # mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
-    # eu=da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
+
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+    mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
+    eu=da_emergence_union.loc[{'GMT':17,'birth_year':2020}].where(mask.notnull())
     la_frac_eu_gteq3_2020 = xr.where(p_u2020>=3,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon')) * 100
     la_frac_eu_gteq3_1960 = xr.where(p_u1960>=3,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon')) * 100
     print('2020 percentage of land area \n with emergence of 3 extremes is {}'.format(la_frac_eu_gteq3_2020.item()))    
     print('1960 percentage of land area \n with emergence of 3 extremes {}'.format(la_frac_eu_gteq3_1960.item()))  
         
-    # f.savefig('./ms_figures/emergence_union.png',dpi=1000,bbox_inches='tight')
-    f.savefig('./ms_figures/emergence_union.pdf',dpi=500,bbox_inches='tight')
-
+    f.savefig('./ms_figures/emergence_union_new.png',dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/emergence_union_new.pdf',dpi=500,bbox_inches='tight')
 
 # %% ----------------------------------------------------------------
 # Combined plot for heatwaves showing box plots of 1.5, 2.5 and 3.5, 
@@ -2132,7 +2287,7 @@ def plot_combined(
     cb.outline.set_linewidth(cb_edgthic)   
     cax00.xaxis.set_label_position('top')                   
 
-    f.savefig('./ms_figures/combined_plot_{}.png'.format(flags['extr']),dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/combined_plot_{}.png'.format(flags['extr']),dpi=1000,bbox_inches='tight')
 
     plt.show()            
     
