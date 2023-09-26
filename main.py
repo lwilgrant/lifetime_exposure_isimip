@@ -90,7 +90,7 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for country lat/lon emergence (only for subset of GMTs and birth years)
                                                # 1: load those^ pickles
-flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
+flags['gridscale_union'] = 1        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles                                                          
 flags['plot_ms'] = 1 # 1 yes plot, 0 no plot
 flags['plot_si'] = 1
@@ -682,595 +682,767 @@ if flags['reporting']:
         da_gs_popdenom,
     )    
 
-# %%
 
 #%% ----------------------------------------------------------------
-# plot tseries, pie charts and maps of heatwave PF
-# ------------------------------------------------------------------        
+# prep data for hexagons
+lat = grid_area.lat.values
+lon = grid_area.lon.values
+land_mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
+ar6_land_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
+grid_area_land = grid_area.where(land_mask.notnull())
+ar6_land = rm.defined_regions.ar6.land.mask(lon,lat).where(grid_area_land.notnull())
+da_grid_area_total_ar6 = grid_area_land.where(ar6_land_3D).sum(dim=('lat','lon'))
 
-x=12
-y=7
+extremes = [
+    'burntarea', 
+    'cropfailedarea', 
+    'driedarea', 
+    'floodedarea', 
+    'heatwavedarea', 
+    'tropicalcyclonedarea',
+]
+
+global_emergences = {}
+
+for extr in extremes:
+    
+    if not os.path.isfile('./data/pickles/{}/emergence_landfrac_{}.pkl'.format(extr,extr)):
+        
+        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            d_isimip_meta = pk.load(f)
+            
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)
+
+        # metadata for isolating analysis to heatwaves
+        step=17
+        birth_year_comparison=np.asarray([1960,2020])
+
+        ds_global_emergence = xr.Dataset(
+            data_vars={
+                'emergence_per_run_{}'.format(extr): (
+                    ['run','birth_year','lat','lon'],
+                    np.full(
+                        (len(sims_per_step[step]),len(birth_year_comparison),len(lat),len(lon)),
+                        fill_value=np.nan,
+                    ),
+                ),                                
+            },
+            coords={
+                'run': ('run', sims_per_step[step]),
+                'lat': ('lat', lat),
+                'lon': ('lon', lon),
+                'birth_year': ('birth_year', birth_year_comparison),
+            }
+        )
+
+        start_time = time.time()
+            
+            
+        # loop through countries
+        for i,cntry in enumerate(gridscale_countries):
+            
+            print('Country {}, {}'.format(i+1,cntry))
+            
+            da_cntry = xr.DataArray(
+                np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+                dims=countries_mask.dims,
+                coords=countries_mask.coords,
+            )
+            da_cntry = da_cntry.where(da_cntry,drop=True)     
+            
+            # cape verde
+            if cntry == 'Cape Verde':
+                pass
+            else:
+                # loop through sims and pick emergence masks for sims that are valid
+                for i in sims_per_step[step]: 
+                    
+                    if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    
+                        with open('./data/pickles/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
+                            da_birthyear_emergence_mask = pk.load(f)
+                        
+                        # make assignment of emergence mask to global emergence 
+                        ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{
+                            'run':i,
+                            'birth_year':birth_year_comparison,
+                            'lat':da_cntry.lat.data,
+                            'lon':da_cntry.lon.data,                
+                        }] = xr.where(
+                                da_cntry.notnull(),
+                                da_birthyear_emergence_mask.loc[{'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                                ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{'run':i,'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                            ).transpose('birth_year','lat','lon')
+                        
+        print("--- {} minutes for {} ---".format(
+            np.floor((time.time() - start_time) / 60),
+            extr
+            )
+                )   
+        ds_global_emergence['emerged_area_{}'.format(extr)] = ds_global_emergence['emergence_per_run_{}'.format(extr)] * grid_area_land
+        ds_global_emergence['emerged_area_ar6_{}'.format(extr)] = ds_global_emergence['emerged_area_{}'.format(extr)].where(ar6_land_3D).sum(dim=('lat','lon'))
+        ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)] = ds_global_emergence['emerged_area_ar6_{}'.format(extr)] / da_grid_area_total_ar6
+        global_emergences[extr] = ds_global_emergence.copy()
+        
+        # pickle birth year aligned cohort sizes and global mean life expectancy
+        with open('./data/pickles/{}/emergence_landfrac_{}.pkl'.format(extr,extr), 'wb') as f:
+            pk.dump(ds_global_emergence,f) 
+    
+    else:
+        
+        with open('./data/pickles/{}/emergence_landfrac_{}.pkl'.format(extr,extr), 'rb') as f:
+            global_emergences[extr] = pk.load(f)    
+
+#%% ----------------------------------------------------------------
+# plot ar6 hexagons with landfrac per extreme and multi extreme panels
+                 
+gdf_ar6_hex = gpd.read_file('./data/shapefiles/zones.gpkg').rename(columns={'label': 'Acronym'})
+gdf_ar6_hex = gdf_ar6_hex.set_index('Acronym').drop(['id','Continent','Name'],axis=1)
+gdf_ar6_hex = gdf_ar6_hex.drop(labels=['GIC'],axis=0)
+
+import matplotlib as mpl
+import matplotlib.gridspec as gridspec
+from matplotlib.patches import Rectangle
+from matplotlib.patches import ConnectionPatch
+from matplotlib.patches import Circle, Wedge, Polygon
+from matplotlib.collections import PatchCollection
+
+x=11
+y=8.1
 markersize=10
-# cbar stuff
 col_cbticlbl = 'gray'   # colorbar color of tick labels
 col_cbtic = 'gray'   # colorbar color of ticks
-col_cbedg = 'gray'   # colorbar color of edge
+col_cbedg = '0'   # colorbar color of edge
 cb_ticlen = 3.5   # colorbar length of ticks
 cb_ticwid = 0.4   # colorbar thickness of ticks
-cb_edgthic = 0   # colorbar thickness of edges between colors   
-by=2020
+cb_edgthic = 0   # colorbar thickness of edges between colors    
+density=6  # density of hatched lines showing frac of sims with emergence
+landfrac_threshold = 10
+extremes = [
+    'burntarea', 
+    'cropfailedarea', 
+    'driedarea', 
+    'floodedarea', 
+    'heatwavedarea', 
+    'tropicalcyclonedarea',
+]
+extremes_labels = {
+    'burntarea': 'Wildfires',
+    'cropfailedarea': 'Crop failures',
+    'driedarea': 'Droughts',
+    'floodedarea': 'Floods',
+    'heatwavedarea': 'Heatwaves',
+    'tropicalcyclonedarea': 'Tropical cyclones',
+}  
 
-gmt_legend={
-    GMT_indices_plot[0]:'1.5',
-    GMT_indices_plot[1]:'2.5',
-    GMT_indices_plot[2]:'3.5',
-}     
+# colorbar stuff for landfrac emerging
+
+cmap_landfrac = plt.cm.get_cmap('Reds')
+levels = np.arange(0,1.01,0.05)
+colors_landfrac = [cmap_landfrac(i) for i in levels[:-1]]
+cmap_list_landfrac = mpl.colors.ListedColormap(colors_landfrac,N=len(colors_landfrac))
+ticks_landfrac = np.arange(0,101,10)
+norm_landfrac = mpl.colors.BoundaryNorm(levels*100,cmap_list_landfrac.N)   
+
+# colorbar stuff for union
+cmap_reds = plt.cm.get_cmap('Reds')
+colors_union = [
+    'white',
+    cmap_reds(0.25),
+    cmap_reds(0.50),
+    cmap_reds(0.75),
+]
+cmap_list_union = mpl.colors.ListedColormap(colors_union,N=len(colors_union))
+cmap_list_union.set_over(cmap_reds(0.99))
+levels = np.arange(0.5,3.6,1)
+union_levels = np.arange(-0.5,3.6,1)
+norm_union=mpl.colors.BoundaryNorm(union_levels,ncolors=len(union_levels)-1)
 
 f = plt.figure(figsize=(x,y))    
-gs0 = gridspec.GridSpec(10,3)
-# gs0.update(hspace=0.8,wspace=0.8)
+gs0 = gridspec.GridSpec(8,2)
+gs0.update(wspace=0.25,hspace=0.2)
+ax0 = f.add_subplot(gs0[5:8,0:1])
 
-# box plots
-ax0 = f.add_subplot(gs0[0:5,0:2]) 
-
-# pie charts
-gs10 = gridspec.GridSpecFromSubplotSpec(
-    1,
-    3, 
-    subplot_spec=gs0[7:,0:2],
-    # top=0.8
-)
-ax00 = f.add_subplot(gs10[0])
-ax10 = f.add_subplot(gs10[1])
-ax20 = f.add_subplot(gs10[2]) 
-
-# maps
-gs01 = gridspec.GridSpecFromSubplotSpec(
+# left side for 1960
+# masp per hazard
+gsn0 = gridspec.GridSpecFromSubplotSpec(
     3,
-    1, 
-    subplot_spec=gs0[0:9,2:],
-    # top=0.8
+    2,
+    subplot_spec=gs0[0:5,0:1],
+    wspace=0,
+    hspace=0,
 )
-ax01 = f.add_subplot(gs01[0],projection=ccrs.Robinson())
-ax11 = f.add_subplot(gs01[1],projection=ccrs.Robinson())
-ax21 = f.add_subplot(gs01[2],projection=ccrs.Robinson()) 
-pos00 = ax21.get_position()
-cax00 = f.add_axes([
-    pos00.x0-0.05,
-    pos00.y0-0.1,
-    pos00.width*1.95,
-    pos00.height*0.2
+ax00 = f.add_subplot(gsn0[0])
+ax10 = f.add_subplot(gsn0[1])
+ax20 = f.add_subplot(gsn0[2]) 
+
+ax01 = f.add_subplot(gsn0[3])
+ax11 = f.add_subplot(gsn0[4])
+ax21 = f.add_subplot(gsn0[5])       
+
+# colorbars
+pos0 = ax0.get_position()
+
+# colorbar for landfrac of emergence
+cax_landfrac = f.add_axes([
+    pos0.x0-0.07,
+    pos0.y0-0.0575,
+    pos0.width*1.5,
+    pos0.height*0.15
+])
+# colorbar for union
+cax_union = f.add_axes([
+    pos0.x0-0.07,
+    pos0.y0-0.2,
+    pos0.width*1.5,
+    pos0.height*0.15
 ])
 
-l = 0 # letter indexing
-
-# colorbar stuff ------------------------------------------------------------
-cmap_whole = plt.cm.get_cmap('Reds')
-levels = np.arange(0,1.01,0.05)
-colors = [cmap_whole(i) for i in levels[:-1]]
-cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
-ticks = np.arange(0,101,10)
-norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
-
-# pop frac box plot ----------------------------------------------------------
-GMT_indices_ticks=[6,12,18,24]
-gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
-
-# levels = np.arange(0,1.01,0.05)
-levels = np.arange(0,101,5)
-norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
-
-# get data
-df_list_gs = []
-extr='heatwavedarea'
-with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
-    d_isimip_meta = pk.load(file)              
-with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
-    ds_pf_gs_plot = pk.load(file)
-da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
-    'GMT':GMT_indices_plot,
-    'birth_year':sample_birth_years,
-}]
-sims_per_step = {}
-for step in GMT_labels:
-    sims_per_step[step] = []
-    for i in list(d_isimip_meta.keys()):
-        if d_isimip_meta[i]['GMT_strj_valid'][step]:
-            sims_per_step[step].append(i)    
-
-for step in GMT_indices_plot:
-    da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
-    df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
-    df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
-    df_pf_gs_plot_step['hazard'] = extr
-    df_list_gs.append(df_pf_gs_plot_step)
-df_pf_gs_plot = pd.concat(df_list_gs)
-
-# pf boxplot
-colors = dict(zip(list(gmt_legend.values()),['steelblue','darkgoldenrod','darkred']))
-p = sns.boxplot(
-    data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
-    x='birth_year',
-    y='pf',
-    hue='GMT_label',
-    palette=colors,
-    showcaps=False,
-    showfliers=False,
-    boxprops={
-        'linewidth':0,
-        'alpha':0.5
-    },        
-    ax=ax0,
-    zorder=5,
+# right side for 2020
+ax1 = f.add_subplot(gs0[5:8,1:2]) # map of emergence union
+gsn1 = gridspec.GridSpecFromSubplotSpec(
+    3,
+    2,
+    subplot_spec=gs0[0:5,1:2],
+    wspace=0,
+    hspace=0,
 )
-p.legend_.remove()                  
-ax0.spines['right'].set_visible(False)
-ax0.spines['top'].set_visible(False)      
-ax0.tick_params(colors='gray')
-ax0.set_ylim(0,100)
-ax0.spines['left'].set_color('gray')
-ax0.spines['bottom'].set_color('gray')      
-# ax0.set_ylabel('$\mathregular{PF_{Heatwaves}}$',color='gray',fontsize=14)
-ax0.set_ylabel('$\mathregular{CF_{Heatwaves}}$ [%]',color='gray',fontsize=14)
-ax0.set_xlabel('Birth year',color='gray',fontsize=14)       
+ax02 = f.add_subplot(gsn1[0])
+ax12 = f.add_subplot(gsn1[1])
+ax22 = f.add_subplot(gsn1[2]) 
+
+ax03 = f.add_subplot(gsn1[3])
+ax13 = f.add_subplot(gsn1[4])
+ax23 = f.add_subplot(gsn1[5])     
+
+# plot 1960
+i=0
+l=0
+
+ax00.annotate(
+    '1960 birth cohort',
+    (0.55,1.3),
+    xycoords=ax00.transAxes,
+    fontsize=14,
+    rotation='horizontal',
+    color='gray',
+    fontweight='bold',
+)          
+
+i+=1
+
+# new gdf for union
+gdf_ar6_hex_union_1960 = gdf_ar6_hex.copy()
+gdf_ar6_hex_union_1960['union'] = 0
+
+for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
+    
+    ds_global_emergence = global_emergences[extr]
+    gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+    gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+    gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+    # gdf_hex_landrac_plottable = gdf_ar6_emerged_landfrac.merge(gdf_ar6_hex,left_index=True,right_index=True)
+    gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+    gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==1960]
+    gdf_hex_landrac_plottable_1960['landfrac'] = gdf_hex_landrac_plottable_1960['landfrac'] * 100 
+    gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable_1960[['geometry','birth_year','region','names','landfrac']]
+    gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'] + (gdf_hex_landrac_plottable_1960['landfrac'] > landfrac_threshold)
+    gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'].astype(float)
+    
+    gdf_hex_landrac_plottable_1960.plot(
+        column='landfrac',
+        cmap=cmap_list_landfrac,
+        norm=norm_landfrac,
+        edgecolor='gray',
+        ax=ax,
+    )
+    ax.set_axis_off()
+    ax.set_title(
+        extremes_labels[extr],
+        loc='center',
+        fontweight='bold',
+        fontsize=9,
+        color='gray'
+    )
+    ax.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    )    
+    l+=1    
+    i+=1
+    
+gdf_ar6_hex_union_1960.plot(
+    column='union',
+    cmap=cmap_list_union,
+    norm=norm_union,
+    edgecolor='gray',
+    ax=ax0,
+)
+ax0.set_axis_off()
 ax0.set_title(
     letters[l],
     loc='left',
     fontweight='bold',
-    fontsize=10
+    color='k',
+    fontsize=10,
 )    
-l+=1 
+l+=1                 
+i+=1
 
-# bbox
-x0 = 0.075
-y0 = 0.7
-xlen = 0.2
-ylen = 0.3
+# 2020 birth cohort
+ax02.annotate(
+    '2020 birth cohort',
+    (0.55,1.3),
+    xycoords=ax02.transAxes,
+    fontsize=14,
+    rotation='horizontal',
+    color='gray',
+    fontweight='bold',
+)       
 
-# space between entries
-legend_entrypad = 0.5
+# new gdf for union
+gdf_ar6_hex_union_2020 = gdf_ar6_hex.copy()
+gdf_ar6_hex_union_2020['union'] = 0
 
-# length per entry
-legend_entrylen = 0.75
-
-legend_font = 10
-legend_lw=3.5   
-
-legendcols = list(colors.values())
-handles = [
-    Rectangle((0,0),1,1,color=legendcols[0]),\
-    Rectangle((0,0),1,1,color=legendcols[1]),\
-    Rectangle((0,0),1,1,color=legendcols[2])
-]
-
-labels= [
-    '1.5 °C GMT warming by 2100',
-    '2.5 °C GMT warming by 2100',
-    '3.5 °C GMT warming by 2100',    
-]
-
-ax0.legend(
-    handles, 
-    labels, 
-    bbox_to_anchor=(x0, y0, xlen, ylen), 
-    loc = 'upper left',
-    ncol=1,
-    fontsize=legend_font, 
-    labelcolor='gray',
-    mode="expand", 
-    borderaxespad=0.,\
-    frameon=False, 
-    columnspacing=0.05, 
-    handlelength=legend_entrylen, 
-    handletextpad=legend_entrypad
-)            
-# maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
-
-# gmt_indices_123 = [19,10,0]
-gmt_indices_152535 = [24,15,6]
-map_letters = {24:'g',15:'f',6:'e'}
-da_p_gs_plot = ds_pf_gs['unprec'].loc[{
-    'GMT':gmt_indices_152535,
-    'birth_year':by,
-}]
-
-# since wer're looking at country level means across runs, denominator is important and 0s need to be accounted for in non-emergence
-# so we only take sims or runs valid per GMT level and make sure nans are 0
-df_list_gs = []
-for step in gmt_indices_152535:
-    da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].mean(dim='run')
-    da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
-    df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
-    df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-    df_list_gs.append(df_p_gs_plot_step)
-df_p_gs_plot = pd.concat(df_list_gs)
-df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
-gdf = cp(gdf_country_borders.reset_index())
-gdf_p = cp(gdf_country_borders.reset_index())
-robinson = ccrs.Robinson().proj4_init
-
-for ax,step in zip((ax01,ax11,ax21),gmt_indices_152535):
-    gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
-    ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
-    gdf_p.to_crs(robinson).plot(
-        ax=ax,
-        column='pf',
-        cmap=cmap_list_frac,
-        norm=norm,
-        cax=cax00,
-        zorder=2,
-        rasterized=True,
-    )
-
-    gdf.to_crs(robinson).plot(
-        ax=ax,
-        color='none', 
-        edgecolor='black',
-        linewidth=0.25,
-        zorder=3,
-    )
+for ax,extr in zip((ax02,ax12,ax22,ax03,ax13,ax23),extremes):
     
+    ds_global_emergence = global_emergences[extr]
+    gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+    gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+    gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+    gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+    gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==2020]
+    gdf_hex_landrac_plottable_2020['landfrac'] = gdf_hex_landrac_plottable_2020['landfrac'] * 100     
+    gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable_2020[['geometry','birth_year','region','names','landfrac']]
+    gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'] + (gdf_hex_landrac_plottable_2020['landfrac'] > landfrac_threshold)
+    gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'].astype(float)
+    
+    gdf_hex_landrac_plottable_2020.plot(
+        column='landfrac',
+        cmap=cmap_list_landfrac,
+        norm=norm_landfrac,
+        edgecolor='gray',
+        ax=ax,
+    )
+    ax.set_axis_off()
     ax.set_title(
-        '{} °C'.format(gmt_legend[step]),
+        extremes_labels[extr],
         loc='center',
         fontweight='bold',
-        fontsize=12,
-        color='gray',       
+        fontsize=9,
+        color='gray',
     )
-    
     ax.set_title(
-        map_letters[step],
+        letters[l],
         loc='left',
         fontweight='bold',
-        fontsize=10
-    )
+        color='k',
+        fontsize=10,
+    )    
+    l+=1          
+    i+=1  
     
-    # triangles showing connections between GMT step box plot to map panels ---------------
-    from matplotlib.patches import Circle, Wedge, Polygon
-    from matplotlib.collections import PatchCollection
-    if step == gmt_indices_152535[0]:
-        x_h=1 
-    elif step == gmt_indices_152535[1]:
-        x_h=0.95                      
-    elif step == gmt_indices_152535[-1]:
-        x_h=0.9
-    y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
-    x_m=0
-    y_m_i=0
-    y_m_f=1.0
-    con_low = ConnectionPatch(
-        xyA=(x_h,y_h),
-        xyB=(x_m,y_m_i),
-        coordsA=ax0.transAxes,
-        coordsB=ax.transAxes,
-        color='lightgray',
-        alpha=0.5,
-        zorder=0,
-    )
-    con_hi = ConnectionPatch(
-        xyA=(x_h,y_h),
-        xyB=(x_m,y_m_f),
-        coordsA=ax0.transAxes,
-        coordsB=ax.transAxes,
-        color='lightgray',
-        alpha=0.5,
-        zorder=0,
-    )   
-    con_vert = ConnectionPatch(
-        xyA=(x_m,y_m_i),
-        xyB=(x_m,y_m_f),
-        coordsA=ax.transAxes,
-        coordsB=ax.transAxes,
-        color='lightgray',
-        alpha=0.5,
-        zorder=0,
-    )
-    
-    line_low = con_low.get_path().vertices
-    line_hi = con_hi.get_path().vertices
-    
-    ax0.add_artist(con_low)  
-    ax0.add_artist(con_hi) 
-    
-    tri_coords = np.stack(
-        (con_low.get_path().vertices[0],con_low.get_path().vertices[-1],con_hi.get_path().vertices[-1]),
-        axis=0,
-    )
-    triangle = plt.Polygon(tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=0,clip_on=False)    
-    ax0.add_artist(triangle)   
-    
-cb = mpl.colorbar.ColorbarBase(
-    ax=cax00, 
-    cmap=cmap_list_frac,
-    norm=norm,
+gdf_ar6_hex_union_2020.plot(
+    column='union',
+    cmap=cmap_list_union,
+    norm=norm_union,
+    edgecolor='gray',
+    ax=ax1,
+)
+ax1.set_axis_off()
+ax1.set_title(
+    letters[l],
+    loc='left',
+    fontweight='bold',
+    color='k',
+    fontsize=10,
+)    
+l+=1  
+
+# colorbar for median landfrac emergence per extreme
+cb_landfrac = mpl.colorbar.ColorbarBase(
+    ax=cax_landfrac, 
+    cmap=cmap_list_landfrac,
+    norm=norm_landfrac,
     orientation='horizontal',
+    extend='neither',
     spacing='uniform',
-    ticks=ticks,
+    ticks=ticks_landfrac,
     drawedges=False,
 )
-
-cb.set_label(
-    '$\mathregular{CF_{Heatwaves}}$ for 2020 birth cohort [%]',
-    fontsize=14,
-    color='gray'
+cb_landfrac.ax.set_title(
+    '(' + r"$\bf{g}$" + ',' + r"$\bf{n}$" + ')',
+    y=1.06,
+    fontsize=10,
+    loc='left',
 )
-cb.ax.xaxis.set_label_position('top')
-cb.ax.tick_params(
+cb_landfrac.set_label(
+    'Median percent of land area emerging'.format(str(landfrac_threshold)),
+    fontsize=10,
+    labelpad=8,
+    color='gray',
+)
+cb_landfrac.ax.xaxis.set_label_position('top')
+cb_landfrac.ax.tick_params(
     labelcolor=col_cbticlbl,
+    labelsize=12,
     color=col_cbtic,
     length=cb_ticlen,
     width=cb_ticwid,
     direction='out'
 )   
-cb.outline.set_edgecolor(col_cbedg)
-cb.outline.set_linewidth(cb_edgthic)   
-cax00.xaxis.set_label_position('top')   
 
-gmt_indices_sample = [24,15,6]
-gmt_legend={
-    gmt_indices_sample[0]:'1.5',
-    gmt_indices_sample[1]:'2.5',
-    gmt_indices_sample[2]:'3.5',
+# colorbar for union of emergence across extremes
+cb_u = mpl.colorbar.ColorbarBase(
+    ax=cax_union, 
+    cmap=cmap_list_union,
+    norm=norm_union,
+    orientation='horizontal',
+    extend='max',
+    spacing='uniform',
+    ticks=np.arange(0,7).astype('int'),
+    drawedges=False,
+)
+cb_u.ax.set_title(
+    '(' + r"$\bf{g}$" + ',' + r"$\bf{n}$" + ')',
+    y=1.06,
+    fontsize=10,
+    loc='left',
+)
+
+cb_u.set_label(
+    'Number of extremes emerging in at least {}% of region'.format(str(landfrac_threshold)),
+    fontsize=10,
+    labelpad=8,
+    color='gray',
+)
+cb_u.ax.xaxis.set_label_position('top')
+cb_u.ax.tick_params(
+    labelcolor=col_cbticlbl,
+    labelsize=12,
+    color=col_cbtic,
+    length=cb_ticlen,
+    width=cb_ticwid,
+    direction='out'
+)   
+
+# f.savefig('./ms_figures/emergence_union_hexagons_{}.png'.format(landfrac_threshold),dpi=1000,bbox_inches='tight')
+
+#%% ----------------------------------------------------------------
+# plot ar6 hexagons for multi extremes across thresholds
+
+# plot ar6 hexagons with landfrac per extreme and multi extreme panels
+                 
+gdf_ar6_hex = gpd.read_file('./data/shapefiles/zones.gpkg').rename(columns={'label': 'Acronym'})
+gdf_ar6_hex = gdf_ar6_hex.set_index('Acronym').drop(['id','Continent','Name'],axis=1)
+gdf_ar6_hex = gdf_ar6_hex.drop(labels=['GIC'],axis=0)
+
+import matplotlib as mpl
+import matplotlib.gridspec as gridspec
+from matplotlib.patches import Rectangle
+from matplotlib.patches import ConnectionPatch
+from matplotlib.patches import Circle, Wedge, Polygon
+from matplotlib.collections import PatchCollection
+
+x=8
+y=8.1
+markersize=10
+col_cbticlbl = 'gray'   # colorbar color of tick labels
+col_cbtic = 'gray'   # colorbar color of ticks
+col_cbedg = '0'   # colorbar color of edge
+cb_ticlen = 3.5   # colorbar length of ticks
+cb_ticwid = 0.4   # colorbar thickness of ticks
+cb_edgthic = 0   # colorbar thickness of edges between colors    
+density=6  # density of hatched lines showing frac of sims with emergence
+landfrac_threshold = 10
+extremes = [
+    'burntarea', 
+    'cropfailedarea', 
+    'driedarea', 
+    'floodedarea', 
+    'heatwavedarea', 
+    'tropicalcyclonedarea',
+]
+extremes_labels = {
+    'burntarea': 'Wildfires',
+    'cropfailedarea': 'Crop failures',
+    'driedarea': 'Droughts',
+    'floodedarea': 'Floods',
+    'heatwavedarea': 'Heatwaves',
+    'tropicalcyclonedarea': 'Tropical cyclones',
 }
-colors = dict(zip([6,15,24],['steelblue','darkgoldenrod','darkred']))
 
-by_sample = [1960,1990,2020]
-incomegroups = df_countries['incomegroup'].unique()
-income_countries = {}
-for category in incomegroups:
-    income_countries[category] = list(df_countries.index[df_countries['incomegroup']==category])
-ig_dict = {
-    'Low income':'LI',
-    'Lower middle income': 'LMI',
-    'Upper middle income': 'UMI',
-    'High income': 'HI',
-}
+# colorbar stuff for union
+cmap_reds = plt.cm.get_cmap('Reds')
+colors_union = [
+    'white',
+    cmap_reds(0.25),
+    cmap_reds(0.50),
+    cmap_reds(0.75),
+]
+cmap_list_union = mpl.colors.ListedColormap(colors_union,N=len(colors_union))
+cmap_list_union.set_over(cmap_reds(0.99))
+levels = np.arange(0.5,3.6,1)
+union_levels = np.arange(-0.5,3.6,1)
+norm_union=mpl.colors.BoundaryNorm(union_levels,ncolors=len(union_levels)-1)
+
+f = plt.figure(figsize=(x,y))    
+# gs0 = gridspec.GridSpec(8,2)
+gs0 = gridspec.GridSpec(9,2)
+# gs0 = gridspec.GridSpec(6,2)
+gs0.update(wspace=0.25,hspace=0.2)
 
 
-income_unprec = {}
-da_unprec = ds_pf_gs['unprec']
-for category in list(income_countries.keys()):
-    income_unprec[category] = da_unprec.loc[{
-        'country':income_countries[category],
-        'GMT':gmt_indices_sample,
-    }]
+ax0 = f.add_subplot(gs0[0:2,0:1],projection=ccrs.Robinson())
+ax1 = f.add_subplot(gs0[3:5,0:1])
+ax2 = f.add_subplot(gs0[5:7,0:1])
+ax3 = f.add_subplot(gs0[7:9,0:1])
 
+# ax0 = f.add_subplot(gs0[0:2,0:1],projection=ccrs.PlateCarree())
+# ax1 = f.add_subplot(gs0[2:4,0:1])
+# ax2 = f.add_subplot(gs0[4:6,0:1])
+# ax3 = f.add_subplot(gs0[6:8,0:1])
+
+# ax0 = f.add_subplot(gs0[0:2,0:1])
+# ax1 = f.add_subplot(gs0[2:4,0:1])
+# ax2 = f.add_subplot(gs0[4:6,0:1])
+
+# left side for 1960
+# masp per hazard
+
+# colorbars
+pos0 = ax3.get_position()
+
+# colorbar for union
+cax_union = f.add_axes([
+    pos0.x0+0.15,
+    pos0.y0-0.1,
+    pos0.width*1.5,
+    pos0.height*0.15
+])
+
+# right side for 2020
+ax4 = f.add_subplot(gs0[0:2,1:2])
+ax5 = f.add_subplot(gs0[3:5,1:2])
+ax6 = f.add_subplot(gs0[5:7,1:2])
+ax7 = f.add_subplot(gs0[7:9,1:2])   
+
+# ax4 = f.add_subplot(gs0[0:2,1:2])
+# ax5 = f.add_subplot(gs0[2:4,1:2])
+# ax6 = f.add_subplot(gs0[4:6,1:2])
+# ax7 = f.add_subplot(gs0[6:8,1:2])   
+
+# ax4 = f.add_subplot(gs0[0:2,1:2])
+# ax5 = f.add_subplot(gs0[2:4,1:2])
+# ax6 = f.add_subplot(gs0[4:6,1:2])
+  
+# plot 1960
+i=0
+l=0
+
+ax0.annotate(
+    '1960 birth cohort',
+    (0.15,1.3),
+    xycoords=ax1.transAxes,
+    fontsize=14,
+    rotation='horizontal',
+    color='gray',
+    fontweight='bold',
+)          
+
+i+=1
+
+# plot ar6 key
+text_kws = dict(
+    bbox=dict(color="none"),
+    path_effects=[pe.withStroke(linewidth=2, foreground="w")],
+    color="gray", 
+    fontsize=4, 
+    # bbox=dict(pad=0.2, color='w')
+)
+line_kws=dict(lw=0.5)
+ar6_polys = rm.defined_regions.ar6.land
+ar6_polys = ar6_polys[np.arange(1,44).astype(int)]
+ar6_polys.plot(ax=ax0,label='abbrev',line_kws=line_kws,text_kws=text_kws)
+ax0.set_title(
+    letters[l],
+    loc='left',
+    fontweight='bold',
+    color='k',
+    fontsize=10,
+) 
+l+=1
+
+# plot blank hexagons
+gdf_ar6_hex_blank = gdf_ar6_hex.copy()
+gdf_ar6_hex_blank = gdf_ar6_hex_blank.drop(labels='PAC',axis=0)
+gdf_ar6_hex_blank['label'] = list(gdf_ar6_hex_blank.index)
+gdf_ar6_hex_blank.plot(
+    ax=ax4,
+    color='w',
+    edgecolor='gray',
+)
+# ar6_polys.abbrevs NEED TO GET THESE IN HEXAGONS
+gdf_ar6_hex_blank.apply(
+    lambda x: ax4.annotate(
+        text=x['label'], 
+        xy=x.geometry.centroid.coords[0], 
+        ha='center',
+        color="gray", 
+        fontsize=4, 
+    ), 
+    axis=1
+)
+ax4.set_axis_off()
+ax4.set_title(
+    letters[l],
+    loc='left',
+    fontweight='bold',
+    color='k',
+    fontsize=10,
+) 
+l+=1
+
+# for ax,thresh in zip((ax0,ax1,ax2,ax3),(10,20,30,40)):
+# for ax,thresh in zip((ax0,ax1,ax2),(10,20,30)):
+for ax,thresh in zip((ax1,ax2,ax3),(10,20,30)):
     
-sims_per_step = {}
-for step in GMT_labels:
-    sims_per_step[step] = []
-    for i in list(d_isimip_meta.keys()):
-        if d_isimip_meta[i]['GMT_strj_valid'][step]:
-            sims_per_step[step].append(i)
+    # new gdf for union
+    gdf_ar6_hex_union_1960 = gdf_ar6_hex.copy()
+    gdf_ar6_hex_union_1960['union'] = 0    
+    
+    for extr in extremes:
         
-pi_totals = {}
-pi_ratios = {}
-for by in by_sample:
+        ds_global_emergence = global_emergences[extr]
+        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==1960]
+        gdf_hex_landrac_plottable_1960['landfrac'] = gdf_hex_landrac_plottable_1960['landfrac'] * 100 
+        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable_1960[['geometry','birth_year','region','names','landfrac']]
+        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'] + (gdf_hex_landrac_plottable_1960['landfrac'] > thresh)
+        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'].astype(float)
     
-    # populate each birth year with totals per income group
-    pi_totals[by] = [da_gs_popdenom.loc[{
-        'country':income_countries[category],
-        'birth_year':by,
-    }].sum(dim='country').item() for category in list(income_countries.keys())]
-    
-    
-    pi_ratios[by] = {}
-    for category in list(income_countries.keys()):
-        pi_ratios[by][category] = {}
-        for step in gmt_indices_sample:
-            unprec = income_unprec[category].loc[{
-                'GMT':step,
-                'run':sims_per_step[step],
-                'birth_year':by
-            }].sum(dim='country').mean(dim='run').item()
-            pi_ratios[by][category][step] = unprec / da_gs_popdenom.loc[{
-                'country':income_countries[category],
-                'birth_year':by,
-            }].sum(dim='country').item()
-    
-
-for by,ax in zip(by_sample,[ax00,ax10,ax20]):
-    for i,category in enumerate(list(income_countries.keys())):
-        order = np.argsort(list(pi_ratios[by][category].values())) # indices that would sort pf across gmt steps
-        order = order[::-1] # want decreasing pf order, so we reverse the indices
-        ordered_gmts = [gmt_indices_sample[o] for o in order]
-        for step in ordered_gmts:
-            colors_list =['None']*4
-            colors_list[i] = 'white'
-            # first paint white where we want actual color (semi transparent, white makes it look good) per category with nothing in other categories
-            ax.pie(
-                x=pi_totals[by],
-                colors=colors_list,
-                radius=pi_ratios[by][category][step],
-                wedgeprops={
-                    'width':pi_ratios[by][category][step], 
-                    'edgecolor':'None',
-                    'linewidth': 0.5,
-                    'alpha':0.5,
-                }     
-            )
-            # then paint actual color and radius
-            colors_list[i] = colors[step]
-            ax.pie(
-                x=pi_totals[by],
-                colors=colors_list,
-                radius=pi_ratios[by][category][step],
-                wedgeprops={
-                    'width':pi_ratios[by][category][step], 
-                    'edgecolor':'None',
-                    'linewidth': 0.5,
-                    'alpha':0.5,
-                }
-            )                     
+    gdf_ar6_hex_union_1960.plot(
+        column='union',
+        cmap=cmap_list_union,
+        norm=norm_union,
+        edgecolor='gray',
+        ax=ax,
+    )
+    ax.set_axis_off()
     ax.set_title(
         letters[l],
         loc='left',
         fontweight='bold',
-        fontsize=10
+        color='k',
+        fontsize=10,
     )    
-    ax.set_title(
-        by,
-        loc='center',
-        fontweight='bold',
-        fontsize=12,
-        color='gray',       
-    )        
-    l+=1             
-    percents = ['25%','50%','75%','100%']
-    for i,r in enumerate(np.arange(0.25,1.01,0.25)):
-        if r < 1:
-            ax.pie(
-                x=pi_totals[by],
-                colors=['None']*4,
-                radius=r,
-                wedgeprops={
-                    'width':r, 
-                    'edgecolor':'0.5',
-                    'linewidth': 0.5,
-                }
-            )      
-        else:
-            ax.pie(
-                x=pi_totals[by],
-                colors=['None']*4,
-                radius=r,
-                labels=list(ig_dict.values()),
-                wedgeprops={
-                    'width':r, 
-                    'edgecolor':'0.5',
-                    'linewidth': 0.5,
-                },
-                textprops={
-                    'color':'0.5'
-                }
-            )        
-        
-        if by == 1960:
-            ax.annotate(
-                percents[i],
-                xy=(0,r+0.05),
-                color='gray',
-                ha='center',
-                fontsize=6
-            )
-
-    # triangles showing connections between box plot years on x axis to pie chart years ---------------
-    if ax == ax00:
-        x_b=0.075 
-        x_p_i=x_b - x_b/2
-        x_p_f=x_b + x_b*2
-    elif ax == ax10:
-        x_b=0.5   
-        x_p_i=0.425
-        x_p_f=0.575                         
-    elif ax == ax20:
-        x_b=0.925
-        x_p_i=x_b - 0.075*2
-        x_p_f=x_b + 0.075/2
-        
-    y_b=-0.1
-    y_p=-0.35
-
-    con_le = ConnectionPatch(
-        xyA=(x_b,y_b),
-        xyB=(x_p_i,y_p),
-        coordsA=ax0.transAxes,
-        coordsB=ax0.transAxes,
-        color='lightgray',
-        alpha=0.5,
-        zorder=0,
-    )
-    con_ri = ConnectionPatch(
-        xyA=(x_b,y_b),
-        xyB=(x_p_f,y_p),
-        coordsA=ax0.transAxes,
-        coordsB=ax0.transAxes,
-        color='lightgray',
-        alpha=0.5,
-        zorder=0,
-    )   
-    con_ho = ConnectionPatch(
-        xyA=(x_p_i,y_p),
-        xyB=(x_p_f,y_p),
-        coordsA=ax0.transAxes,
-        coordsB=ax0.transAxes,
-        color='lightgray',
-        alpha=0.5,
-        zorder=0,
-    )
     
-    line_le = con_le.get_path().vertices
-    line_ri = con_ri.get_path().vertices
-    line_ho = con_ho.get_path().vertices
-    
-    ax0.add_artist(con_le)  
-    ax0.add_artist(con_ri) 
-    ax0.add_artist(con_ho)  
-    
-    pi_tri_coords = np.stack(
-        (con_le.get_path().vertices[0].copy(),
-         con_le.get_path().vertices[-1].copy(),
-         con_ri.get_path().vertices[-1].copy()),
-        axis=0,
-    )
-    pi_tri = plt.Polygon(pi_tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=0,clip_on=False)    
-    ax0.add_artist(pi_tri)       
-    
-        
-for i,k in enumerate(list(ig_dict.keys())):
-    ax0.annotate(
-        '{}: {}'.format(ig_dict[k],k),
-        xy=(0,-1.1-i*0.1),
+    # label for threshold
+    ax.annotate(
+        'X = {}'.format(thresh),
+        (-0.1,0.4),
+        xycoords=ax.transAxes,
+        fontsize=10,
+        rotation='vertical',
         color='gray',
-        # ha='center',
-        xycoords=ax0.transAxes
+    )           
+       
+    l+=1                 
+    i+=1
+
+# 2020 birth cohort
+ax4.annotate(
+    '2020 birth cohort',
+    (0.15,1.3),
+    xycoords=ax5.transAxes,
+    fontsize=14,
+    rotation='horizontal',
+    color='gray',
+    fontweight='bold',
+)       
+
+# for ax,thresh in zip((ax4,ax5,ax6,ax7),(10,20,30,40)):
+# for ax,thresh in zip((ax4,ax5,ax6),(10,20,30)):
+for ax,thresh in zip((ax5,ax6,ax7),(10,20,30)):
+    
+    # new gdf for union
+    gdf_ar6_hex_union_2020 = gdf_ar6_hex.copy()
+    gdf_ar6_hex_union_2020['union'] = 0
+    
+    for extr in extremes:
+    
+        ds_global_emergence = global_emergences[extr]
+        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==2020]
+        gdf_hex_landrac_plottable_2020['landfrac'] = gdf_hex_landrac_plottable_2020['landfrac'] * 100     
+        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable_2020[['geometry','birth_year','region','names','landfrac']]
+        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'] + (gdf_hex_landrac_plottable_2020['landfrac'] > thresh)
+        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'].astype(float)
+    
+    gdf_ar6_hex_union_2020.plot(
+        column='union',
+        cmap=cmap_list_union,
+        norm=norm_union,
+        edgecolor='gray',
+        ax=ax,
     )
-            
-    # f.savefig('./ms_figures/combined_plot_piecharts.png',dpi=1000,bbox_inches='tight')
-    # f.savefig('./ms_figures/combined_plot_piecharts_50.pdf',dpi=50,bbox_inches='tight')
-    # f.savefig('./ms_figures/combined_plot_piecharts_500.pdf',dpi=500,bbox_inches='tight')
+    ax.set_axis_off()
+    ax.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    )        
+    
+    l+=1          
+    i+=1  
+    
 
-# %%
+# colorbar for union of emergence across extremes
+cb_u = mpl.colorbar.ColorbarBase(
+    ax=cax_union, 
+    cmap=cmap_list_union,
+    norm=norm_union,
+    orientation='horizontal',
+    extend='max',
+    spacing='uniform',
+    ticks=np.arange(0,7).astype('int'),
+    drawedges=False,
+)
 
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gs
-import numpy as np
+cb_u.set_label(
+    'Extremes with median emergence in >X% of region',
+    fontsize=10,
+    labelpad=8,
+    color='gray',
+)
+cb_u.ax.xaxis.set_label_position('top')
+cb_u.ax.tick_params(
+    labelcolor=col_cbticlbl,
+    labelsize=12,
+    color=col_cbtic,
+    length=cb_ticlen,
+    width=cb_ticwid,
+    direction='out'
+)   
+cb_u.outline.set_color('gray')
 
-fig, ax = plt.subplots()
-ax.axis('off')
+f.savefig('./ms_figures/emergence_union_hexagons_multithresh.png',dpi=1000,bbox_inches='tight')
 
-grid_t = gs.GridSpec(4,3)
-ax0a = fig.add_subplot(grid_t[0:1,0:1])
-ax0b = fig.add_subplot(grid_t[0:1,1:2])
-ax0c = fig.add_subplot(grid_t[0:1,2:3])
-ax1 = fig.add_subplot(grid_t[1:4,:])
-
-xl = ax0a.get_xlim()
-yl = ax0a.get_ylim()
-ptAl = (xl[0], yl[0])
-ptAr = (xl[1], yl[0])
-
-ptD1 = (0,0)
-ptD2 = (1,1)
-ptD3 = (2,1)
-
-ax1.plot([-1,0,1,2,3],[2,0,1,1,-1],'ko')
-
-from matplotlib.patches import ConnectionPatch
-
-for pts,axs,num in [[ptD1,ax0a,1],[ptD2,ax0b,2],[ptD3,ax0c,3]]:
-
-    con1 = ConnectionPatch(xyA=pts, xyB=ptAl, coordsA="data", coordsB="data",
-                          axesA=ax1, axesB=axs,color='grey',shrinkA=0,shrinkB=0)
-    ax1.add_artist(con1)
-    con2 = ConnectionPatch(xyA=pts, xyB=ptAr, coordsA="data", coordsB="data",
-                          axesA=ax1, axesB=axs,color='grey',shrinkA=0,shrinkB=0)
-    ax1.add_artist(con2)
-
-    line2=con2.get_path().vertices
-    line1=con1.get_path().vertices
-
-    zoomcoords = sorted(np.concatenate((line1[1:],line2)),key=lambda x: x[0])
-    triangle = plt.Polygon(zoomcoords,ec='black',fc='red',zorder=100,clip_on=False)
-    ax1.add_artist(triangle)
 # %%
