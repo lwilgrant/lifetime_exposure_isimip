@@ -1535,11 +1535,11 @@ def plot_heatmaps_allhazards_countryemergence(
                 'g', 'h', 'i',\
                 'j', 'k', 'l']
     extremes = [
-        'burntarea', 
+        'heatwavedarea',     
         'cropfailedarea', 
+        'burntarea', 
         'driedarea', 
         'floodedarea', 
-        'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
     # extremes_labels = {
@@ -1549,20 +1549,22 @@ def plot_heatmaps_allhazards_countryemergence(
     #     'floodedarea': '$\mathregular{PF_{Floods}}$',
     #     'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
     #     'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
-    # }       
-    
-    extremes_labels = {
-        'burntarea': '$\mathregular{CF_{Wildfires}}$',
-        'cropfailedarea': '$\mathregular{CF_{Crop failures}}$',
-        'driedarea': '$\mathregular{CF_{Droughts}}$',
-        'floodedarea': '$\mathregular{CF_{Floods}}$',
-        'heatwavedarea': '$\mathregular{CF_{Heatwaves}}$',
-        'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$',
-    }        
+    # }    
+    extremes_labels = {    
+        'heatwavedarea': '$\mathregular{CF_{Heatwaves}}$ [%]',
+        'cropfailedarea': '$\mathregular{CF_{Crop failures}}$ [%]',
+        'burntarea': '$\mathregular{CF_{Wildfires}}$ [%]',
+        'driedarea': '$\mathregular{CF_{Droughts}}$ [%]',
+        'floodedarea': '$\mathregular{CF_{Floods}}$ [%]',
+        'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$ [%]',
+    }            
 
     # labels for GMT ticks
     GMT_indices_ticks=[6,12,18,24]
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    levels_hw=np.arange(0,101,10)
+    levels_cf=np.arange(0,70,10)
+    levels_other=np.arange(0,31,5)
 
     # using fracs already computed
     # # loop through extremes and concat pop and pop frac
@@ -1622,19 +1624,61 @@ def plot_heatmaps_allhazards_countryemergence(
         ncols=3,
         figsize=(x,y),
     )
+    # for ax,extr in zip(axes.flatten(),extremes):
+    #     p = da_pf_extrs.loc[{
+    #         'hazard':extr,
+    #         'birth_year':np.arange(1960,2021),
+    #     }].plot(
+    #         x='birth_year',
+    #         y='GMT',
+    #         ax=ax,
+    #         add_labels=False,
+    #         levels=10,
+    #         cmap='Reds',
+    #     ) 
     for ax,extr in zip(axes.flatten(),extremes):
-        p = da_pf_extrs.loc[{
-            'hazard':extr,
-            'birth_year':np.arange(1960,2021),
-        }].plot(
-            x='birth_year',
-            y='GMT',
-            ax=ax,
-            add_labels=False,
-            levels=10,
-            cmap='Reds',
-        ) 
-        
+        if extr == 'heatwavedarea':
+            p = da_pf_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_hw,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,101,20)}
+            ) 
+        elif extr == 'cropfailedarea':
+            p = da_pf_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_cf,
+                cmap='Reds',
+                cbar_kwargs={'ticks':levels_cf}
+            )         
+        else:
+            p = da_pf_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_other,
+                cmap='Reds',
+                cbar_kwargs={'ticks':levels_other}
+            )           
         ax.set_yticks(
             ticks=GMT_indices_ticks,
             labels=gmts2100,
