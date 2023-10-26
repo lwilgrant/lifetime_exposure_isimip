@@ -1,5 +1,5 @@
 # Lifetime exposure isimip
-Python code for lifetime exposure analysis with ISIMIP simulations, translated from the MATLAB code of [Thiery et al. (2021)](https://github.com/VUB-HYDR/2021_Thiery_etal_Science).
+Python code for lifetime exposure analysis with ISIMIP simulations, translated from the MATLAB code of [Thiery et al. (2021)](https://github.com/VUB-HYDR/2021_Thiery_etal_Science) and extended toward assessing gridscale, unprecedented exposure.
 
 
 ## Environment
