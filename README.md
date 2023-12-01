@@ -3,7 +3,7 @@ Python code for lifetime exposure analysis with ISIMIP simulations, translated f
 
 
 ## Environment
-The python modules used in this repository can be installed using [exposure_env.yml](./exposure_env.yml). 
+The python modules used in this repository can be installed using [exposure_env.yml](./exposure_env.yml). This may take up to an hour to compile in the Anaconda prompt.
 
 ```
 conda env create -f exposure_env.yml
