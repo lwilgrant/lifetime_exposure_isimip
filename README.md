@@ -13,7 +13,8 @@ conda env create -f exposure_env.yml
 ## Sample data
 Sample data for our analysis for heatwaves is available [here](https://vub-my.sharepoint.com/:f:/g/personal/luke_grant_vub_be/Evp91Cvs6tFPumIUySMnkPcBvTh1_T6lKn3jhPYzOvfmDA?e=DsZTdQ). You need to copy the /data folder and its contents to the same directory as the code for the repo to work.
 
-
+## Running
+Once your python environment is set up, running this analysis for heatwaves should take 3-6 hours. Simply choose the ``heatwavedarea'' flag and set all run options to full compute. This will produce a number of python pickle files for intermediate computation. Note that some plotting functions will not work, as they require outputs of analyses for other extreme event categories for which sample data is not provided.
 
 ## License
 This project is licensed under the MIT License. See also the 
