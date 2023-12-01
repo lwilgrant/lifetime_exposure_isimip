@@ -10,6 +10,11 @@ conda env create -f exposure_env.yml
 
 ```
 
+## Sample data
+Sample data for our analysis for heatwaves is available [here](https://vub-my.sharepoint.com/:f:/g/personal/luke_grant_vub_be/Evp91Cvs6tFPumIUySMnkPcBvTh1_T6lKn3jhPYzOvfmDA?e=DsZTdQ). You need to copy the /data folder and its contents to the same directory as the code for the repo to work.
+
+
+
 ## License
 This project is licensed under the MIT License. See also the 
 [LICENSE](LICENSE) 
