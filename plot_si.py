@@ -20,6 +20,13 @@ import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
 from matplotlib.patches import ConnectionPatch
+import matplotlib as mpl
+import matplotlib.gridspec as gridspec
+from matplotlib.patches import Rectangle
+from matplotlib.patches import ConnectionPatch
+from matplotlib.patches import Circle, Wedge, Polygon
+from matplotlib.collections import PatchCollection
+import matplotlib.patheffects as pe
 import mapclassify as mc
 from copy import deepcopy as cp
 import matplotlib.pyplot as plt
@@ -35,7 +42,7 @@ import seaborn as sns
 import cartopy as cr
 import cartopy.feature as feature
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 
 # %% ---------------------------------------------------------------
@@ -1272,7 +1279,7 @@ def plot_exposure_locations(
         i+=1
 
         
-    f.savefig('./si_figures/exposure_locations.png',dpi=1000,bbox_inches='tight')    
+    # f.savefig('./si_figures/exposure_locations.png',dpi=1000,bbox_inches='tight')    
     
 #%% ----------------------------------------------------------------
 # plot gmt pathways in rcps and ar6
@@ -2145,4 +2152,639 @@ def plot_cohort_sizes(
     )      
 
     f.savefig('./si_figures/cohort_sizes.png',dpi=100)
-# %%
+
+#%% ----------------------------------------------------------------
+# plot ar6 hexagons with landfrac per extreme and multi extreme panels
+    
+def plot_hexagon_landfrac(
+    d_global_emergence,
+):                
+    gdf_ar6_hex = gpd.read_file('./data/shapefiles/zones.gpkg').rename(columns={'label': 'Acronym'})
+    gdf_ar6_hex = gdf_ar6_hex.set_index('Acronym').drop(['id','Continent','Name'],axis=1)
+    gdf_ar6_hex = gdf_ar6_hex.drop(labels=['GIC'],axis=0)
+
+    x=11
+    y=8.1
+    markersize=10
+    col_cbticlbl = 'gray'   # colorbar color of tick labels
+    col_cbtic = 'gray'   # colorbar color of ticks
+    col_cbedg = '0'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors    
+    density=6  # density of hatched lines showing frac of sims with emergence
+    landfrac_threshold = 10
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
+
+    # colorbar stuff for landfrac emerging
+    cmap_landfrac = plt.cm.get_cmap('Reds')
+    levels = np.arange(0,1.01,0.05)
+    colors_landfrac = [cmap_landfrac(i) for i in levels[:-1]]
+    cmap_list_landfrac = mpl.colors.ListedColormap(colors_landfrac,N=len(colors_landfrac))
+    ticks_landfrac = np.arange(0,101,10)
+    norm_landfrac = mpl.colors.BoundaryNorm(levels*100,cmap_list_landfrac.N)   
+
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(9,2)
+    gs0.update(wspace=0.25,hspace=0.2)
+
+    # panel for map key of true ar6
+    ax0 = f.add_subplot(gs0[0:2,0],projection=ccrs.Robinson())
+
+    # left side for 1960
+    # maps per hazard
+    gsn0 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        2,
+        subplot_spec=gs0[3:9,0:1],
+        wspace=0,
+        hspace=0,
+    )
+    ax00 = f.add_subplot(gsn0[0])
+    ax10 = f.add_subplot(gsn0[1])
+    ax20 = f.add_subplot(gsn0[2]) 
+
+    ax01 = f.add_subplot(gsn0[3])
+    ax11 = f.add_subplot(gsn0[4])
+    ax21 = f.add_subplot(gsn0[5])       
+
+    # colorbars
+    pos0 = ax20.get_position()
+
+    # colorbar for landfrac of emergence
+    cax_landfrac = f.add_axes([
+        pos0.x0,
+        pos0.y0-0.25,
+        pos0.width*3,
+        pos0.height*0.15
+    ])
+
+    # panel for map key of true ar6
+    ax1 = f.add_subplot(gs0[0:2,1],projection=ccrs.Robinson())
+
+    # right side for 2020
+    gsn1 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        2,
+        subplot_spec=gs0[3:9,1:2],
+        wspace=0,
+        hspace=0,
+    )
+    ax02 = f.add_subplot(gsn1[0])
+    ax12 = f.add_subplot(gsn1[1])
+    ax22 = f.add_subplot(gsn1[2]) 
+
+    ax03 = f.add_subplot(gsn1[3])
+    ax13 = f.add_subplot(gsn1[4])
+    ax23 = f.add_subplot(gsn1[5])     
+
+    # plot 1960
+    i=0
+    l=0
+
+    ax00.annotate(
+        '1960 birth cohort',
+        (0.4,1.5),
+        xycoords=ax00.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )          
+
+    i+=1
+
+    # plot ar6 key
+    text_kws = dict(
+        bbox=dict(color="none"),
+        path_effects=[pe.withStroke(linewidth=2, foreground="w")],
+        color="gray", 
+        fontsize=4, 
+    )
+    line_kws=dict(lw=0.5)
+    ar6_polys = rm.defined_regions.ar6.land
+    ar6_polys = ar6_polys[np.arange(1,44).astype(int)]
+    ar6_polys.plot(ax=ax0,label='abbrev',line_kws=line_kws,text_kws=text_kws)
+    ax0.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    ) 
+    l+=1
+
+    # plot blank hexagons
+    gdf_ar6_hex_blank = gdf_ar6_hex.copy()
+    gdf_ar6_hex_blank = gdf_ar6_hex_blank.drop(labels='PAC',axis=0)
+    gdf_ar6_hex_blank['label'] = list(gdf_ar6_hex_blank.index)
+    gdf_ar6_hex_blank.plot(
+        ax=ax1,
+        color='w',
+        edgecolor='gray',
+    )
+    # ar6_polys.abbrevs NEED TO GET THESE IN HEXAGONS
+    gdf_ar6_hex_blank.apply(
+        lambda x: ax1.annotate(
+            text=x['label'], 
+            xy=x.geometry.centroid.coords[0], 
+            ha='center',
+            color="gray", 
+            fontsize=4, 
+        ), 
+        axis=1
+    )
+    ax1.set_axis_off()
+    ax1.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    ) 
+    l+=1
+
+    # new gdf for union
+    gdf_ar6_hex_union_1960 = gdf_ar6_hex.copy()
+    gdf_ar6_hex_union_1960['union'] = 0
+
+    for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
+        
+        ds_global_emergence = d_global_emergence[extr]
+        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==1960]
+        gdf_hex_landrac_plottable_1960['landfrac'] = gdf_hex_landrac_plottable_1960['landfrac'] * 100 
+        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable_1960[['geometry','birth_year','region','names','landfrac']]
+        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'] + (gdf_hex_landrac_plottable_1960['landfrac'] > landfrac_threshold)
+        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'].astype(float)
+        
+        gdf_hex_landrac_plottable_1960.plot(
+            column='landfrac',
+            cmap=cmap_list_landfrac,
+            norm=norm_landfrac,
+            edgecolor='gray',
+            ax=ax,
+        )
+        ax.set_axis_off()
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            fontsize=9,
+            color='gray'
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1    
+        i+=1
+
+    # 2020 birth cohort
+    ax02.annotate(
+        '2020 birth cohort',
+        (0.4,1.5),
+        xycoords=ax02.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )       
+
+    # new gdf for union
+    gdf_ar6_hex_union_2020 = gdf_ar6_hex.copy()
+    gdf_ar6_hex_union_2020['union'] = 0
+
+    for ax,extr in zip((ax02,ax12,ax22,ax03,ax13,ax23),extremes):
+        
+        ds_global_emergence = d_global_emergence[extr]
+        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==2020]
+        gdf_hex_landrac_plottable_2020['landfrac'] = gdf_hex_landrac_plottable_2020['landfrac'] * 100     
+        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable_2020[['geometry','birth_year','region','names','landfrac']]
+        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'] + (gdf_hex_landrac_plottable_2020['landfrac'] > landfrac_threshold)
+        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'].astype(float)
+        
+        gdf_hex_landrac_plottable_2020.plot(
+            column='landfrac',
+            cmap=cmap_list_landfrac,
+            norm=norm_landfrac,
+            edgecolor='gray',
+            ax=ax,
+        )
+        ax.set_axis_off()
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            fontsize=9,
+            color='gray',
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1          
+        i+=1  
+
+    # colorbar for median landfrac emergence per extreme
+    cb_landfrac = mpl.colorbar.ColorbarBase(
+        ax=cax_landfrac, 
+        cmap=cmap_list_landfrac,
+        norm=norm_landfrac,
+        orientation='horizontal',
+        extend='neither',
+        spacing='uniform',
+        ticks=ticks_landfrac,
+        drawedges=False,
+    )
+    cb_landfrac.ax.set_title(
+        '(' + r"$\bf{c}$" + '-' + r"$\bf{n}$" + ')',
+        y=1.06,
+        fontsize=10,
+        loc='left',
+    )
+    cb_landfrac.set_label(
+        'Median percent of land area emerging'.format(str(landfrac_threshold)),
+        fontsize=10,
+        labelpad=8,
+        color='gray',
+    )
+    cb_landfrac.ax.xaxis.set_label_position('top')
+    cb_landfrac.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        labelsize=12,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )
+
+    f.savefig('./si_figures/emergence_landfrac_hexagons.png',dpi=1000,bbox_inches='tight')
+
+#%% ----------------------------------------------------------------
+# plot ar6 hexagons with landfrac per extreme and multi extreme panels
+    
+def plot_hexagon_landfrac_union(
+    d_global_emergence,
+):                
+    gdf_ar6_hex = gpd.read_file('./data/shapefiles/zones.gpkg').rename(columns={'label': 'Acronym'})
+    gdf_ar6_hex = gdf_ar6_hex.set_index('Acronym').drop(['id','Continent','Name'],axis=1)
+    gdf_ar6_hex = gdf_ar6_hex.drop(labels=['GIC'],axis=0)
+
+    import matplotlib as mpl
+    import matplotlib.gridspec as gridspec
+    from matplotlib.patches import Rectangle
+    from matplotlib.patches import ConnectionPatch
+    from matplotlib.patches import Circle, Wedge, Polygon
+    from matplotlib.collections import PatchCollection
+
+    x=11
+    y=8.1
+    markersize=10
+    col_cbticlbl = 'gray'   # colorbar color of tick labels
+    col_cbtic = 'gray'   # colorbar color of ticks
+    col_cbedg = '0'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors    
+    density=6  # density of hatched lines showing frac of sims with emergence
+    landfrac_threshold = 10
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    extremes_labels = {
+        'burntarea': 'Wildfires',
+        'cropfailedarea': 'Crop failures',
+        'driedarea': 'Droughts',
+        'floodedarea': 'Floods',
+        'heatwavedarea': 'Heatwaves',
+        'tropicalcyclonedarea': 'Tropical cyclones',
+    }  
+
+    # colorbar stuff for landfrac emerging
+
+    cmap_landfrac = plt.cm.get_cmap('Reds')
+    levels = np.arange(0,1.01,0.05)
+    colors_landfrac = [cmap_landfrac(i) for i in levels[:-1]]
+    cmap_list_landfrac = mpl.colors.ListedColormap(colors_landfrac,N=len(colors_landfrac))
+    ticks_landfrac = np.arange(0,101,10)
+    norm_landfrac = mpl.colors.BoundaryNorm(levels*100,cmap_list_landfrac.N)   
+
+    # colorbar stuff for union
+    cmap_reds = plt.cm.get_cmap('Reds')
+    colors_union = [
+        'white',
+        cmap_reds(0.25),
+        cmap_reds(0.50),
+        cmap_reds(0.75),
+    ]
+    cmap_list_union = mpl.colors.ListedColormap(colors_union,N=len(colors_union))
+    cmap_list_union.set_over(cmap_reds(0.99))
+    levels = np.arange(0.5,3.6,1)
+    union_levels = np.arange(-0.5,3.6,1)
+    norm_union=mpl.colors.BoundaryNorm(union_levels,ncolors=len(union_levels)-1)
+
+    f = plt.figure(figsize=(x,y))    
+    gs0 = gridspec.GridSpec(8,2)
+    gs0.update(wspace=0.25,hspace=0.2)
+    ax0 = f.add_subplot(gs0[5:8,0:1])
+
+    # left side for 1960
+    # masp per hazard
+    gsn0 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        2,
+        subplot_spec=gs0[0:5,0:1],
+        wspace=0,
+        hspace=0,
+    )
+    ax00 = f.add_subplot(gsn0[0])
+    ax10 = f.add_subplot(gsn0[1])
+    ax20 = f.add_subplot(gsn0[2]) 
+
+    ax01 = f.add_subplot(gsn0[3])
+    ax11 = f.add_subplot(gsn0[4])
+    ax21 = f.add_subplot(gsn0[5])       
+
+    # colorbars
+    pos0 = ax0.get_position()
+
+    # colorbar for landfrac of emergence
+    cax_landfrac = f.add_axes([
+        pos0.x0-0.07,
+        pos0.y0-0.0575,
+        pos0.width*1.5,
+        pos0.height*0.15
+    ])
+    # colorbar for union
+    cax_union = f.add_axes([
+        pos0.x0-0.07,
+        pos0.y0-0.2,
+        pos0.width*1.5,
+        pos0.height*0.15
+    ])
+
+    # right side for 2020
+    ax1 = f.add_subplot(gs0[5:8,1:2]) # map of emergence union
+    gsn1 = gridspec.GridSpecFromSubplotSpec(
+        3,
+        2,
+        subplot_spec=gs0[0:5,1:2],
+        wspace=0,
+        hspace=0,
+    )
+    ax02 = f.add_subplot(gsn1[0])
+    ax12 = f.add_subplot(gsn1[1])
+    ax22 = f.add_subplot(gsn1[2]) 
+
+    ax03 = f.add_subplot(gsn1[3])
+    ax13 = f.add_subplot(gsn1[4])
+    ax23 = f.add_subplot(gsn1[5])     
+
+    # plot 1960
+    i=0
+    l=0
+
+    ax00.annotate(
+        '1960 birth cohort',
+        (0.55,1.3),
+        xycoords=ax00.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )          
+
+    i+=1
+
+    # new gdf for union
+    gdf_ar6_hex_union_1960 = gdf_ar6_hex.copy()
+    gdf_ar6_hex_union_1960['union'] = 0
+
+    for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
+        
+        ds_global_emergence = d_global_emergence[extr]
+        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==1960]
+        gdf_hex_landrac_plottable_1960['landfrac'] = gdf_hex_landrac_plottable_1960['landfrac'] * 100 
+        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable_1960[['geometry','birth_year','region','names','landfrac']]
+        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'] + (gdf_hex_landrac_plottable_1960['landfrac'] > landfrac_threshold)
+        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'].astype(float)
+        
+        gdf_hex_landrac_plottable_1960.plot(
+            column='landfrac',
+            cmap=cmap_list_landfrac,
+            norm=norm_landfrac,
+            edgecolor='gray',
+            ax=ax,
+        )
+        ax.set_axis_off()
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            fontsize=9,
+            color='gray'
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1    
+        i+=1
+        
+    gdf_ar6_hex_union_1960.plot(
+        column='union',
+        cmap=cmap_list_union,
+        norm=norm_union,
+        edgecolor='gray',
+        ax=ax0,
+    )
+    ax0.set_axis_off()
+    ax0.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    )    
+    l+=1                 
+    i+=1
+
+    # 2020 birth cohort
+    ax02.annotate(
+        '2020 birth cohort',
+        (0.55,1.3),
+        xycoords=ax02.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )       
+
+    # new gdf for union
+    gdf_ar6_hex_union_2020 = gdf_ar6_hex.copy()
+    gdf_ar6_hex_union_2020['union'] = 0
+
+    for ax,extr in zip((ax02,ax12,ax22,ax03,ax13,ax23),extremes):
+        
+        ds_global_emergence = d_global_emergence[extr]
+        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
+        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
+        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
+        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==2020]
+        gdf_hex_landrac_plottable_2020['landfrac'] = gdf_hex_landrac_plottable_2020['landfrac'] * 100     
+        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable_2020[['geometry','birth_year','region','names','landfrac']]
+        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'] + (gdf_hex_landrac_plottable_2020['landfrac'] > landfrac_threshold)
+        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'].astype(float)
+        
+        gdf_hex_landrac_plottable_2020.plot(
+            column='landfrac',
+            cmap=cmap_list_landfrac,
+            norm=norm_landfrac,
+            edgecolor='gray',
+            ax=ax,
+        )
+        ax.set_axis_off()
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            fontsize=9,
+            color='gray',
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1          
+        i+=1  
+        
+    gdf_ar6_hex_union_2020.plot(
+        column='union',
+        cmap=cmap_list_union,
+        norm=norm_union,
+        edgecolor='gray',
+        ax=ax1,
+    )
+    ax1.set_axis_off()
+    ax1.set_title(
+        letters[l],
+        loc='left',
+        fontweight='bold',
+        color='k',
+        fontsize=10,
+    )    
+    l+=1  
+
+    # colorbar for median landfrac emergence per extreme
+    cb_landfrac = mpl.colorbar.ColorbarBase(
+        ax=cax_landfrac, 
+        cmap=cmap_list_landfrac,
+        norm=norm_landfrac,
+        orientation='horizontal',
+        extend='neither',
+        spacing='uniform',
+        ticks=ticks_landfrac,
+        drawedges=False,
+    )
+    cb_landfrac.ax.set_title(
+        '(' + r"$\bf{g}$" + ',' + r"$\bf{n}$" + ')',
+        y=1.06,
+        fontsize=10,
+        loc='left',
+    )
+    cb_landfrac.set_label(
+        'Median percent of land area emerging'.format(str(landfrac_threshold)),
+        fontsize=10,
+        labelpad=8,
+        color='gray',
+    )
+    cb_landfrac.ax.xaxis.set_label_position('top')
+    cb_landfrac.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        labelsize=12,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )   
+
+    # colorbar for union of emergence across extremes
+    cb_u = mpl.colorbar.ColorbarBase(
+        ax=cax_union, 
+        cmap=cmap_list_union,
+        norm=norm_union,
+        orientation='horizontal',
+        extend='max',
+        spacing='uniform',
+        ticks=np.arange(0,7).astype('int'),
+        drawedges=False,
+    )
+    cb_u.ax.set_title(
+        '(' + r"$\bf{g}$" + ',' + r"$\bf{n}$" + ')',
+        y=1.06,
+        fontsize=10,
+        loc='left',
+    )
+
+    cb_u.set_label(
+        'Number of extremes emerging in at least {}% of region'.format(str(landfrac_threshold)),
+        fontsize=10,
+        labelpad=8,
+        color='gray',
+    )
+    cb_u.ax.xaxis.set_label_position('top')
+    cb_u.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        labelsize=12,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )   
+
+    f.savefig('./ms_figures/emergence_landfrac_union_hexagons_{}.png'.format(landfrac_threshold),dpi=1000,bbox_inches='tight')

@@ -92,7 +92,8 @@ flags['gridscale_spatially_explicit'] = 0      # 0: do not load pickles for coun
                                                # 1: load those^ pickles
 flags['gridscale_union'] = 1        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles    
-flags['global_emergence'] = 1       # 0: do                                                                                
+flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
+                                    # 1: load pickles                                                                               
 flags['plot_ms'] = 1 # 1 yes plot, 0 no plot
 flags['plot_si'] = 1
 flags['testing'] = 0      
@@ -105,7 +106,7 @@ flags['testing'] = 0
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 set_extremes(flags)
@@ -606,9 +607,10 @@ if flags['plot_si']:
     )    
     
     # plot hexagon landfracs (will change to only show landfracs for SI)
-    plot_hexagon_landfrac_union(
+    plot_hexagon_landfrac(
         d_global_emergence,
     )    
+    
 
 #%% ----------------------------------------------------------------
 # sample analytics for paper
@@ -721,564 +723,46 @@ verify=ds_pf_gs['unprec'].sel(run=tr,GMT=step,birth_year=by).sum(dim='country')/
 
 
 #%% ----------------------------------------------------------------
-# plot ar6 hexagons with landfrac per extreme and multi extreme panels
+# getting new df_GMT_strj using existing 1.5 and 3.5 with adjustments (perfect increments at 2100)
+# once I get bounds, round their final year to 1.5 and 3.5, then do interp
 
-gdf_ar6_hex = gpd.read_file('./data/shapefiles/zones.gpkg').rename(columns={'label': 'Acronym'})
-gdf_ar6_hex = gdf_ar6_hex.set_index('Acronym').drop(['id','Continent','Name'],axis=1)
-gdf_ar6_hex = gdf_ar6_hex.drop(labels=['GIC'],axis=0)
+df_GMT_strj
+GMT_min=1.5
+GMT_max=3.5
+GMT_steps = np.arange(GMT_min,GMT_max+0.05,GMT_inc)
+n_steps = len(GMT_steps)
+n_years = len(year_range)
+trj = np.empty((n_years,n_steps))
+trj.fill(np.nan)
 
-import matplotlib as mpl
-import matplotlib.gridspec as gridspec
-from matplotlib.patches import Rectangle
-from matplotlib.patches import ConnectionPatch
-from matplotlib.patches import Circle, Wedge, Polygon
-from matplotlib.collections import PatchCollection
+GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
 
-x=8
-y=8.1
-markersize=10
-col_cbticlbl = 'gray'   # colorbar color of tick labels
-col_cbtic = 'gray'   # colorbar color of ticks
-col_cbedg = '0'   # colorbar color of edge
-cb_ticlen = 3.5   # colorbar length of ticks
-cb_ticwid = 0.4   # colorbar thickness of ticks
-cb_edgthic = 0   # colorbar thickness of edges between colors    
-density=6  # density of hatched lines showing frac of sims with emergence
-landfrac_threshold = 10
-extremes = [
-    'burntarea', 
-    'cropfailedarea', 
-    'driedarea', 
-    'floodedarea', 
-    'heatwavedarea', 
-    'tropicalcyclonedarea',
-]
-extremes_labels = {
-    'burntarea': 'Wildfires',
-    'cropfailedarea': 'Crop failures',
-    'driedarea': 'Droughts',
-    'floodedarea': 'Floods',
-    'heatwavedarea': 'Heatwaves',
-    'tropicalcyclonedarea': 'Tropical cyclones',
-}
+# new 1.5 degree as avg between pathways that hit 1.44 and 1.55 at 2100 and then fix 2100 year
+df_GMT_15_new = df_GMT_strj.loc[:,5:6].mean(axis=1)
+df_GMT_15_new[2100] = GMT_min
 
-# colorbar stuff for union
-cmap_reds = plt.cm.get_cmap('Reds')
-colors_union = [
-    'white',
-    cmap_reds(0.25),
-    cmap_reds(0.50),
-    cmap_reds(0.75),
-]
-cmap_list_union = mpl.colors.ListedColormap(colors_union,N=len(colors_union))
-cmap_list_union.set_over(cmap_reds(0.99))
-levels = np.arange(0.5,3.6,1)
-union_levels = np.arange(-0.5,3.6,1)
-norm_union=mpl.colors.BoundaryNorm(union_levels,ncolors=len(union_levels)-1)
+# new 3.5 degree
+df_GMT_35_new = df_GMT_strj.loc[:,24]
+df_GMT_35_new[2100] = GMT_max
 
-f = plt.figure(figsize=(x,y))    
-gs0 = gridspec.GridSpec(9,2)
-gs0.update(wspace=0.25,hspace=0.2)
+# 
+trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
+trj[:,0] = df_GMT_15_new
+trj[:,-1] = df_GMT_35_new
 
-# left side 1960
-ax0 = f.add_subplot(gs0[0:2,0:1],projection=ccrs.Robinson())
-ax1 = f.add_subplot(gs0[3:5,0:1])
-ax2 = f.add_subplot(gs0[5:7,0:1])
-ax3 = f.add_subplot(gs0[7:9,0:1])
-
-# colorbars
-pos0 = ax3.get_position()
-
-# colorbar for union
-cax_union = f.add_axes([
-    pos0.x0+0.15,
-    pos0.y0-0.1,
-    pos0.width*1.5,
-    pos0.height*0.15
-])
-
-# right side for 2020
-ax4 = f.add_subplot(gs0[0:2,1:2])
-ax5 = f.add_subplot(gs0[3:5,1:2])
-ax6 = f.add_subplot(gs0[5:7,1:2])
-ax7 = f.add_subplot(gs0[7:9,1:2])   
-
-# plot 1960
-i=0
-l=0
-
-ax0.annotate(
-    '1960 birth cohort',
-    (0.15,1.3),
-    xycoords=ax1.transAxes,
-    fontsize=14,
-    rotation='horizontal',
-    color='gray',
-    fontweight='bold',
-)          
-
-i+=1
-
-# plot ar6 key
-text_kws = dict(
-    bbox=dict(color="none"),
-    path_effects=[pe.withStroke(linewidth=2, foreground="w")],
-    color="gray", 
-    fontsize=4, 
+trj_msk_new = np.ma.masked_invalid(trj)
+[xx, yy] = np.meshgrid(range(n_steps),range(n_years))
+x1 = xx[~trj_msk_new.mask]
+y1 = yy[~trj_msk_new.mask]
+trj_interpd_new = interpolate.griddata(
+    (x1,y1), # only include coords with valid data
+    trj[~trj_msk_new.mask].ravel(), # inputs are valid only, too
+    (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
 )
-line_kws=dict(lw=0.5)
-ar6_polys = rm.defined_regions.ar6.land
-ar6_polys = ar6_polys[np.arange(1,44).astype(int)]
-ar6_polys.plot(ax=ax0,label='abbrev',line_kws=line_kws,text_kws=text_kws)
-ax0.set_title(
-    letters[l],
-    loc='left',
-    fontweight='bold',
-    color='k',
-    fontsize=10,
-) 
-l+=1
-
-# plot blank hexagons
-gdf_ar6_hex_blank = gdf_ar6_hex.copy()
-gdf_ar6_hex_blank = gdf_ar6_hex_blank.drop(labels='PAC',axis=0)
-gdf_ar6_hex_blank['label'] = list(gdf_ar6_hex_blank.index)
-gdf_ar6_hex_blank.plot(
-    ax=ax4,
-    color='w',
-    edgecolor='gray',
-)
-# ar6_polys.abbrevs NEED TO GET THESE IN HEXAGONS
-gdf_ar6_hex_blank.apply(
-    lambda x: ax4.annotate(
-        text=x['label'], 
-        xy=x.geometry.centroid.coords[0], 
-        ha='center',
-        color="gray", 
-        fontsize=4, 
-    ), 
-    axis=1
-)
-ax4.set_axis_off()
-ax4.set_title(
-    letters[l],
-    loc='left',
-    fontweight='bold',
-    color='k',
-    fontsize=10,
-) 
-l+=1
-
-for ax,thresh in zip((ax1,ax2,ax3),(10,20,30)):
-    
-    # new gdf for union
-    gdf_ar6_hex_union_1960 = gdf_ar6_hex.copy()
-    gdf_ar6_hex_union_1960['union'] = 0    
-    
-    for extr in extremes:
-        
-        ds_global_emergence = d_global_emergence[extr]
-        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
-        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
-        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
-        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
-        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==1960]
-        gdf_hex_landrac_plottable_1960['landfrac'] = gdf_hex_landrac_plottable_1960['landfrac'] * 100 
-        gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable_1960[['geometry','birth_year','region','names','landfrac']]
-        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'] + (gdf_hex_landrac_plottable_1960['landfrac'] > thresh)
-        gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'].astype(float)
-    
-    gdf_ar6_hex_union_1960.plot(
-        column='union',
-        cmap=cmap_list_union,
-        norm=norm_union,
-        edgecolor='gray',
-        ax=ax,
-    )
-    ax.set_axis_off()
-    ax.set_title(
-        letters[l],
-        loc='left',
-        fontweight='bold',
-        color='k',
-        fontsize=10,
-    )    
-    
-    # label for threshold
-    ax.annotate(
-        'X = {}'.format(thresh),
-        (-0.1,0.4),
-        xycoords=ax.transAxes,
-        fontsize=10,
-        rotation='vertical',
-        color='gray',
-    )           
-    
-    l+=1                 
-    i+=1
-
-# 2020 birth cohort
-ax4.annotate(
-    '2020 birth cohort',
-    (0.15,1.3),
-    xycoords=ax5.transAxes,
-    fontsize=14,
-    rotation='horizontal',
-    color='gray',
-    fontweight='bold',
-)       
-
-# for ax,thresh in zip((ax4,ax5,ax6,ax7),(10,20,30,40)):
-# for ax,thresh in zip((ax4,ax5,ax6),(10,20,30)):
-for ax,thresh in zip((ax5,ax6,ax7),(10,20,30)):
-    
-    # new gdf for union
-    gdf_ar6_hex_union_2020 = gdf_ar6_hex.copy()
-    gdf_ar6_hex_union_2020['union'] = 0
-    
-    for extr in extremes:
-    
-        ds_global_emergence = d_global_emergence[extr]
-        gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
-        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
-        gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
-        gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
-        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==2020]
-        gdf_hex_landrac_plottable_2020['landfrac'] = gdf_hex_landrac_plottable_2020['landfrac'] * 100     
-        gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable_2020[['geometry','birth_year','region','names','landfrac']]
-        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'] + (gdf_hex_landrac_plottable_2020['landfrac'] > thresh)
-        gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'].astype(float)
-    
-    gdf_ar6_hex_union_2020.plot(
-        column='union',
-        cmap=cmap_list_union,
-        norm=norm_union,
-        edgecolor='gray',
-        ax=ax,
-    )
-    ax.set_axis_off()
-    ax.set_title(
-        letters[l],
-        loc='left',
-        fontweight='bold',
-        color='k',
-        fontsize=10,
-    )        
-    
-    l+=1          
-    i+=1  
-    
-
-# colorbar for union of emergence across extremes
-cb_u = mpl.colorbar.ColorbarBase(
-    ax=cax_union, 
-    cmap=cmap_list_union,
-    norm=norm_union,
-    orientation='horizontal',
-    extend='max',
-    spacing='uniform',
-    ticks=np.arange(0,7).astype('int'),
-    drawedges=False,
+df_GMT_strj_new = pd.DataFrame(
+    trj_interpd_new, 
+    columns=range(n_steps), 
+    index=year_range,
 )
 
-cb_u.set_label(
-    'Extremes with median emergence in >X% of region',
-    fontsize=10,
-    labelpad=8,
-    color='gray',
-)
-cb_u.ax.xaxis.set_label_position('top')
-cb_u.ax.tick_params(
-    labelcolor=col_cbticlbl,
-    labelsize=12,
-    color=col_cbtic,
-    length=cb_ticlen,
-    width=cb_ticwid,
-    direction='out'
-)   
-cb_u.outline.set_color('gray')
-
-#%% ----------------------------------------------------------------
-# plot ar6 hexagons for multi extremes across thresholds
-
-def plot_hexagon_multithreshold(
-    d_global_emergence,
-):                   
-    gdf_ar6_hex = gpd.read_file('./data/shapefiles/zones.gpkg').rename(columns={'label': 'Acronym'})
-    gdf_ar6_hex = gdf_ar6_hex.set_index('Acronym').drop(['id','Continent','Name'],axis=1)
-    gdf_ar6_hex = gdf_ar6_hex.drop(labels=['GIC'],axis=0)
-
-    import matplotlib as mpl
-    import matplotlib.gridspec as gridspec
-    from matplotlib.patches import Rectangle
-    from matplotlib.patches import ConnectionPatch
-    from matplotlib.patches import Circle, Wedge, Polygon
-    from matplotlib.collections import PatchCollection
-
-    x=8
-    y=8.1
-    markersize=10
-    col_cbticlbl = 'gray'   # colorbar color of tick labels
-    col_cbtic = 'gray'   # colorbar color of ticks
-    col_cbedg = '0'   # colorbar color of edge
-    cb_ticlen = 3.5   # colorbar length of ticks
-    cb_ticwid = 0.4   # colorbar thickness of ticks
-    cb_edgthic = 0   # colorbar thickness of edges between colors    
-    density=6  # density of hatched lines showing frac of sims with emergence
-    landfrac_threshold = 10
-    extremes = [
-        'burntarea', 
-        'cropfailedarea', 
-        'driedarea', 
-        'floodedarea', 
-        'heatwavedarea', 
-        'tropicalcyclonedarea',
-    ]
-    extremes_labels = {
-        'burntarea': 'Wildfires',
-        'cropfailedarea': 'Crop failures',
-        'driedarea': 'Droughts',
-        'floodedarea': 'Floods',
-        'heatwavedarea': 'Heatwaves',
-        'tropicalcyclonedarea': 'Tropical cyclones',
-    }
-
-    # colorbar stuff for union
-    cmap_reds = plt.cm.get_cmap('Reds')
-    colors_union = [
-        'white',
-        cmap_reds(0.25),
-        cmap_reds(0.50),
-        cmap_reds(0.75),
-    ]
-    cmap_list_union = mpl.colors.ListedColormap(colors_union,N=len(colors_union))
-    cmap_list_union.set_over(cmap_reds(0.99))
-    levels = np.arange(0.5,3.6,1)
-    union_levels = np.arange(-0.5,3.6,1)
-    norm_union=mpl.colors.BoundaryNorm(union_levels,ncolors=len(union_levels)-1)
-
-    f = plt.figure(figsize=(x,y))    
-    gs0 = gridspec.GridSpec(9,2)
-    gs0.update(wspace=0.25,hspace=0.2)
-
-    # left side 1960
-    ax0 = f.add_subplot(gs0[0:2,0:1],projection=ccrs.Robinson())
-    ax1 = f.add_subplot(gs0[3:5,0:1])
-    ax2 = f.add_subplot(gs0[5:7,0:1])
-    ax3 = f.add_subplot(gs0[7:9,0:1])
-
-    # colorbars
-    pos0 = ax3.get_position()
-
-    # colorbar for union
-    cax_union = f.add_axes([
-        pos0.x0+0.15,
-        pos0.y0-0.1,
-        pos0.width*1.5,
-        pos0.height*0.15
-    ])
-
-    # right side for 2020
-    ax4 = f.add_subplot(gs0[0:2,1:2])
-    ax5 = f.add_subplot(gs0[3:5,1:2])
-    ax6 = f.add_subplot(gs0[5:7,1:2])
-    ax7 = f.add_subplot(gs0[7:9,1:2])   
-    
-    # plot 1960
-    i=0
-    l=0
-
-    ax0.annotate(
-        '1960 birth cohort',
-        (0.15,1.3),
-        xycoords=ax1.transAxes,
-        fontsize=14,
-        rotation='horizontal',
-        color='gray',
-        fontweight='bold',
-    )          
-
-    i+=1
-
-    # plot ar6 key
-    text_kws = dict(
-        bbox=dict(color="none"),
-        path_effects=[pe.withStroke(linewidth=2, foreground="w")],
-        color="gray", 
-        fontsize=4, 
-    )
-    line_kws=dict(lw=0.5)
-    ar6_polys = rm.defined_regions.ar6.land
-    ar6_polys = ar6_polys[np.arange(1,44).astype(int)]
-    ar6_polys.plot(ax=ax0,label='abbrev',line_kws=line_kws,text_kws=text_kws)
-    ax0.set_title(
-        letters[l],
-        loc='left',
-        fontweight='bold',
-        color='k',
-        fontsize=10,
-    ) 
-    l+=1
-
-    # plot blank hexagons
-    gdf_ar6_hex_blank = gdf_ar6_hex.copy()
-    gdf_ar6_hex_blank = gdf_ar6_hex_blank.drop(labels='PAC',axis=0)
-    gdf_ar6_hex_blank['label'] = list(gdf_ar6_hex_blank.index)
-    gdf_ar6_hex_blank.plot(
-        ax=ax4,
-        color='w',
-        edgecolor='gray',
-    )
-    # ar6_polys.abbrevs NEED TO GET THESE IN HEXAGONS
-    gdf_ar6_hex_blank.apply(
-        lambda x: ax4.annotate(
-            text=x['label'], 
-            xy=x.geometry.centroid.coords[0], 
-            ha='center',
-            color="gray", 
-            fontsize=4, 
-        ), 
-        axis=1
-    )
-    ax4.set_axis_off()
-    ax4.set_title(
-        letters[l],
-        loc='left',
-        fontweight='bold',
-        color='k',
-        fontsize=10,
-    ) 
-    l+=1
-
-    for ax,thresh in zip((ax1,ax2,ax3),(10,20,30)):
-        
-        # new gdf for union
-        gdf_ar6_hex_union_1960 = gdf_ar6_hex.copy()
-        gdf_ar6_hex_union_1960['union'] = 0    
-        
-        for extr in extremes:
-            
-            ds_global_emergence = d_global_emergence[extr]
-            gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
-            gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
-            gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
-            gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
-            gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==1960]
-            gdf_hex_landrac_plottable_1960['landfrac'] = gdf_hex_landrac_plottable_1960['landfrac'] * 100 
-            gdf_hex_landrac_plottable_1960 = gdf_hex_landrac_plottable_1960[['geometry','birth_year','region','names','landfrac']]
-            gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'] + (gdf_hex_landrac_plottable_1960['landfrac'] > thresh)
-            gdf_ar6_hex_union_1960['union'] = gdf_ar6_hex_union_1960['union'].astype(float)
-        
-        gdf_ar6_hex_union_1960.plot(
-            column='union',
-            cmap=cmap_list_union,
-            norm=norm_union,
-            edgecolor='gray',
-            ax=ax,
-        )
-        ax.set_axis_off()
-        ax.set_title(
-            letters[l],
-            loc='left',
-            fontweight='bold',
-            color='k',
-            fontsize=10,
-        )    
-        
-        # label for threshold
-        ax.annotate(
-            'X = {}'.format(thresh),
-            (-0.1,0.4),
-            xycoords=ax.transAxes,
-            fontsize=10,
-            rotation='vertical',
-            color='gray',
-        )           
-        
-        l+=1                 
-        i+=1
-
-    # 2020 birth cohort
-    ax4.annotate(
-        '2020 birth cohort',
-        (0.15,1.3),
-        xycoords=ax5.transAxes,
-        fontsize=14,
-        rotation='horizontal',
-        color='gray',
-        fontweight='bold',
-    )       
-
-    # for ax,thresh in zip((ax4,ax5,ax6,ax7),(10,20,30,40)):
-    # for ax,thresh in zip((ax4,ax5,ax6),(10,20,30)):
-    for ax,thresh in zip((ax5,ax6,ax7),(10,20,30)):
-        
-        # new gdf for union
-        gdf_ar6_hex_union_2020 = gdf_ar6_hex.copy()
-        gdf_ar6_hex_union_2020['union'] = 0
-        
-        for extr in extremes:
-        
-            ds_global_emergence = d_global_emergence[extr]
-            gdf_ar6_emerged_landfrac = ds_global_emergence['emerged_area_ar6_landfrac_{}'.format(extr)].median(dim='run').to_dataframe().reset_index()
-            gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.rename(mapper={'abbrevs':'Acronym','emerged_area_ar6_landfrac_{}'.format(extr):'landfrac'},axis=1).set_index('Acronym')
-            gdf_ar6_emerged_landfrac = gdf_ar6_emerged_landfrac.drop(labels=['WAN','EAN','GIC',],axis=0)
-            gdf_hex_landrac_plottable = gdf_ar6_hex.copy().merge(gdf_ar6_emerged_landfrac,left_index=True,right_index=True)
-            gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable[gdf_hex_landrac_plottable['birth_year']==2020]
-            gdf_hex_landrac_plottable_2020['landfrac'] = gdf_hex_landrac_plottable_2020['landfrac'] * 100     
-            gdf_hex_landrac_plottable_2020 = gdf_hex_landrac_plottable_2020[['geometry','birth_year','region','names','landfrac']]
-            gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'] + (gdf_hex_landrac_plottable_2020['landfrac'] > thresh)
-            gdf_ar6_hex_union_2020['union'] = gdf_ar6_hex_union_2020['union'].astype(float)
-        
-        gdf_ar6_hex_union_2020.plot(
-            column='union',
-            cmap=cmap_list_union,
-            norm=norm_union,
-            edgecolor='gray',
-            ax=ax,
-        )
-        ax.set_axis_off()
-        ax.set_title(
-            letters[l],
-            loc='left',
-            fontweight='bold',
-            color='k',
-            fontsize=10,
-        )        
-        
-        l+=1          
-        i+=1  
-        
-
-    # colorbar for union of emergence across extremes
-    cb_u = mpl.colorbar.ColorbarBase(
-        ax=cax_union, 
-        cmap=cmap_list_union,
-        norm=norm_union,
-        orientation='horizontal',
-        extend='max',
-        spacing='uniform',
-        ticks=np.arange(0,7).astype('int'),
-        drawedges=False,
-    )
-
-    cb_u.set_label(
-        'Extremes with median emergence in >X% of region',
-        fontsize=10,
-        labelpad=8,
-        color='gray',
-    )
-    cb_u.ax.xaxis.set_label_position('top')
-    cb_u.ax.tick_params(
-        labelcolor=col_cbticlbl,
-        labelsize=12,
-        color=col_cbtic,
-        length=cb_ticlen,
-        width=cb_ticwid,
-        direction='out'
-    )   
-    cb_u.outline.set_color('gray')
-
-    f.savefig('./ms_figures/emergence_union_hexagons_multithresh.png',dpi=1000,bbox_inches='tight')
-
-# %%
