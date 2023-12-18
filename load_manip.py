@@ -14,7 +14,7 @@ import os
 from copy import deepcopy as cp
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 # ---------------------------------------------------------------
 # 1. Functions to load (see ms_load.m)
@@ -375,6 +375,129 @@ def load_GMT(
             columns=range(n_steps), 
             index=year_range,
         )
+        
+    elif flags['gmt'] == 'ar6_new':
+        
+        # ------------------------- This is original AR6 approach --------------------------
+        # for alternative gmt mapping approaches, collect new ar6 scens from IASA explorer
+        df_GMT_ar6 = pd.read_csv('./data/temperature_trajectories_AR6/ar6_c1_c7_nogaps_2000-2100.csv',header=0)
+        df_GMT_ar6.loc[:,'Model'] = df_GMT_ar6.loc[:,'Model']+'_'+df_GMT_ar6.loc[:,'Scenario']
+        df_GMT_ar6 = df_GMT_ar6.drop(columns=['Scenario','Region','Variable','Unit']).transpose()
+        df_GMT_ar6.columns=df_GMT_ar6.loc['Model',:]
+        df_GMT_ar6.columns.name = None
+        df_GMT_ar6 = df_GMT_ar6.drop(df_GMT_ar6.index[0])
+        df_GMT_ar6 = df_GMT_ar6.dropna(axis=1)
+        df_GMT_ar6.index = df_GMT_ar6.index.astype(int)
+        df_hist_all = df_GMT_15.loc[1960:1999]
+        df_hist_all = pd.concat([df_hist_all for i in range(len(df_GMT_ar6.columns))],axis=1)
+        df_hist_all.columns = df_GMT_ar6.columns
+        df_GMT_ar6 = pd.concat([df_hist_all,df_GMT_ar6],axis=0) # add historical values to additional scenarios
+        
+        if np.nanmax(df_GMT_ar6.index) < year_end: 
+            # repeat average of last 10 years (i.e. end-9 to end ==> 2090:2099)
+            GMT_last_10ymean = df_GMT_ar6.iloc[-10:,:].mean()
+            for year in range(np.nanmax(df_GMT_ar6.index),year_end+1): 
+                df_GMT_ar6 = pd.concat([df_GMT_ar6, pd.DataFrame(GMT_last_10ymean).transpose().rename(index={0:year})]) 
+                
+        # drop dups
+        df_GMT_ar6 = df_GMT_ar6[~df_GMT_ar6.index.duplicated(keep='first')]
+
+        # get new trajects
+        df_GMT_lb, df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_30, df_GMT_40 = ar6_scen_grab(
+            scen_thresholds,
+            df_GMT_ar6,
+        )        
+        
+        # GMT_max = df_GMT_40.loc[2100]
+        GMT_max = df_GMT_40.iloc[-1]
+        GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+        ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
+        GMT_min = df_GMT_lb.loc[GMT_fut_strtyr-1]
+        GMT_steps = np.arange(0,GMT_max+0.05,GMT_inc)
+        GMT_steps = np.insert(GMT_steps[np.where(GMT_steps>GMT_min)],0,GMT_min)
+        n_steps = len(GMT_steps)
+        ind_lb = np.argmin(np.abs(GMT_steps-df_GMT_lb.iloc[-1]))
+        ind_15 = np.argmin(np.abs(GMT_steps-df_GMT_15.iloc[-1]))
+        ind_20 = np.argmin(np.abs(GMT_steps-df_GMT_20.iloc[-1]))
+        ind_NDC = np.argmin(np.abs(GMT_steps-df_GMT_NDC.iloc[-1]))
+        ind_30 = np.argmin(np.abs(GMT_steps-df_GMT_30.iloc[-1]))
+        ind_40 = np.argmin(np.abs(GMT_steps-df_GMT_40.iloc[-1]))
+        indices=[ind_lb,ind_15,ind_20,ind_NDC,ind_30,ind_40]
+        # year_range=np.arange(1960,2100+1)
+        n_years = len(year_range)
+        trj = np.empty((n_years,n_steps))
+        trj.fill(np.nan)
+        trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
+        trj[ind_fut_strtyr:,0] = GMT_min
+        trj[ind_fut_strtyr:,-1] = np.interp(
+            x=year_range[ind_fut_strtyr:],
+            xp=[GMT_fut_strtyr,year_end],
+            fp=[GMT_min,GMT_max],
+        )
+        trj[:,ind_lb] = df_GMT_lb.values
+        trj[:,ind_15] = df_GMT_15.values
+        trj[:,ind_20] = df_GMT_20.values
+        trj[:,ind_NDC] = df_GMT_NDC.values
+        trj[:,ind_30] = df_GMT_30.values
+        trj[:,ind_40] = df_GMT_40.values
+        trj_msk = np.ma.masked_invalid(trj)
+        [xx, yy] = np.meshgrid(range(n_steps),range(n_years))
+        x1 = xx[~trj_msk.mask]
+        y1 = yy[~trj_msk.mask]
+        trj_interpd = interpolate.griddata(
+            (x1,y1), # only include coords with valid data
+            trj[~trj_msk.mask].ravel(), # inputs are valid only, too
+            (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
+        )
+        df_GMT_strj = pd.DataFrame(
+            trj_interpd, 
+            columns=range(n_steps), 
+            index=year_range,
+        )        
+        
+        # ------------------------- End of original AR6 approach --------------------------
+        
+        # Below we adapt for clean, 0.1 deg intervals between only 1.5 to 3.5 to speed up analysis
+        df_GMT_strj
+        GMT_min=1.5
+        GMT_max=3.5
+        GMT_steps = np.arange(GMT_min,GMT_max+0.05,GMT_inc)
+        n_steps = len(GMT_steps)
+        n_years = len(year_range)
+        trj = np.empty((n_years,n_steps))
+        trj.fill(np.nan)
+
+        GMT_fut_strtyr = int(df_GMT_15.index.where(df_GMT_15==df_GMT_20).max())+1
+        ind_fut_strtyr = int(np.argwhere(np.asarray(df_GMT_15.index)==GMT_fut_strtyr))
+
+        # new 1.5 degree as avg between pathways that hit 1.44 and 1.55 at 2100 and then fix 2100 year
+        df_GMT_15_new = df_GMT_strj.loc[:,5:6].mean(axis=1)
+        df_GMT_15_new[2100] = GMT_min
+
+        # new 3.5 degree
+        df_GMT_35_new = df_GMT_strj.loc[:,24]
+        df_GMT_35_new[2100] = GMT_max
+
+        # 
+        trj[0:ind_fut_strtyr,:] = np.repeat(np.expand_dims(df_GMT_15.loc[:GMT_fut_strtyr-1].values,axis=1),n_steps,axis=1)
+        trj[:,0] = df_GMT_15_new
+        trj[:,-1] = df_GMT_35_new
+
+        trj_msk_new = np.ma.masked_invalid(trj)
+        [xx, yy] = np.meshgrid(range(n_steps),range(n_years))
+        x1 = xx[~trj_msk_new.mask]
+        y1 = yy[~trj_msk_new.mask]
+        trj_interpd_new = interpolate.griddata(
+            (x1,y1), # only include coords with valid data
+            trj[~trj_msk_new.mask].ravel(), # inputs are valid only, too
+            (xx,yy), # then provide coordinates of ourput array, which include points where interp is required (not ravelled, so has 154x24 shape)
+        )
+        df_GMT_strj_new = pd.DataFrame(
+            trj_interpd_new, 
+            columns=range(n_steps), 
+            index=year_range,
+        )       
+        df_GMT_strj = cp(df_GMT_strj_new) 
 
     return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, indices
 
@@ -569,7 +692,7 @@ def load_isimip(
                             da_AFA_pic  = xr.concat(das_AFA_pic, dim='time')
                             
                         # save AFA field as pickle
-                        with open('./data/pickles/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
+                        with open('./data/pickles_v2/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
                             pk.dump(da_AFA_pic,f)
                             
                         pic_list.append('{}_{}'.format(d_isimip_meta[i]['model'],d_isimip_meta[i]['gcm']))
@@ -583,7 +706,7 @@ def load_isimip(
                         }
                             
                     # save AFA field as pickle
-                    with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
+                    with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
                         pk.dump(da_AFA,f)
 
                     # update counter
@@ -591,9 +714,9 @@ def load_isimip(
         
             # save metadata dictionary as a pickle
             print('Saving metadata')
-            with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
+            with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
                 pk.dump(d_isimip_meta,f)
-            with open('./data/pickles/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
+            with open('./data/pickles_v2/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
                 pk.dump(d_pic_meta,f)
 
     else: 
@@ -602,9 +725,9 @@ def load_isimip(
         print('Loading processed isimip data')
         # loac pickled metadata for isimip and isimip-pic simulations
 
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
-        with open('./data/pickles/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+        with open('./data/pickles_v2/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
             d_pic_meta = pk.load(f)                
 
     return d_isimip_meta,d_pic_meta
@@ -919,9 +1042,9 @@ def all_country_data():
     # save metadata dictionary as a pickle
     print('Saving country data')
     
-    if not os.path.isdir('./data/pickles'):
-        os.mkdir('./data/pickles')
-    with open('./data/pickles/country_info.pkl', 'wb') as f: # note; 'with' handles file stream closing
+    if not os.path.isdir('./data/pickles_v2'):
+        os.mkdir('./data/pickles_v2')
+    with open('./data/pickles_v2/country_info.pkl', 'wb') as f: # note; 'with' handles file stream closing
         pk.dump(d_countries,f)
         
     return d_countries

@@ -37,7 +37,7 @@ import seaborn as sns
 import cartopy as cr
 import cartopy.feature as feature
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 # %% ----------------------------------------------------------------
 # Conceptual plot for emergence in one location,   
@@ -97,7 +97,7 @@ def plot_conceptual(
     )
 
     # load demography pickle
-    with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+    with open('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
         ds_dmg = pk.load(f)                  
 
     # loop over simulations
@@ -106,7 +106,7 @@ def plot_conceptual(
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
+        with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)
             
         # mask to sample country and reduce spatial extent
@@ -164,7 +164,7 @@ def plot_conceptual(
             da_test_city_std.loc[{'birth_year':by,'GMT':step,'time':np.arange(by,by+5)}] = da_test_city_std.loc[{'birth_year':by,'GMT':step}].min(dim='time')        
                 
     # load PIC pickle
-    with open('./data/pickles/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+    with open('./data/pickles_v2/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
         ds_pic = pk.load(f)   
 
     # plotting city lat/lon pixel doesn't give smooth kde
@@ -829,9 +829,9 @@ def plot_heatmaps_allhazards(
     # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)
-        with open('./data/pickles/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)        
         sims_per_step = {}
         for step in GMT_labels:
@@ -959,7 +959,7 @@ def plot_heatmaps_allhazards(
     # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
         p = ds_pf_gs_extr['unprec'].loc[{
             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
@@ -1539,9 +1539,9 @@ def plot_combined(
     # get data
     df_list_gs = []
     extr='heatwavedarea'
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+    with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
         d_isimip_meta = pk.load(file)              
-    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+    with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
         ds_pf_gs_plot = pk.load(file)
     da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
         'GMT':GMT_indices_plot,
@@ -1839,9 +1839,9 @@ def plot_combined_piechart(
     # get data
     df_list_gs = []
     extr='heatwavedarea'
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+    with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
         d_isimip_meta = pk.load(file)              
-    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+    with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
         ds_pf_gs_plot = pk.load(file)
     da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
         'GMT':GMT_indices_plot,
@@ -2400,9 +2400,9 @@ def plot_combined_population(
     # get data
     df_list_gs = []
     extr='heatwavedarea'
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+    with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
         d_isimip_meta = pk.load(file)              
-    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+    with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
         ds_pf_gs_plot = pk.load(file)
     da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
         'GMT':GMT_indices_plot,
@@ -2804,9 +2804,9 @@ def plot_combined_population_piechart(
     # get data
     df_list_gs = []
     extr='heatwavedarea'
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+    with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
         d_isimip_meta = pk.load(file)              
-    with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+    with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
         ds_pf_gs_plot = pk.load(file)
     da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
         'GMT':GMT_indices_plot,

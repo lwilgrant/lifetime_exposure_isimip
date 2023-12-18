@@ -28,7 +28,7 @@ import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 #%% ----------------------------------------------------------------
 # sample analytics for paper
@@ -43,7 +43,7 @@ def multi_hazard_emergence(
     da_emergence_mean,
     da_gs_popdenom,
 ):
-    with open('./data/pickles/gridscale_cohort_global.pkl', 'rb') as file:
+    with open('./data/pickles_v2/gridscale_cohort_global.pkl', 'rb') as file:
         da_gridscale_cohortsize = pk.load(file)   
 
     extremes_labels = {
@@ -154,7 +154,7 @@ def gridscale_cohort_sizes(
     for cntry in gridscale_countries:
         print(cntry)
         # load demography pickle
-        with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+        with open('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
             ds_dmg = pk.load(f)   
         # get population used in analysis
         da_cohort_cntry = ds_dmg['by_population_y0']
@@ -169,7 +169,7 @@ def gridscale_cohort_sizes(
             ds_gridscale_cohortsize['cohort_size'].loc[{'birth_year':birth_years,'lat':da_cohort_cntry.lat.data,'lon':da_cohort_cntry.lon.data}],
         )
     print('countries merged')
-    with open('./data/pickles/gridscale_cohort_global.pkl', 'wb') as f:
+    with open('./data/pickles_v2/gridscale_cohort_global.pkl', 'wb') as f:
         pk.dump(ds_gridscale_cohortsize,f)   
         
 #%% ----------------------------------------------------------------
@@ -194,7 +194,7 @@ def exposure_locs(
 
     for extr in extremes:
         
-        with open('./data/pickles/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)     
             
         n = 0
@@ -203,7 +203,7 @@ def exposure_locs(
             print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
             # load AFA data of that run
-            with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(extr,extr,str(i)), 'rb') as f:
+            with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(extr,extr,str(i)), 'rb') as f:
                 da_AFA = pk.load(f)           
             
             if n == 0:    
@@ -215,7 +215,7 @@ def exposure_locs(
             
         da_exposure_occurence = xr.where(da_sum>0,1,0)
         
-        with open('./data/pickles/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'wb') as file:
+        with open('./data/pickles_v2/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'wb') as file:
             pk.dump(da_exposure_occurence,file)      
             
             
@@ -254,7 +254,7 @@ def emergence_locs_perrun(
         start_time = time.time()
         
         # get metadata for extreme
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
             
         sims_per_step = {}
@@ -320,7 +320,7 @@ def emergence_locs_perrun(
                     
                     if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     
-                        with open('./data/pickles/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
+                        with open('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
                             da_birthyear_emergence_mask = pk.load(f)
                             
                         ds_cntry_emergence['emergence'].loc[{
@@ -345,7 +345,7 @@ def emergence_locs_perrun(
                     }],
                 )             
                 
-            with open('./data/pickles/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'wb') as f:
+            with open('./data/pickles_v2/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'wb') as f:
                 pk.dump(ds_global_emergence['emergence'],f)        
                 
         print("--- {} minutes for {} emergence loc ---".format(
@@ -376,7 +376,7 @@ def pf_geoconstrained(
         'tropicalcyclonedarea',
     ]    
 
-    with open('./data/pickles/gridscale_cohort_global.pkl', 'rb') as file:
+    with open('./data/pickles_v2/gridscale_cohort_global.pkl', 'rb') as file:
         ds_gridscale_cohortsize = pk.load(file)   
         
     da_gridscale_cohortsize = ds_gridscale_cohortsize['cohort_size']
@@ -387,11 +387,11 @@ def pf_geoconstrained(
         start_time = time.time()
 
         # first get all regions that have exposure to extr in ensemble
-        with open('./data/pickles/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/pickles_v2/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
             da_exposure_occurrence = pk.load(file)          
 
         # get metadata for extreme
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
             
         sims_per_step = {}
@@ -428,7 +428,7 @@ def pf_geoconstrained(
         # numerator to exposure constrained PF
         for step in gmt_indices_sample:
             
-            with open('./data/pickles/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'rb') as f:
+            with open('./data/pickles_v2/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'rb') as f:
                 da_global_emergence = pk.load(f)
                 
             da_global_emergence = xr.where(da_global_emergence==1,1,0)    
@@ -456,7 +456,7 @@ def pf_geoconstrained(
                 'birth_year':birth_years,
             }] = da_pf        
         
-        with open('./data/pickles/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'wb') as f:
+        with open('./data/pickles_v2/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'wb') as f:
             pk.dump(ds_pf_geoconstrained,f)  
         
         print("--- {} minutes for {} pf in under geo constraints ---".format(
@@ -486,14 +486,14 @@ def print_pf_geoconstrained(
 
     for extr in extremes:
         
-        with open('./data/pickles/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/pickles_v2/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'rb') as f:
             ds_pf_geoconstrained = pk.load(f)      
             
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)      
             
         # get metadata for extreme
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)    
             
         # maybe not necessary since means are ignoring nans for runs not included in some steps
@@ -537,7 +537,7 @@ def paired_ttest(
     list_extrs_pf = []
     for extr in extremes:
         
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
             d_isimip_meta = pk.load(file)               
         
         sims_per_step = {}
@@ -547,7 +547,7 @@ def paired_ttest(
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     sims_per_step[step].append(i)         
         
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
         
         da_plt = ds_pf_gs_extr['unprec'].loc[{
@@ -617,7 +617,7 @@ def print_latex_table_ensemble_sizes(
     sims_per_step = {}
     for extr in extremes:
         
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
             d_isimip_meta = pk.load(file)        
 
         sims_per_step[extr] = {}
@@ -679,9 +679,9 @@ def print_millions_excess(
     for extr in extremes:
         
         print(extr)
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
             d_isimip_meta = pk.load(file)    
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)            
 
         sims_per_step = {}
@@ -744,7 +744,7 @@ def print_pf_ratios(
     # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
         p = ds_pf_gs_extr['unprec'].loc[{
             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
@@ -819,7 +819,7 @@ def find_valid_cities(
      d_isimip_meta,
      flags,
 ):
-    if not os.path.isfile('./data/pickles/valid_cities.pkl'):
+    if not os.path.isfile('./data/pickles_v2/valid_cities.pkl'):
         # excel file of cities, their coords and population
         df_cities = pd.read_excel('./data/city_locations/worldcities.xlsx')
         df_cities = df_cities.drop(columns=['city_ascii','iso2','iso3','admin_name','capital','id']).nlargest(n=200,columns=['population'])
@@ -867,11 +867,11 @@ def find_valid_cities(
             )
 
             # load demography pickle
-            with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+            with open('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
                 ds_dmg = pk.load(f)   
 
             # load PIC pickle
-            with open('./data/pickles/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+            with open('./data/pickles_v2/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
                 ds_pic = pk.load(f)                   
 
             # loop over simulations
@@ -880,7 +880,7 @@ def find_valid_cities(
                 # print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
                 # load AFA data of that run
-                with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
+                with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
                     da_AFA = pk.load(f)
 
                 # mask to sample country and reduce spatial extent
@@ -975,12 +975,12 @@ def find_valid_cities(
         df_valid_cities = df_valid_cities.sort_values(by=['population'],ascending=False)
         print(df_valid_cities)    
         # pickle selection of cities
-        with open('./data/pickles/valid_cities.pkl', 'wb') as f:
+        with open('./data/pickles_v2/valid_cities.pkl', 'wb') as f:
             pk.dump(df_valid_cities,f)   
             
     else:
         
-        with open('./data/pickles/valid_cities.pkl', 'rb') as f:
+        with open('./data/pickles_v2/valid_cities.pkl', 'rb') as f:
             df_valid_cities = pk.load(f)        
             
             
@@ -1022,9 +1022,9 @@ def print_latex_table_unprecedented(
     for extr in extremes:
         
         # open dictionary of metadata for sim means and CF data per extreme
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
             d_isimip_meta = pk.load(file)     
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)           
 
         sims_per_step = {}
@@ -1134,9 +1134,9 @@ def print_latex_table_unprecedented_sideways(
     for extr in extremes:
         
         # open dictionary of metadata for sim means and CF data per extreme
-        with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
             d_isimip_meta = pk.load(file)     
-        with open('./data/pickles/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)           
 
         sims_per_step = {}
@@ -1223,7 +1223,7 @@ def testing_f1_v_f4():
     city_lon = 4.3572   
 
     # get metadata for extreme
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+    with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
         d_isimip_meta = pk.load(f)
         
     sims_per_step = {}
@@ -1265,7 +1265,7 @@ def testing_f1_v_f4():
         
         if d_isimip_meta[i]['GMT_strj_valid'][step]:
         
-            with open('./data/pickles/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
+            with open('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
                 da_birthyear_emergence_mask = pk.load(f)
                 
             ds_cntry_emergence['emergence'].loc[{
@@ -1284,7 +1284,7 @@ def testing_f1_v_f4():
 
 
     # get metadata for extreme
-    with open('./data/pickles/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+    with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
         d_isimip_meta = pk.load(f)
         
     sims_per_step = {}
@@ -1342,7 +1342,7 @@ def testing_f1_v_f4():
     )
 
     # load demography pickle
-    with open('./data/pickles/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+    with open('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
         ds_dmg = pk.load(f)                  
 
     # loop over simulations
@@ -1351,7 +1351,7 @@ def testing_f1_v_f4():
         print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
         # load AFA data of that run
-        with open('./data/pickles/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
+        with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
             da_AFA = pk.load(f)
             
         # mask to sample country and reduce spatial extent
@@ -1402,7 +1402,7 @@ def testing_f1_v_f4():
                 da_test.loc[{'birth_year':by,'GMT':step,'time':np.arange(by,by+5),'run':run}] = da_test.loc[{'birth_year':by,'GMT':step,'run':run}].min(dim='time')      
                 
     # load PIC pickle
-    with open('./data/pickles/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+    with open('./data/pickles_v2/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
         ds_pic = pk.load(f)   
 
     # plotting city lat/lon pixel doesn't give smooth kde
