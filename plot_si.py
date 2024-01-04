@@ -51,6 +51,7 @@ ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end
 def plot_pf_gmt_tseries_allhazards(
     df_GMT_strj,
     da_gs_popdenom,
+    flags,
 ):
 
     extremes = [
@@ -79,7 +80,7 @@ def plot_pf_gmt_tseries_allhazards(
     # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
-        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
         
         da_plt = ds_pf_gs_extr['unprec'].loc[{
@@ -236,7 +237,7 @@ def plot_pf_by_tseries_allhazards(
     list_extrs_pf = []
     for extr in extremes:
         
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
             d_isimip_meta = pk.load(file)               
         
         sims_per_step = {}
@@ -247,7 +248,7 @@ def plot_pf_by_tseries_allhazards(
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     sims_per_step[step].append(i)         
         
-        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
         
         da_plt = ds_pf_gs_extr['unprec'].loc[{
@@ -408,9 +409,9 @@ def plot_boxplots_allhazards(
     # get data
     df_list_gs = []
     for extr in extremes:
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
             d_isimip_meta = pk.load(file)              
-        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             ds_pf_gs_plot = pk.load(file)
             
         da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
@@ -558,6 +559,7 @@ def plot_boxplots_allhazards(
 def plot_pf_maps_allhazards(
     da_gs_popdenom,
     gdf_country_borders,
+    flags,
 ):
     # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
     x=8
@@ -625,9 +627,9 @@ def plot_pf_maps_allhazards(
     # so we only take sims or runs valid per GMT level and make sure nans are 0
     df_list_gs = []
     for extr in extremes:
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)         
-        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)  
         da_p_gs_plot = ds_pf_gs['unprec'].loc[{
             'GMT':gmt_indices_152535,
@@ -772,11 +774,11 @@ def plot_geoconstrained_boxplots(
     # for extr,ax in zip(extremes,axes.flatten()):   
     for extr in extremes:
                             
-        with open('./data/pickles_v2/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/{}/{}/pf_geoconstrained_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
             ds_pf_geoconstrained = pk.load(f)      
             
         # get metadata for extreme
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
         
         # maybe not necessary since means are ignoring nans for runs not included in some steps
@@ -1185,6 +1187,7 @@ def plot_emergence_fracs(
 def plot_exposure_locations(
     grid_area,
     countries_mask,
+    flags,
 ):
     x=8
     y=6
@@ -1245,7 +1248,7 @@ def plot_exposure_locations(
     for ax,extr in zip((ax00,ax10,ax20,ax01,ax11,ax21),extremes):
         
         # first get all regions that have exposure to extr in ensemble
-        with open('./data/pickles_v2/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/exposure_occurrence_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             da_exposure_occurrence = pk.load(file)   
             
         da_exposure_occurrence = da_exposure_occurrence.where(da_exposure_occurrence).where(mask.notnull())*3 
@@ -1535,6 +1538,7 @@ def plot_gmt_pathways(
 
 def plot_heatmaps_allhazards_countryemergence(
     df_GMT_strj,
+    flags,
 ):
     
     letters = ['a', 'b', 'c',\
@@ -1577,11 +1581,11 @@ def plot_heatmaps_allhazards_countryemergence(
     # # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
-        with open('./data/pickles_v2/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/{}/{}/pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
             da_pf = pk.load(f)['mean_frac_unprec_all_b_y0'].loc[{
                 'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
             }] *100    
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)        
         list_extrs_pf.append(da_pf)
         
@@ -1593,10 +1597,10 @@ def plot_heatmaps_allhazards_countryemergence(
     # gmts = np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int')
 
     # for extr in extremes:
-    #     with open('./data/pickles_v2/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+    #     with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
     #         d_isimip_meta = pk.load(file)   
             
-    #     with open('./data/pickles_v2/{}/pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+    #     with open('./data/{}/{}/pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
     #         da_p = pk.load(f)['unprec_all_b_y0'].loc[{
     #             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
     #         }] *1000            
@@ -1746,6 +1750,7 @@ def plot_heatmaps_allhazards_countryemergence(
 def plot_allhazards_piecharts(
     da_gs_popdenom,
     df_countries,
+    flags,
 ):
 
     x=6
@@ -1798,9 +1803,9 @@ def plot_allhazards_piecharts(
     l=0
     for e,extr in enumerate(extremes):
         
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)         
-        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)  
 
         ax00,ax10,ax20 = axes[e]

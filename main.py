@@ -68,6 +68,14 @@ flags['gmt'] = 'ar6'        # original: use Wim's stylized trajectory approach w
                             # ar6: substitute the linear max wth the highest IASA c7 scenario (increasing to ~4.0), new lower bound, and new 1.5, 2.0, NDC (2.8), 3.0
 flags['rm'] = 'rm'       # no_rm: no smoothing of RCP GMTs before mapping
                          # rm: 21-year rolling mean on RCP GMTs 
+flags['version'] = 'pickles_v2'     # pickles: original version, submitted to Nature
+                                        # inconsistent GMT steps (not perfect 0.1 degree intervals)
+                                        # GMT steps ranging 1-4 (although study only shows ~1.5-3.5, so runs are inefficient)
+                                        # only 99.99% percentile for PIC threshold
+                                    # pickles_v2: version generated after submission to Nature in preparation for criticism/review
+                                        # steps fixed in load_manip to be only 1.5-3.5, with clean 0.1 degree intervals
+                                        # 5 percentiles for PIC threshold and emergence for each
+                         # rm: 21-year rolling mean on RCP GMTs                          
 flags['run'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
@@ -135,14 +143,14 @@ if flags['mask']: # load data and do calculations
 
     print('Processing country info')
 
-    d_countries = all_country_data()
+    d_countries = all_country_data(flags)
 
 else: # load processed country data
 
     print('Loading processed country and region data')
 
     # load country pickle
-    d_countries = pk.load(open('./data/pickles_v2/country_info.pkl', 'rb'))
+    d_countries = pk.load(open('./data/{}/country_info.pkl'.format(flags['version']), 'rb'))
     
 # unpack country information
 df_countries = d_countries['info_pop']
@@ -207,7 +215,7 @@ else: # load processed exposure data
     print('Loading processed exposure trends')
 
     # load lifetime exposure pickle
-    with open('./data/pickles_v2/{}/exposure_trends_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/exposure_trends_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_e = pk.load(f)  
 
 # --------------------------------------------------------------------
@@ -239,7 +247,7 @@ else: # load processed exposure data
     print('Loading processed lifetime exposures')
 
     # load lifetime exposure pickle
-    with open('./data/pickles_v2/{}/lifetime_exposure_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/lifetime_exposure_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_le = pk.load(f)
 
 ds_le = calc_exposure_mmm_xr(ds_le)
@@ -298,7 +306,7 @@ else: # load processed pic data
     
     print('Loading processed pic exposures')
 
-    with open('./data/pickles_v2/{}/exposure_pic_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/exposure_pic_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         d_exposure_perrun_pic = pk.load(f)
     
 ds_exposure_pic = calc_exposure_mmm_pic_xr(
@@ -326,7 +334,7 @@ if flags['emergence']:
         
         by_emergence = birth_years        
     
-    if not os.path.isfile('./data/pickles_v2/cohort_sizes.pkl'):
+    if not os.path.isfile('./data/{}/cohort_sizes.pkl'.format(flags['version'])):
         
         # need new cohort dataset that has total population per birth year (using life expectancy info; each country has a different end point)
         da_cohort_aligned = calc_birthyear_align(
@@ -342,13 +350,13 @@ if flags['emergence']:
         )
         
         # pickle birth year aligned cohort sizes and global mean life expectancy
-        with open('./data/pickles_v2/cohort_sizes.pkl', 'wb') as f:
+        with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(ds_cohorts,f)  
 
     else:
         
         # load pickled birth year aligned cohort sizes and global mean life expectancy
-        with open('./data/pickles_v2/cohort_sizes.pkl', 'rb') as f:
+        with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
             ds_cohorts = pk.load(f)                             
     
     ds_ae_strj, ds_pf_strj = strj_emergence(
@@ -363,15 +371,15 @@ if flags['emergence']:
 else: # load pickles
     
     # birth year aligned population
-    with open('./data/pickles_v2/cohort_sizes.pkl', 'rb') as f:
+    with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
         ds_cohorts = pk.load(f)
     
     # pop frac
-    with open('./data/pickles_v2/{}/pop_frac_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_pf_strj = pk.load(f)                
     
     # age emergence           
-    with open('./data/pickles_v2/{}/age_emergence_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/age_emergence_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_ae_strj = pk.load(f)    
                  
 #%% ----------------------------------------------------------------
@@ -388,7 +396,7 @@ gridscale_countries = get_gridscale_regions(
 )
 
 # birth year aligned cohort sizes for gridscale analysis
-if not os.path.isfile('./data/pickles_v2/gs_cohort_sizes.pkl'):
+if not os.path.isfile('./data/{}/gs_cohort_sizes.pkl'.format(flags['version'])):
 
     da_gs_popdenom = get_gridscale_popdenom(
         gridscale_countries,
@@ -400,13 +408,13 @@ if not os.path.isfile('./data/pickles_v2/gs_cohort_sizes.pkl'):
     )
 
     # pickle birth year aligned cohort sizes for gridscale analysis
-    with open('./data/pickles_v2/gs_cohort_sizes.pkl', 'wb') as f:
+    with open('./data/{}/gs_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
         pk.dump(da_gs_popdenom,f)  
         
 else:
     
     # load pickle birth year aligned cohort sizes for gridscale analysis
-    with open('./data/pickles_v2/gs_cohort_sizes.pkl', 'rb') as f:
+    with open('./data/{}/gs_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
         da_gs_popdenom = pk.load(f)               
 
 if flags['gridscale']:
@@ -427,11 +435,11 @@ if flags['gridscale']:
 else:
     
     # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
-    with open('./data/pickles_v2/{}/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_le_gs = pk.load(f)
-    with open('./data/pickles_v2/{}/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_ae_gs = pk.load(f)
-    with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_pf_gs = pk.load(f)
 
 # load spatially explicit datasets
@@ -439,7 +447,7 @@ if flags['gridscale_spatially_explicit']:
     
     d_gs_spatial = {}
     for cntry in gridscale_countries:
-        with open('./data/pickles_v2/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+        with open('./data/{}/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry), 'rb') as f:
             d_gs_spatial[cntry] = pk.load(f)
             
 # estimate union of all hazard emergences
@@ -519,6 +527,7 @@ if flags['plot_ms']:
     plot_heatmaps_allhazards(
         df_GMT_strj,
         da_gs_popdenom,
+        flags,
     )
 
     # f4 of emergence union plot for hazards between 1960 and 2020 in a 2.7 degree world
@@ -544,6 +553,7 @@ if flags['plot_si']:
     plot_pf_gmt_tseries_allhazards(
         df_GMT_strj,
         da_gs_popdenom,
+        flags,
     )
     
     # pf time series for 2.7 degree world across birth years
@@ -564,6 +574,7 @@ if flags['plot_si']:
     plot_pf_maps_allhazards(
         da_gs_popdenom,
         gdf_country_borders,
+        flags,
     )    
     
     # emergence fraction plot for hazards between 1960 and 2020 in a 2.7 degree world
@@ -576,6 +587,7 @@ if flags['plot_si']:
     plot_exposure_locations(
         grid_area,
         countries_mask,
+        flags,
     )    
     
     # plot tseries box plots for 1.5, 2.5 and 3.5 when denominator contrained by exposure extent
@@ -592,12 +604,14 @@ if flags['plot_si']:
     # plot heatmaps of pf for country level emergence
     plot_heatmaps_allhazards_countryemergence(
         df_GMT_strj,
+        flags,
     )     
     
     # plot pie charts of all hazards
     plot_allhazards_piecharts(
         da_gs_popdenom,
         df_countries,
+        flags,
     )
     
     # plot cohort sizes in stacked bar chart

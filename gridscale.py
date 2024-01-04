@@ -189,33 +189,6 @@ def gridscale_emergence(
         }
     )
 
-    # age emergence dataset (pop weighted mean of pixel scale age emergence per country, run, GMT and birthyear)
-        # spatial samples can go to ds_spatial
-    ds_ae = xr.Dataset(
-        data_vars={
-            'age_emergence_popweight': (
-                ['country','run','GMT','birth_year'],
-                np.full(
-                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'age_emergence_latweight': (
-                ['country','run','GMT','birth_year'],
-                np.full(
-                    (len(list_countries),len(list(d_isimip_meta.keys())),len(GMT_labels),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            )            
-        },
-        coords={
-            'country': ('country', list_countries),
-            'birth_year': ('birth_year', birth_years),
-            'run': ('run', np.arange(1,len(list(d_isimip_meta.keys()))+1)),
-            'GMT': ('GMT', GMT_labels)
-        }
-    )
-
     # pop fraction dataset (sum of unprecedented exposure pixels' population per per country, run, GMT and birthyear)
     ds_pf = xr.Dataset(
         data_vars={
@@ -255,19 +228,13 @@ def gridscale_emergence(
         da_cntry = da_cntry.where(da_cntry,drop=True)
         
         # spatial lifetime exposure dataset (subsetting birth years and GMT steps to reduce data load) per country
-            # can also add spatial age emergence to here
-        if not os.path.isfile('./data/pickles_v2/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry)):
+            # can also add spatial age emergence to here (will remove this)
+        if not os.path.isfile('./data/{}/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry)):
             
+            # to be removed
             ds_spatial = xr.Dataset(
                 data_vars={
                     'lifetime_exposure': (
-                        ['run','GMT','birth_year','lat','lon'],
-                        np.full(
-                            (len(list(d_isimip_meta.keys())),len(GMT_indices),len(sample_birth_years),len(da_cntry.lat.data),len(da_cntry.lon.data)),
-                            fill_value=np.nan,
-                        ),
-                    ),
-                    'age_emergence': (
                         ['run','GMT','birth_year','lat','lon'],
                         np.full(
                             (len(list(d_isimip_meta.keys())),len(GMT_indices),len(sample_birth_years),len(da_cntry.lat.data),len(da_cntry.lon.data)),
@@ -302,8 +269,8 @@ def gridscale_emergence(
         lat_weights = np.cos(np.deg2rad(da_cntry.lat))
         lat_weights.name = "weights"        
         
-        # check for demography pickle file
-        if not os.path.isfile('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry)):
+        # check for gridscale demography pickle file and make it if it doesn't exist
+        if not os.path.isfile('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry)):
             
             da_smple_pop = da_population.where(da_cntry==1) * da_smple_cht_prp # use pop and relative cohort sizes to get people per cohort
 
@@ -359,17 +326,17 @@ def gridscale_emergence(
             ds_dmg['by_population_y0'] = ds_dmg['by_population_y0'].transpose('birth_year','lat','lon')
             
             # pickle gridscale demography for country
-            with open('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry), 'wb') as f:
+            with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'wb') as f:
                 pk.dump(ds_dmg,f)       
                 
         else:
             
             # load demography pickle
-            with open('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+            with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
                 ds_dmg = pk.load(f)                      
         
         # check for PIC lifetime exposure pickle file (for ds_pic); process and dump pickle if not already existing
-        if not os.path.isfile('./data/pickles_v2/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry)):
+        if not os.path.isfile('./data/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry)):
             
             # pic dataset for bootstrapped lifetimes
             ds_pic = xr.Dataset(
@@ -396,7 +363,7 @@ def gridscale_emergence(
                 print('simulation {} of {}'.format(i,len(d_pic_meta)))
                 
                 # load AFA data of that run
-                with open('./data/pickles_v2/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
+                with open('./data/{}/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],str(i)), 'rb') as f:
                     da_AFA_pic = pk.load(f)
                     
                 da_AFA_pic = da_AFA_pic.where(ds_dmg['country_extent']==1,drop=True)
@@ -455,17 +422,17 @@ def gridscale_emergence(
                     c += 1
                     
             # pickle PIC lifetime exposure for var, country
-            with open('./data/pickles_v2/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'wb') as f:
+            with open('./data/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry), 'wb') as f:
                 pk.dump(ds_pic,f)                
                 
         else:
             
             # load PIC pickle
-            with open('./data/pickles_v2/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+            with open('./data/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry), 'rb') as f:
                 ds_pic = pk.load(f)     
                 
         # check for PIC quantiles calc'd from bootstrapped lifetime exposures (for ds_pic_qntl); process and dump pickle if not already existing
-        if not os.path.isfile('./data/pickles_v2/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry)):                
+        if not os.path.isfile('./data/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry)):                
                          
             # pic dataset for quantiles
             ds_pic_qntl = xr.Dataset(
@@ -552,13 +519,13 @@ def gridscale_emergence(
                 )     
                                              
             # pickle PIC lifetime exposure for var, country
-            with open('./data/pickles_v2/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'wb') as f:
+            with open('./data/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry), 'wb') as f:
                 pk.dump(ds_pic_qntl,f)                
                 
         else:
             
             # load PIC pickle
-            with open('./data/pickles_v2/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'rb') as f:
+            with open('./data/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry), 'rb') as f:
                 ds_pic_qntl = pk.load(f)          
 
         # loop over simulations
@@ -567,22 +534,25 @@ def gridscale_emergence(
             print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
             # load AFA data of that run
-            with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'rb') as f:
+            with open('./data/{}/{}/isimip_AFA_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],str(i)), 'rb') as f:
                 da_AFA = pk.load(f)
                 
             # mask to sample country and reduce spatial extent
             da_AFA = da_AFA.where(ds_dmg['country_extent']==1,drop=True)
             
+            # loop over GMT trajectories
             for step in GMT_labels:
                 
+                # run GMT-mapping of years if valid
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     
+                    # GMT-mapping
                     da_AFA_step = da_AFA.reindex(
                         {'time':da_AFA['time'][d_isimip_meta[i]['ind_RCP2GMT_strj'][:,step]]}
                     ).assign_coords({'time':year_range})                     
                     
                     # check for pickle of gridscale lifetime exposure (da_le); process if not existing
-                    if not os.path.isfile('./data/pickles_v2/{}/gridscale_le_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step)):
+                    if not os.path.isfile('./data/{}/{}/gridscale_le_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry,i,step)):
                             
                         # simple lifetime exposure sum
                         da_le = xr.concat(
@@ -594,19 +564,20 @@ def gridscale_emergence(
                         ).assign_coords({'birth_year':birth_years})
                         
                         # dump spatial lifetime exposure for this country/run/GMT
-                        with open('./data/pickles_v2/{}/gridscale_le_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'wb') as f:
+                        with open('./data/{}/{}/gridscale_le_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry,i,step), 'wb') as f:
                             pk.dump(da_le,f)
                     
                     # load existing pickle
                     else:
                         
-                        with open('./data/pickles_v2/{}/gridscale_le_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'rb') as f:
+                        with open('./data/{}/{}/gridscale_le_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry,i,step), 'rb') as f:
                             da_le = pk.load(f)
                 
                     # assign lifetime exposure array to spatial dataset for run i and for subset of birth years if this corresponds to step in GMT_indices (lb, 1.5, 2.0, NDC, 3.0 or 4.0)
+                    # to be removed
                     if step in GMT_indices:
                         
-                        if not os.path.isfile('./data/pickles_v2/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry)):
+                        if not os.path.isfile('./data/{}/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry)):
                         
                             ds_spatial['lifetime_exposure'].loc[{
                                 'run':i,
@@ -640,12 +611,13 @@ def gridscale_emergence(
                     ] = da_le.weighted(lat_weights).mean(('lat','lon'))       
                     
                     # check for pickles of gridscale exposure emergence mask and age emergence
-                    if not os.path.isfile('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step)) or not os.path.isfile('./data/pickles_v2/{}/gridscale_age_emergence_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step)):                                 
+                    if not os.path.isfile('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry,i,step)) or not os.path.isfile('./data/{}/{}/gridscale_age_emergence_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry,i,step)):                                 
                         
+                        # area affected ('AFA') per year per age (in 'population')
                         da_exp_py_pa = da_AFA_step * xr.full_like(ds_dmg['population'],1)
                         bys = []
                 
-                        # to be new func, per birth year, make (year,age) selections
+                        # per birth year, make (year,age) paired selections
                         for by in birth_years:
                                 
                             time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
@@ -673,116 +645,87 @@ def gridscale_emergence(
                                 
                         # cumulative sum per birthyear (in emergence.py, this cumsum then has .where(==0), should I add this here too?)
                         da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
-                
-                    # # check for pickles of gridscale exposure emergence mask and age emergence
-                    # if not os.path.isfile('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step)) or not os.path.isfile('./data/pickles_v2/{}/gridscale_age_emergence_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step)):
                         
-                        # generate exposure mask for timesteps after reaching pic extreme to find age of emergence
-                        da_emergence_mask = xr.where(
-                            da_exp_py_pa_cumsum > ds_pic['99.99'],
-                            1,
-                            0,
-                        )
-                        da_age_emergence = da_emergence_mask * (da_emergence_mask.time - da_emergence_mask.birth_year)
-                        da_age_emergence = da_age_emergence.where(da_age_emergence!=0).min(dim='time',skipna=True)
+                        # loop through pic thresholds for emergence (separate file per threshold or dataset? separate file)
+                        for pthresh in pic_qntl_labels:
                             
-                        # find birth years/pixels crossing threshold
-                        da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0) 
+                            # generate exposure mask for timesteps after reaching pic extreme to find emergence
+                            da_emergence_mask = xr.where(
+                                da_exp_py_pa_cumsum > ds_pic[pthresh],
+                                1,
+                                0,
+                            )
+                                
+                            # find birth years/pixels crossing threshold
+                            da_birthyear_emergence_mask = xr.where(da_emergence_mask.sum(dim='time')>0,1,0) 
+                            
+                            with open('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry,i,step,pthresh), 'wb') as f:
+                                pk.dump(da_birthyear_emergence_mask,f)
+                            
+                    # grid cells of population emerging for each PIC threshold
+                    for pthresh in pic_qntl_labels:
                         
-                        with open('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'wb') as f:
-                            pk.dump(da_birthyear_emergence_mask,f)
-                            
-                        with open('./data/pickles_v2/{}/gridscale_age_emergence_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'wb') as f:
-                            pk.dump(da_age_emergence,f)
-                            
-                    # load existing pickles
-                    else: 
+                        with open('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry,i,step,pthresh), 'rb') as f:
+                            da_birthyear_emergence_mask = pk.load(f)                        
                         
-                        with open('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'rb') as f:
-                            da_birthyear_emergence_mask = pk.load(f)
-                        with open('./data/pickles_v2/{}/gridscale_age_emergence_{}_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry,i,step), 'rb') as f:
-                            da_age_emergence = pk.load(f)
+                        da_unprec_pop = ds_dmg['by_population_y0'].where(da_birthyear_emergence_mask==1)
                             
-                    # grid cells of population emerging
-                    da_unprec_pop = ds_dmg['by_population_y0'].where(da_birthyear_emergence_mask==1)
+                        if step in GMT_indices:
                             
-                    if step in GMT_indices:
+                            if not os.path.isfile('./data/{}/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry)):
+                                
+                                ds_spatial['population_emergence'].loc[{
+                                    'run':i,
+                                    'GMT':step,
+                                    'lat':da_cntry.lat.data,
+                                    'lon':da_cntry.lon.data,                            
+                                }] = da_unprec_pop.loc[{
+                                    'birth_year':sample_birth_years,
+                                    'lat':da_cntry.lat.data,
+                                    'lon':da_cntry.lon.data,                               
+                                }]
+                                ds_spatial['emergence_mask'].loc[{
+                                    'run':i,
+                                    'GMT':step,
+                                    'lat':da_cntry.lat.data,
+                                    'lon':da_cntry.lon.data,
+                                }] = da_birthyear_emergence_mask.loc[{
+                                    'birth_year':sample_birth_years,
+                                    'lat':da_cntry.lat.data,
+                                    'lon':da_cntry.lon.data,
+                                }]               
                         
-                        if not os.path.isfile('./data/pickles_v2/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry)):
-                        
-                            ds_spatial['age_emergence'].loc[{
-                                'run':i,
-                                'GMT':step,
-                                'lat':da_cntry.lat.data,
-                                'lon':da_cntry.lon.data,
-                            }] = da_age_emergence.loc[{
-                                'birth_year':sample_birth_years,
-                                'lat':da_cntry.lat.data,
-                                'lon':da_cntry.lon.data,                            
-                            }]
-                            
-                            ds_spatial['population_emergence'].loc[{
-                                'run':i,
-                                'GMT':step,
-                                'lat':da_cntry.lat.data,
-                                'lon':da_cntry.lon.data,                            
-                            }] = da_unprec_pop.loc[{
-                                'birth_year':sample_birth_years,
-                                'lat':da_cntry.lat.data,
-                                'lon':da_cntry.lon.data,                               
-                            }]
-                            ds_spatial['emergence_mask'].loc[{
-                                'run':i,
-                                'GMT':step,
-                                'lat':da_cntry.lat.data,
-                                'lon':da_cntry.lon.data,
-                            }] = da_birthyear_emergence_mask.loc[{
-                                'birth_year':sample_birth_years,
-                                'lat':da_cntry.lat.data,
-                                'lon':da_cntry.lon.data,
-                            }]
-                    
-                    # assign mean/sum age emergence/pop unprec
-                    ds_ae['age_emergence_popweight'].loc[{
-                        'country':cntry,
-                        'run':i,
-                        'GMT':step,
-                        'birth_year':birth_years,
-                    }] = da_age_emergence.weighted(ds_dmg['by_population_y0'].fillna(0)).mean(('lat','lon'))
-                    
-                    ds_ae['age_emergence_latweight'].loc[{
-                        'country':cntry,
-                        'run':i,
-                        'GMT':step,
-                        'birth_year':birth_years,
-                    }] = da_age_emergence.weighted(lat_weights).mean(('lat','lon'))                    
-                    
-                    ds_pf['unprec'].loc[{
-                        'country':cntry,
-                        'run':i,
-                        'GMT':step,
-                        'birth_year':birth_years,
-                    }] = da_unprec_pop.sum(('lat','lon'))
+                        # new data array for this pic threshold
+                        ds_pf['unprec_{}'.format(pthresh)] = ds_pf['unprec'].copy()
+                        # drop the generic variable since relevant ones have pic threshold label associated with them
+                        ds_pf = ds_pf.drop(labels=['unprec'])
+                        ds_pf['unprec_{}'.format(pthresh)].loc[{
+                            'country':cntry,
+                            'run':i,
+                            'GMT':step,
+                            'birth_year':birth_years,
+                        }] = da_unprec_pop.sum(('lat','lon'))
 
-                    ds_pf['unprec_fraction'].loc[{
-                        'country':cntry,
-                        'run':i,
-                        'GMT':step,
-                        'birth_year':birth_years,
-                    }] = da_unprec_pop.sum(('lat','lon')) / ds_dmg['by_population_y0'].sum(('lat','lon'))
-                    
+                        # likewise pic thresholding considerations
+                        ds_pf['unprec_fraction_{}'.format(pthresh)] = ds_pf['unprec_fraction'].copy()
+                        ds_pf = ds_pf.drop(labels=['unprec_fraction'])
+                        ds_pf['unprec_fraction_{}'.format(pthresh)].loc[{
+                            'country':cntry,
+                            'run':i,
+                            'GMT':step,
+                            'birth_year':birth_years,
+                        }] = da_unprec_pop.sum(('lat','lon')) / ds_dmg['by_population_y0'].sum(('lat','lon'))
+                        
         # pickle spatially explicit dataset with subset of birth years and GMTs
-        if not os.path.isfile('./data/pickles_v2/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry)):
+        if not os.path.isfile('./data/{}/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry)):
             
-            with open('./data/pickles_v2/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['extr'],flags['extr'],cntry), 'wb') as f:
+            with open('./data/{}/{}/gridscale_spatially_explicit_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry), 'wb') as f:
                 pk.dump(ds_spatial,f)
 
     # pickle aggregated lifetime exposure, age emergence and pop frac datasets
-    with open('./data/pickles_v2/{}/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
+    with open('./data/{}/{}/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'wb') as f:
         pk.dump(ds_le,f)    
-    with open('./data/pickles_v2/{}/gridscale_aggregated_age_emergence_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
-        pk.dump(ds_ae,f)
-    with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'wb') as f:
         pk.dump(ds_pf,f)
         
     return ds_le, ds_ae, ds_pf
@@ -877,7 +820,7 @@ def get_gridscale_union(
     countries_regions,
 ):
     
-    if not os.path.isfile('./data/pickles_v2/emergence_hazards_subset_new.pkl') or not os.path.isfile('./data/pickles_v2/emergence_union_subset_new.pkl'):
+    if not os.path.isfile('./data/{}/emergence_hazards_subset_new.pkl'.format(flags['version'])) or not os.path.isfile('./data/{}/emergence_union_subset_new.pkl'.format(flags['version'])):
         
         extremes = [
             'burntarea', 
@@ -918,7 +861,7 @@ def get_gridscale_union(
         for extr in extremes:
             
             # get metadata for extreme
-            with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
                 d_isimip_meta = pk.load(f)
                 
             sims_per_step = {}
@@ -966,7 +909,7 @@ def get_gridscale_union(
                         
                         if d_isimip_meta[i]['GMT_strj_valid'][step]:
                         
-                            with open('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
+                            with open('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['version'],extr,extr,cntry,i,step), 'rb') as f:
                                 da_birthyear_emergence_mask = pk.load(f)
                                 
                             ds_cntry_emergence['emergence'].loc[{
@@ -1004,11 +947,11 @@ def get_gridscale_union(
         }] = xr.where(ds_emergence_union['emergence_mean']>0,1,0).sum(dim='hazard')
                         
         # pickle mean emergence
-        with open('./data/pickles_v2/emergence_hazards.pkl', 'wb') as f:
+        with open('./data/{}/emergence_hazards.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(ds_emergence_union['emergence_mean'],f)  
             
         # pickle emergence union
-        with open('./data/pickles_v2/emergence_union.pkl', 'wb') as f:
+        with open('./data/{}/emergence_union.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(ds_emergence_union['emergence_union'],f)     
             
         da_emergence_mean = ds_emergence_union['emergence_mean']
@@ -1025,28 +968,28 @@ def get_gridscale_union(
         }]  
         
         # pickle mean emergence
-        with open('./data/pickles_v2/emergence_hazards_mean_subset.pkl', 'wb') as f:
+        with open('./data/{}/emergence_hazards_mean_subset.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(da_emergence_mean_subset,f)         
             
         # pickle emergence union
-        with open('./data/pickles_v2/emergence_union_subset.pkl', 'wb') as f:
+        with open('./data/{}/emergence_union_subset.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(da_emergence_union_subset,f)                   
             
     else:
         
         # # load mean emergence
-        # with open('./data/pickles_v2/emergence_hazards.pkl', 'rb') as f:
-        #     da_emergence_mean = pk.load(f)  
+        # with open('./data/{}/emergence_hazards.pkl'.format(flags['version']), 'rb') as f:
+        #     da_emergence_mean = pk.load(f) 
             
         # # load emergence union
-        # with open('./data/pickles_v2/emergence_union.pkl', 'rb') as f:
+        # with open('./data/{}/emergence_union.pkl'.format(flags['version']), 'rb') as f:
         #     da_emergence_union = pk.load(f)            
             
-        with open('./data/pickles_v2/emergence_hazards_subset_new.pkl', 'rb') as f:
+        with open('./data/{}/emergence_hazards_subset_new.pkl'.format(flags['version']), 'rb') as f:
             da_emergence_mean_subset = pk.load(f)  
             
         # load emergence union
-        with open('./data/pickles_v2/emergence_union_subset_new.pkl', 'rb') as f:
+        with open('./data/{}/emergence_union_subset_new.pkl'.format(flags['version']), 'rb') as f:
             da_emergence_union_subset = pk.load(f)             
                      
         
@@ -1084,9 +1027,9 @@ def collect_global_emergence(
 
     for extr in extremes:
         
-        if not os.path.isfile('./data/pickles_v2/{}/emergence_landfrac_{}.pkl'.format(extr,extr)):
+        if not os.path.isfile('./data/{}/{}/emergence_landfrac_{}.pkl'.format(flags['version'],extr,extr)):
             
-            with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+            with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
                 d_isimip_meta = pk.load(f)
                 
             sims_per_step = {}
@@ -1143,7 +1086,7 @@ def collect_global_emergence(
                         
                         if d_isimip_meta[i]['GMT_strj_valid'][step]:
                         
-                            with open('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
+                            with open('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['version'],extr,extr,cntry,i,step), 'rb') as f:
                                 da_birthyear_emergence_mask = pk.load(f)
                             
                             # make assignment of emergence mask to global emergence 
@@ -1169,12 +1112,12 @@ def collect_global_emergence(
             d_global_emergence[extr] = ds_global_emergence.copy()
             
             # pickle birth year aligned cohort sizes and global mean life expectancy
-            with open('./data/pickles_v2/{}/emergence_landfrac_{}.pkl'.format(extr,extr), 'wb') as f:
+            with open('./data/{}/{}/emergence_landfrac_{}.pkl'.format(flags['version'],extr,extr), 'wb') as f:
                 pk.dump(ds_global_emergence,f) 
         
         else:
             
-            with open('./data/pickles_v2/{}/emergence_landfrac_{}.pkl'.format(extr,extr), 'rb') as f:
+            with open('./data/{}/{}/emergence_landfrac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
                 d_global_emergence[extr] = pk.load(f)    
                 
     return d_global_emergence

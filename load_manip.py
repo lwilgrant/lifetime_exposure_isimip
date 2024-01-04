@@ -692,7 +692,7 @@ def load_isimip(
                             da_AFA_pic  = xr.concat(das_AFA_pic, dim='time')
                             
                         # save AFA field as pickle
-                        with open('./data/pickles_v2/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
+                        with open('./data/{}/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
                             pk.dump(da_AFA_pic,f)
                             
                         pic_list.append('{}_{}'.format(d_isimip_meta[i]['model'],d_isimip_meta[i]['gcm']))
@@ -706,7 +706,7 @@ def load_isimip(
                         }
                             
                     # save AFA field as pickle
-                    with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
+                    with open('./data/{}/{}/isimip_AFA_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],str(i)), 'wb') as f: # added extreme to string of pickle
                         pk.dump(da_AFA,f)
 
                     # update counter
@@ -714,9 +714,9 @@ def load_isimip(
         
             # save metadata dictionary as a pickle
             print('Saving metadata')
-            with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
+            with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'wb') as f:
                 pk.dump(d_isimip_meta,f)
-            with open('./data/pickles_v2/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'wb') as f:
+            with open('./data/{}/{}/isimip_pic_metadata_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'wb') as f:
                 pk.dump(d_pic_meta,f)
 
     else: 
@@ -725,9 +725,9 @@ def load_isimip(
         print('Loading processed isimip data')
         # loac pickled metadata for isimip and isimip-pic simulations
 
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
-        with open('./data/pickles_v2/{}/isimip_pic_metadata_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
+        with open('./data/{}/{}/isimip_pic_metadata_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
             d_pic_meta = pk.load(f)                
 
     return d_isimip_meta,d_pic_meta
@@ -983,7 +983,9 @@ def get_regions_data(
 #%% ---------------------------------------------------------------
 # Country data
 
-def all_country_data():
+def all_country_data(
+    flags,
+):
     
     # load worldbank and unwpp data
     meta, worldbank, unwpp = load_worldbank_unwpp_data()
@@ -1042,9 +1044,9 @@ def all_country_data():
     # save metadata dictionary as a pickle
     print('Saving country data')
     
-    if not os.path.isdir('./data/pickles_v2'):
-        os.mkdir('./data/pickles_v2')
-    with open('./data/pickles_v2/country_info.pkl', 'wb') as f: # note; 'with' handles file stream closing
+    if not os.path.isdir('./data/{}'.format(flags['version'])):
+        os.mkdir('./data/{}'.format(flags['version'],))
+    with open('./data/{}/country_info.pkl'.format(flags['version']), 'wb') as f: # note; 'with' handles file stream closing
         pk.dump(d_countries,f)
         
     return d_countries
