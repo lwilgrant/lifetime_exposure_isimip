@@ -127,7 +127,8 @@ def init():
         '2.0': [1.95,2.0],
         '1.5': [1.45, 1.5],
     }
-    GMT_labels = np.arange(0,29).astype('int')
+    # GMT_labels = np.arange(0,29).astype('int')
+    GMT_labels = np.arange(0,21).astype('int')
     GMT_window = 21
 
     # set kernel x-values

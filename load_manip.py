@@ -555,6 +555,9 @@ def load_isimip(
         # loop over extremes
         for extreme in extremes:
 
+            if not os.path.exists('./data/{}/{}'.format(flags['version'],flags['extr'])):
+                os.mkdir('./data/{}/{}'.format(flags['version'],flags['extr']))
+
             # define all models
             models = model_names[extreme]
 

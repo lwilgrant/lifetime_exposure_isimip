@@ -44,7 +44,7 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy as cr
 import geopandas as gpd
-import seaborn as sns
+import seaborn as sns # must comment this out for things to work on the server
 scriptsdir = os.getcwd()
 
 
@@ -91,7 +91,7 @@ flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birt
                                     # 1: run calc_birthyear_align with birth years from 1960-2100                             
 flags['gridscale'] = 1      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
-flags['gridscale_country_subset'] = 1      # 0: run gridscale analysis on all countries
+flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all countries
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_union'] = 1        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles    
@@ -351,7 +351,7 @@ else:
 
 if flags['gridscale']:
     
-    ds_le_gs, ds_ae_gs, ds_pf_gs = gridscale_emergence(
+    ds_le_gs, ds_pf_gs = gridscale_emergence(
         d_isimip_meta,
         d_pic_meta,
         flags,
