@@ -163,13 +163,15 @@ def plot_conceptual(
         for step in GMT_indices_plot:
             da_test_city_std.loc[{'birth_year':by,'GMT':step,'time':np.arange(by,by+5)}] = da_test_city_std.loc[{'birth_year':by,'GMT':step}].min(dim='time')        
                 
-    # load PIC pickle
+    # load PIC pickles
     with open('./data/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],cntry), 'rb') as f:
         ds_pic = pk.load(f)   
+    with open('./data/{}/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'rb') as f:
+        ds_pic_qntl = pk.load(f)
 
     # plotting city lat/lon pixel doesn't give smooth kde
-    df_pic_city = ds_pic['lifetime_exposure'].sel({'lat':city_lat,'lon':city_lon},method='nearest').to_dataframe().drop(columns=['lat','lon','quantile'])         
-    da_pic_city_9999 = ds_pic['99.99'].sel({'lat':city_lat,'lon':city_lon},method='nearest')  
+    df_pic_city = ds_pic['lifetime_exposure'].sel({'lat':city_lat,'lon':city_lon},method='nearest').to_dataframe().drop(columns=['lat','lon',])         
+    da_pic_city_9999 = ds_pic_qntl['99.99'].sel({'lat':city_lat,'lon':city_lon},method='nearest')  
 
     # concept figure
     # ------------------------------------------------------------------   
@@ -765,18 +767,19 @@ def plot_conceptual(
     ds_dmg['by_population_y0'].sel({'birth_year':2020,'lat':city_lat,'lon':city_lon},method='nearest').item()
     
     # getting estimate of all birth years that emerge in 1.5 and 3.5 pathways and how many these cohorts sum to
-    valid_bys=da_test_city.birth_year.where(da_test_city.loc[{'GMT':6}].max(dim='time')>da_pic_city_9999)
+    valid_bys=da_test_city.birth_year.where(da_test_city.loc[{'GMT':0}].max(dim='time')>da_pic_city_9999)
     y1 = valid_bys.min(dim='birth_year')
     y2 = valid_bys.max(dim='birth_year')
     unprecedented=ds_dmg['by_population_y0'].sel(birth_year=np.arange(y1,y2+1),lat=city_lat,lon=city_lon,method='nearest').sum(dim='birth_year').round().item()    
-    print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,6))
+    print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,0))
     
-    valid_bys=da_test_city.birth_year.where(da_test_city.loc[{'GMT':24}].max(dim='time')>da_pic_city_9999)
+    valid_bys=da_test_city.birth_year.where(da_test_city.loc[{'GMT':20}].max(dim='time')>da_pic_city_9999)
     y1 = valid_bys.min(dim='birth_year')
     y2 = valid_bys.max(dim='birth_year')
     unprecedented=ds_dmg['by_population_y0'].sel(birth_year=np.arange(y1,y2+1),lat=city_lat,lon=city_lon,method='nearest').sum(dim='birth_year').round().item()    
-    print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,24))        
+    print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,20))        
 
+    f.savefig('./ms_figures/f1_concept_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
 
 #%% ----------------------------------------------------------------
 # plotting pf heatmaps for grid scale across hazards with and without

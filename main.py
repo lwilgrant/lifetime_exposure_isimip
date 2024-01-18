@@ -77,25 +77,25 @@ flags['version'] = 'pickles_v2'     # pickles: original version, submitted to Na
                                         # steps fixed in load_manip to be only 1.5-3.5, with clean 0.1 degree intervals
                                         # 5 percentiles for PIC threshold and emergence for each
                          # rm: 21-year rolling mean on RCP GMTs                          
-flags['run'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
-flags['lifetime_exposure_cohort'] = 1       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
+flags['lifetime_exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                             # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
-flags['lifetime_exposure_pic'] = 1   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
+flags['lifetime_exposure_pic'] = 0   # 0: do not process ISIMIP runs to compute picontrol exposure (i.e. load exposure pickle)
                                      # 1: process ISIMIP runs to compute picontrol exposure (i.e. produce and save exposure as pickle)
-flags['emergence'] = 1      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
+flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort emergence (i.e. load cohort exposure pickle)
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birth years from 1960-2020
                                     # 1: run calc_birthyear_align with birth years from 1960-2100                             
-flags['gridscale'] = 1      # 0: do not process grid scale analysis, load pickles
+flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
 flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all countries
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
-flags['gridscale_union'] = 1        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
+flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles    
-flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
+flags['global_emergence'] = 0       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
@@ -434,7 +434,7 @@ if flags['plot_ms']:
         df_countries,
     )    
     
-    # f2 alternative with absolute pops below box plots and noe pie charts
+    # f2 alternative with absolute pops below box plots and no pie charts
     plot_combined_population(
         df_GMT_strj,
         ds_pf_gs,

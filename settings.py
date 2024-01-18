@@ -146,7 +146,8 @@ def init():
     ]
     # GMT_indices_plot = [0,10,19,28]
     # new GMT_indices_plot for box plots showing 1.5, 2.5 and 3.5
-    GMT_indices_plot = [6,15,24]
+    # GMT_indices_plot = [6,15,24]c commented out because I cleaned up GMTs
+    GMT_indices_plot = [0,10,20]
     birth_years_plot = np.arange(1960,2021,20)   
     
     # basins for flood trends
