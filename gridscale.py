@@ -952,14 +952,15 @@ def collect_global_emergence(
             ds_global_emergence = xr.Dataset(
                 data_vars={
                     'emergence_per_run_{}'.format(extr): (
-                        ['run','birth_year','lat','lon'],
+                        ['qntl','run','birth_year','lat','lon'],
                         np.full(
-                            (len(sims_per_step[step]),len(birth_year_comparison),len(lat),len(lon)),
+                            (len(pic_qntl_labels),len(sims_per_step[step]),len(birth_year_comparison),len(lat),len(lon)),
                             fill_value=np.nan,
                         ),
                     ),                                
                 },
                 coords={
+                    'qntl': ('qntl', pic_qntl_labels),
                     'run': ('run', sims_per_step[step]),
                     'lat': ('lat', lat),
                     'lon': ('lon', lon),
@@ -990,21 +991,28 @@ def collect_global_emergence(
                     for i in sims_per_step[step]: 
                         
                         if d_isimip_meta[i]['GMT_strj_valid'][step]:
-                        
-                            with open('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['version'],extr,extr,cntry,i,step), 'rb') as f:
-                                da_birthyear_emergence_mask = pk.load(f)
                             
-                            # make assignment of emergence mask to global emergence 
-                            ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{
-                                'run':i,
-                                'birth_year':birth_year_comparison,
-                                'lat':da_cntry.lat.data,
-                                'lon':da_cntry.lon.data,                
-                            }] = xr.where(
-                                    da_cntry.notnull(),
-                                    da_birthyear_emergence_mask.loc[{'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
-                                    ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{'run':i,'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
-                                ).transpose('birth_year','lat','lon')
+                            # grid cells of population emerging for each PIC threshold
+                            for pthresh in pic_qntl_labels:
+                                
+                                with open('./data/{}/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['version'],extr,cntry,extr,cntry,i,step,pthresh), 'rb') as f:
+                                    da_birthyear_emergence_mask = pk.load(f)  
+                        
+                            # with open('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['version'],extr,extr,cntry,i,step), 'rb') as f:
+                            #     da_birthyear_emergence_mask = pk.load(f)
+                            
+                                # make assignment of emergence mask to global emergence 
+                                ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{
+                                    'qntl':pthresh,
+                                    'run':i,
+                                    'birth_year':birth_year_comparison,
+                                    'lat':da_cntry.lat.data,
+                                    'lon':da_cntry.lon.data,                
+                                }] = xr.where(
+                                        da_cntry.notnull(),
+                                        da_birthyear_emergence_mask.loc[{'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                                        ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{'run':i,'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                                    ).transpose('birth_year','lat','lon')
                             
             print("--- {} minutes for {} ---".format(
                 np.floor((time.time() - start_time) / 60),
