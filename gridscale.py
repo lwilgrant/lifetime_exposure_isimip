@@ -1011,7 +1011,7 @@ def collect_global_emergence(
                                 }] = xr.where(
                                         da_cntry.notnull(),
                                         da_birthyear_emergence_mask.loc[{'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
-                                        ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{'run':i,'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                                        ds_global_emergence['emergence_per_run_{}'.format(extr)].loc[{'qntl':pthresh,'run':i,'birth_year':birth_year_comparison,'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
                                     ).transpose('birth_year','lat','lon')
                             
             print("--- {} minutes for {} ---".format(
