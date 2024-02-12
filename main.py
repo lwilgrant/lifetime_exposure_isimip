@@ -79,7 +79,7 @@ flags['version'] = 'pickles_v2'     # pickles: original version, submitted to Na
                          # rm: 21-year rolling mean on RCP GMTs                          
 flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['lifetime_exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                             # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
@@ -95,7 +95,7 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles    
-flags['global_emergence'] = 0       # 0: do not load pickles of global emergence masks
+flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
@@ -109,7 +109,7 @@ flags['reporting'] = 0
 # ----------------------------------------------------------------
 
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, GMT_current_policies, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 # set extremes based on flag (this needs to happen here as it uses the flags dict defined above)
 set_extremes(flags)
@@ -238,14 +238,14 @@ else: # load processed pic data
     
     print('Loading processed pic exposures')
 
-    with open('./data/{}/{}/exposure_pic_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
-        d_exposure_perrun_pic = pk.load(f)
+#     with open('./data/{}/{}/exposure_pic_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
+#         d_exposure_perrun_pic = pk.load(f)
     
-ds_exposure_pic = calc_exposure_mmm_pic_xr(
-    d_exposure_perrun_pic,
-    'country',
-    'pic',
-)
+# ds_exposure_pic = calc_exposure_mmm_pic_xr(
+#     d_exposure_perrun_pic,
+#     'country',
+#     'pic',
+# )
 
 #%% ----------------------------------------------------------------
 # compute lifetime emergence
@@ -302,17 +302,16 @@ if flags['emergence']:
         
 else: # load pickles
     
-    # birth year aligned population
-    with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
-        ds_cohorts = pk.load(f)
+    pass
     
-    # pop frac
-    with open('./data/{}/{}/pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
-        ds_pf_strj = pk.load(f)                
+    # # birth year aligned population
+    # with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
+    #     ds_cohorts = pk.load(f)
     
-    # # age emergence           
-    # with open('./data/{}/{}/age_emergence_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
-    #     ds_ae_strj = pk.load(f)    
+    # # pop frac
+    # with open('./data/{}/{}/pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
+    #     ds_pf_strj = pk.load(f)                
+    
                  
 #%% ----------------------------------------------------------------
 # grid scale emergence
@@ -392,7 +391,15 @@ if flags['global_emergence']:
         countries_mask,
         countries_regions,
         gridscale_countries,
+        df_GMT_strj,
     )
+    
+# temporary add in to move files to country directories
+# from directory_solve import *
+# add_directories(
+#     gridscale_countries,
+#     flags,
+# )
     
 #%% ----------------------------------------------------------------
 # main text plots
@@ -423,27 +430,27 @@ if flags['plot_ms']:
         df_countries,
     )
     
-    # f2 alternative with both absolute pops below box plots and pie charts
-    plot_combined_population_piechart(
-        df_GMT_strj,
-        ds_pf_gs,
-        da_gs_popdenom,
-        gdf_country_borders,
-        sims_per_step,
-        flags,
-        df_countries,
-    )    
+    # # f2 alternative with both absolute pops below box plots and pie charts
+    # plot_combined_population_piechart(
+    #     df_GMT_strj,
+    #     ds_pf_gs,
+    #     da_gs_popdenom,
+    #     gdf_country_borders,
+    #     sims_per_step,
+    #     flags,
+    #     df_countries,
+    # )    
     
-    # f2 alternative with absolute pops below box plots and no pie charts
-    plot_combined_population(
-        df_GMT_strj,
-        ds_pf_gs,
-        da_gs_popdenom,
-        gdf_country_borders,
-        sims_per_step,
-        flags,
-        df_countries,
-    )        
+    # # f2 alternative with absolute pops below box plots and no pie charts
+    # plot_combined_population(
+    #     df_GMT_strj,
+    #     ds_pf_gs,
+    #     da_gs_popdenom,
+    #     gdf_country_borders,
+    #     sims_per_step,
+    #     flags,
+    #     df_countries,
+    # )        
 
     # f3 of heatmaps across all hazards
     plot_heatmaps_allhazards(

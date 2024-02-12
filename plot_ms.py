@@ -37,7 +37,7 @@ import seaborn as sns
 import cartopy as cr
 import cartopy.feature as feature
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, GMT_current_policies, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 # %% ----------------------------------------------------------------
 # Conceptual plot for emergence in one location,   
@@ -1779,6 +1779,10 @@ def plot_combined_piechart(
     cb_ticwid = 0.4   # colorbar thickness of ticks
     cb_edgthic = 0   # colorbar thickness of edges between colors   
     by=2020
+    
+    plot_var='unprec_99.99'
+    gmt_indices_152535 = [20,10,0]
+    map_letters = {20:'g',10:'f',0:'e'}
 
     gmt_legend={
         GMT_indices_plot[0]:'1.5',
@@ -1833,8 +1837,9 @@ def plot_combined_piechart(
     norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)   
 
     # pop frac box plot ----------------------------------------------------------
-    GMT_indices_ticks=[6,12,18,24]
-    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    # GMT_indices_ticks=[6,12,18,24]
+    # GMT_indices_ticks
+    # gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
 
     # levels = np.arange(0,1.01,0.05)
     levels = np.arange(0,101,5)
@@ -1847,7 +1852,7 @@ def plot_combined_piechart(
         d_isimip_meta = pk.load(file)              
     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
         ds_pf_gs_plot = pk.load(file)
-    da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+    da_p_gs_plot = ds_pf_gs_plot[plot_var].loc[{
         'GMT':GMT_indices_plot,
         'birth_year':sample_birth_years,
     }]
@@ -1946,9 +1951,9 @@ def plot_combined_piechart(
     # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways ----------------------------------------------------------     
 
     # gmt_indices_123 = [19,10,0]
-    gmt_indices_152535 = [24,15,6]
-    map_letters = {24:'g',15:'f',6:'e'}
-    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+    # gmt_indices_152535 = [24,15,6]
+    # map_letters = {24:'g',15:'f',6:'e'}
+    da_p_gs_plot = ds_pf_gs[plot_var].loc[{
         'GMT':gmt_indices_152535,
         'birth_year':by,
     }]
@@ -2108,13 +2113,15 @@ def plot_combined_piechart(
     cb.outline.set_linewidth(cb_edgthic)   
     cax00.xaxis.set_label_position('top')   
 
-    gmt_indices_sample = [24,15,6]
+    # gmt_indices_sample = [24,15,6]
+    gmt_indices_sample=gmt_indices_152535
     gmt_legend={
         gmt_indices_sample[0]:'1.5',
         gmt_indices_sample[1]:'2.5',
         gmt_indices_sample[2]:'3.5',
     }
-    colors = dict(zip([6,15,24],['steelblue','darkgoldenrod','darkred']))
+    # colors = dict(zip([6,15,24],['steelblue','darkgoldenrod','darkred']))
+    colors = dict(zip([0,10,20],['steelblue','darkgoldenrod','darkred']))
 
     by_sample = [1960,1990,2020]
     incomegroups = df_countries['incomegroup'].unique()
@@ -2130,7 +2137,7 @@ def plot_combined_piechart(
 
 
     income_unprec = {}
-    da_unprec = ds_pf_gs['unprec']
+    da_unprec = ds_pf_gs[plot_var]
     for category in list(income_countries.keys()):
         income_unprec[category] = da_unprec.loc[{
             'country':income_countries[category],
@@ -2327,7 +2334,7 @@ def plot_combined_piechart(
             xycoords=ax0.transAxes
         )
             
-    f.savefig('./ms_figures/combined_plot_piecharts_new.png',dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/combined_plot_piecharts_new_{}.png',dpi=1000,bbox_inches='tight'.format(flags['version']))
     # f.savefig('./ms_figures/combined_plot_piecharts_50.pdf',dpi=50,bbox_inches='tight')
     # f.savefig('./ms_figures/combined_plot_piecharts_500.pdf',dpi=500,bbox_inches='tight')
 
@@ -2408,7 +2415,7 @@ def plot_combined_population(
         d_isimip_meta = pk.load(file)              
     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
         ds_pf_gs_plot = pk.load(file)
-    da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+    da_p_gs_plot = ds_pf_gs_plot[plot_var].loc[{
         'GMT':GMT_indices_plot,
         'birth_year':sample_birth_years,
     }]
@@ -2621,7 +2628,7 @@ def plot_combined_population(
     # --------------------------------------------------------------------
     # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways
 
-    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+    da_p_gs_plot = ds_pf_gs[plot_var].loc[{
         'GMT':gmt_indices_152535,
         'birth_year':by,
     }]
@@ -2812,7 +2819,7 @@ def plot_combined_population_piechart(
         d_isimip_meta = pk.load(file)              
     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
         ds_pf_gs_plot = pk.load(file)
-    da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+    da_p_gs_plot = ds_pf_gs_plot[plot_var].loc[{
         'GMT':GMT_indices_plot,
         'birth_year':sample_birth_years,
     }]
@@ -3028,7 +3035,7 @@ def plot_combined_population_piechart(
     }        
 
     income_unprec = {}
-    da_unprec = ds_pf_gs['unprec']
+    da_unprec = ds_pf_gs[plot_var]
     for category in list(income_countries.keys()):
         income_unprec[category] = da_unprec.loc[{
             'country':income_countries[category],
@@ -3166,7 +3173,7 @@ def plot_combined_population_piechart(
     # --------------------------------------------------------------------
     # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways
 
-    da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+    da_p_gs_plot = ds_pf_gs[plot_var].loc[{
         'GMT':gmt_indices_152535,
         'birth_year':by,
     }]
