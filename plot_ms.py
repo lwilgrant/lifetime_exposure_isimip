@@ -818,10 +818,12 @@ def plot_heatmaps_allhazards(
         'driedarea': '$\mathregular{CF_{Droughts}}$ [%]',
         'floodedarea': '$\mathregular{CF_{Floods}}$ [%]',
         'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$ [%]',
-    }            
+    }      
+    unprec_level="unprec_99.99"      
 
     # labels for GMT ticks
-    GMT_indices_ticks=[6,12,18,24]
+    # GMT_indices_ticks=[6,12,18,24]
+    GMT_indices_ticks=[0,5,10,15,20]
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
     levels_hw=np.arange(0,101,10)
     levels_cf=np.arange(0,31,5)
@@ -835,7 +837,7 @@ def plot_heatmaps_allhazards(
     for extr in extremes:
         with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)
-        with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_new_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)        
         sims_per_step = {}
         for step in GMT_labels:
@@ -845,14 +847,14 @@ def plot_heatmaps_allhazards(
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     sims_per_step[step].append(i)  
         if extr != 'cropfailedarea':
-            p = ds_pf_gs_extr['unprec'].loc[{
+            p = ds_pf_gs_extr[unprec_level].loc[{
                 'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
                 'run':sims_per_step[GMT_labels[-1]]
             }].sum(dim='country')
-        else:
-            p = ds_pf_gs_extr['unprec'].loc[{
+        else: # for some reason, cropfailedarea doesn't have 3.5th in earlier v1 pickle run?
+            p = ds_pf_gs_extr[unprec_level].loc[{
                 'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
-                'run':sims_per_step[27]
+                'run':sims_per_step[GMT_labels[-1]]
             }].sum(dim='country')            
         p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
         list_extrs_pf.append(p)
@@ -912,7 +914,17 @@ def plot_heatmaps_allhazards(
                 levels=levels_other,
                 cmap='Reds',
                 cbar_kwargs={'ticks':np.arange(0,16,3)}
-            )       
+            )  
+            
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100,
+            color='gray',
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+            color='gray',
+        )                  
         
     # ax stuff
     l=0
@@ -953,8 +965,8 @@ def plot_heatmaps_allhazards(
         if n >= 3:
             ax.set_xlabel('Birth year',fontsize=12,color='gray')         
  
-    f.savefig('./ms_figures/pf_heatmap_combined_simlim.png',dpi=1000,bbox_inches='tight')
-    f.savefig('./ms_figures/pf_heatmap_combined_simlim.eps',format='eps',bbox_inches='tight')
+    f.savefig('./ms_figures/pf_heatmap_combined_simlim_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/pf_heatmap_combined_simlim_{}.eps'.format(flags['version']),format='eps',bbox_inches='tight')
     plt.show()     
     
     # --------------------------------------------------------------------
@@ -965,7 +977,7 @@ def plot_heatmaps_allhazards(
     for extr in extremes:
         with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
-        p = ds_pf_gs_extr['unprec'].loc[{
+        p = ds_pf_gs_extr[unprec_level].loc[{
             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
         }].sum(dim='country')       
         p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
@@ -1077,9 +1089,9 @@ def plot_heatmaps_allhazards(
         if n >= 3:
             ax.set_xlabel('Birth year',fontsize=12,color='gray')
     
-    f.savefig('./ms_figures/pf_heatmap_combined_allsims.png',dpi=1000,bbox_inches='tight')
-    f.savefig('./ms_figures/pf_heatmap_combined_allsims.pdf',dpi=500,bbox_inches='tight')    
-    f.savefig('./ms_figures/pf_heatmap_combined_allsims.eps',format='eps',bbox_inches='tight')
+    f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.pdf'.format(flags['version']),dpi=500,bbox_inches='tight')    
+    f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.eps'.format(flags['version']),format='eps',bbox_inches='tight')
     plt.show()         
 
 #%% ----------------------------------------------------------------
