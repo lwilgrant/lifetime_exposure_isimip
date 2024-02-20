@@ -97,6 +97,8 @@ flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean em
                                     # 1: process/load those^ pickles    
 flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
+flags['gdp'] = 0        # do not process lifetime GDP average (load pickles)
+                        # load lifetime GDP average analysis                                   
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
 flags['reporting'] = 0     
@@ -371,16 +373,16 @@ else:
     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_pf_gs = pk.load(f)
             
-# estimate union of all hazard emergences
-if flags['gridscale_union']:
+# # estimate union of all hazard emergences
+# if flags['gridscale_union']:
     
-    da_emergence_mean, da_emergence_union = get_gridscale_union(
-        da_population,
-        flags,
-        gridscale_countries,
-        countries_mask,
-        countries_regions,
-    )
+#     da_emergence_mean, da_emergence_union = get_gridscale_union(
+#         da_population,
+#         flags,
+#         gridscale_countries,
+#         countries_mask,
+#         countries_regions,
+#     )
 
 # read in global emergence masks
 if flags['global_emergence']:
@@ -400,7 +402,95 @@ if flags['global_emergence']:
 #     gridscale_countries,
 #     flags,
 # )
+
+#%% ----------------------------------------------------------------
+# gdp analysis
+# ------------------------------------------------------------------
+
+if flags['gdp']:
+    pass
     
+else:    
+    pass
+
+lat = grid_area.lat.values
+lon = grid_area.lon.values
+
+f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
+f_gdp_future_2006_2099 = './data/isimip/gdp/gdp_2005soc_0p5deg_annual_2006_2099.nc4'
+f_gdp_future_2100_2299 = './data/isimip/gdp/gdp_2005soc_0p5deg_annual_2100_2299.nc4'
+f_gdp_rcp26_2006_2099 = './data/isimip/gdp/gdp_rcp26soc_0p5deg_annual_2006_2099.nc4'
+
+ds_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
+ds_gdp_future_2006_2099 = open_dataarray_isimip(f_gdp_future_2006_2099)
+ds_gdp_future_2100_2299 = open_dataarray_isimip(f_gdp_future_2100_2299)
+
+da_gdp = xr.concat(
+    [ds_gdp_historical_1861_2005,ds_gdp_future_2006_2099,ds_gdp_future_2100_2299],
+    dim='time'
+).sel(time=slice(year_start,year_end))
+
+da_gdp_pc = da_gdp / da_population # get per capita GDP
+da_gdp_pc = da_gdp_pc.where(countries_mask.notnull()) # only take land/country pixels
+
+# dataset for lifetime average GDP
+ds_gdp = xr.Dataset(
+    data_vars={
+        'gdp_mean': (
+            ['birth_year','lat','lon'],
+            np.full(
+                (len(birth_years),len(lat),len(lon)),
+                fill_value=np.nan,
+            ),
+        ),      
+        'gdp_sum': (
+            ['birth_year','lat','lon'],
+            np.full(
+                (len(birth_years),len(lat),len(lon)),
+                fill_value=np.nan,
+            ),
+        ),              
+    },
+    coords={
+        'birth_year': ('birth_year', birth_years),
+        'lat': ('lat', lat),
+        'lon': ('lon', lon)
+    }
+)
+
+# loop thru countries
+# for cntry in list_countries:
+# for cntry in ['Belgium','Netherlands','France','Germany']:
+for cntry in ['Belgium','France']:
+
+    # load demography pickle for country
+    with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
+        ds_dmg = pk.load(f)     
+
+    da_gdp_cntry = da_gdp_pc.where(ds_dmg['country_extent'].notnull())    
+    da_gdp_sum = xr.concat(
+        [(da_gdp_cntry.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
+        da_gdp_cntry.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()).drop('time') *\
+        (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
+        for by in birth_years],
+        dim='birth_year',
+    ).assign_coords({'birth_year':birth_years})     
+
+    # make assignment of emergence mask to global emergence 
+    ds_gdp['gdp_sum'].loc[{
+        'birth_year':birth_years,
+        'lat':ds_dmg.lat.data,
+        'lon':ds_dmg.lon.data,                
+    }] = xr.where(
+            ds_dmg['country_extent'].notnull(),
+            da_gdp_sum.loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
+            ds_gdp['gdp_sum'].loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
+        ).transpose('birth_year','lat','lon')
+    
+test=ds_gdp['gdp_sum'].sel(birth_year=2020)
+test.sel(lat=slice(55.75,41.25),lon=slice(-6.25,16.75)).plot()    
+
+# $$f W 6°01'00"/N 41°40'00" ; W 6°07'00"/N 55°27'00" ; E 16°14'00"/N 55°30'00" ; E 16°20'00"/N 41°45'00" ; W 6°01'00"/N 41°40'00"
 #%% ----------------------------------------------------------------
 # main text plots
 # ------------------------------------------------------------------       
