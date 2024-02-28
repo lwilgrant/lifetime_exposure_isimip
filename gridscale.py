@@ -225,7 +225,7 @@ def gridscale_emergence(
             dims=countries_mask.dims,
             coords=countries_mask.coords,
         )
-        da_cntry = da_cntry.where(da_cntry,drop=True)
+        da_cntry = da_cntry.where(da_cntry,drop=True) # THIS DROP IS CAUSING ISSUES WITH SOME COUNTRIES (EG FRANCE); FIND WORKAROUND
         
         # weights for latitude (probably won't use but will use population instead)
         lat_weights = np.cos(np.deg2rad(da_cntry.lat))
@@ -950,7 +950,6 @@ def collect_global_emergence(
                         sims_per_step[step].append(i)
 
             # metadata for isolating analysis to heatwaves
-            # step=17 # this is for the CAT 2.7 degree pathway, 21 is for the 3.2 degree pathway
             birth_year_comparison=np.asarray([1960,2020])
 
             # per current policies GMT trajectory, collect emergence masks
@@ -1040,4 +1039,183 @@ def collect_global_emergence(
                 d_global_emergence[extr] = pk.load(f)    
                 
     return d_global_emergence
-# %%
+#%% ----------------------------------------------------------------
+# proc gdp
+# ------------------------------------------------------------------
+
+def load_gdp_deprivation(
+    grid_area,
+):
+  
+    # ------------------------------------------------------------------
+    # start with gdp data
+  
+    # grid data
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values  
+  
+    # define xarray dataset for our indices
+    ds_gdp = xr.Dataset(
+        data_vars={
+            'gdp_isimip_rcp26': (
+                ['year','lat','lon'],
+                np.full(
+                    (len(year_range),len(lat),len(lon)),
+                    fill_value=np.nan,
+                ),
+            ),      
+            'gdp_ssp1': (
+                ['year','lat','lon'],
+                np.full(
+                    (len(year_range),len(lat),len(lon)),
+                    fill_value=np.nan,
+                ),
+            ),       
+            'gdp_ssp2': (
+                ['year','lat','lon'],
+                np.full(
+                    (len(year_range),len(lat),len(lon)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'gdp_ssp3': (
+                ['year','lat','lon'],
+                np.full(
+                    (len(year_range),len(lat),len(lon)),
+                    fill_value=np.nan,
+                ),
+            ),       
+            'gdp_ssp3': (
+                ['year','lat','lon'],
+                np.full(
+                    (len(year_range),len(lat),len(lon)),
+                    fill_value=np.nan,
+                ),
+            ),                               
+            'gdp_ssp4': (
+                ['year','lat','lon'],
+                np.full(
+                    (len(year_range),len(lat),len(lon)),
+                    fill_value=np.nan,
+                ),
+            ),       
+            'gdp_ssp5': (
+                ['year','lat','lon'],
+                np.full(
+                    (len(year_range),len(lat),len(lon)),
+                    fill_value=np.nan,
+                ),
+            ),                               
+        },
+        coords={
+            'year': ('year', year_range),
+            'lat': ('lat', lat),
+            'lon': ('lon', lon)
+        }
+    )    
+
+    # read in ISIMIP grid data (histsoc + rcp26soc)
+    f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
+    f_gdp_rcp26_2006_2099 = './data/isimip/gdp/gdp_rcp26soc_0p5deg_annual_2006_2099.nc4'
+    da_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
+    da_gdp_rcp26_2006_2099 = open_dataarray_isimip(f_gdp_rcp26_2006_2099)    
+    da_gdp_hist_rcp26 = xr.concat(
+        [da_gdp_historical_1861_2005,da_gdp_rcp26_2006_2099],
+        dim='time'
+    ).sel(time=slice(year_start,2099)).where(countries_mask.notnull())    
+    da_population_subset = da_population.sel(time=slice(year_start,2099))
+    da_gdp_hist_rcp26_pc = da_gdp_hist_rcp26 / da_population_subset.where(da_population_subset>0) # get per capita GDP
+    ds_gdp['gdp_isimip_rcp26'].loc[{
+        'year': da_gdp_hist_rcp26_pc.time.data,
+        'lat': lat,
+        'lon': lon,
+    }] = da_gdp_hist_rcp26_pc
+    
+    # Read in Wang and Sun data (2005, 2030-2100 in 10 yr steps)
+    ssps = ('ssp1','ssp2','ssp3','ssp4','ssp5')
+    decades = ['2030','2040','2050','2060','2070','2080','2090','2100']
+    time_coords = decades.copy()
+    time_coords.insert(0,'2005')
+    time_coords = list(map(int,time_coords))
+    dims_dict = { # rename dimensions
+        'x':'lon',
+        'y':'lat',
+    }
+    if len(glob.glob('./data/gdp_wang_sun/GDP_*_isimipgrid.nc4')) == 0: # run the Geotiff conversion and py-cdo stuff if proc'd file not there
+        rds = {}
+        for i,s in enumerate(ssps):
+            rds[s] = {}
+            rds[s]['2005'] = rxr.open_rasterio('./data/gdp_wang_sun/GDP2005.tif')
+            for d in decades:
+                rds[s][d] = rxr.open_rasterio('./data/gdp_wang_sun/GDP{}_{}.tif'.format(d,s))
+            rds[s]['full_series'] = xr.concat(
+                [rds[s][str(t)] for t in time_coords],
+                dim='time'
+            ).squeeze(dim='band').rename(dims_dict)
+            rds[s]['full_series'].coords['time']=time_coords
+            ds = rds[s]['full_series'].to_dataset(name=s)
+            if i == 0:
+                ds_fresh = xr.Dataset( # dataset for netcdf generation
+                    data_vars={
+                        s: (
+                            ['time','lat','lon'],
+                            np.full(
+                                (len(ds.time.data),len(ds.lat.data),len(ds.lon.data)),
+                                fill_value=np.nan,
+                            ),
+                        ),        
+                    },
+                    coords={
+                        'time': ('time', time_coords),
+                        'lat': ('lat', ds.lat.data, {
+                            'standard_name': 'latitude',
+                            'long_name': 'latitude',
+                            'units': 'degrees_north',
+                            'axis': 'Y'
+                        }),
+                        'lon': ('lon', ds.lon.data, {
+                            'standard_name': 'longitude',
+                            'long_name': 'longitude',
+                            'units': 'degrees_east',
+                            'axis': 'X'
+                        })
+                    }
+                )
+            else:
+                ds_fresh[s] = xr.full_like(ds_fresh[ssps[0]],fill_value=np.nan)
+            ds_fresh[s].loc[{
+                'time':ds_fresh.time.data,
+                'lat':ds_fresh.lat.data,
+                'lon':ds_fresh.lon.data,
+            }] = ds[s]
+            ds_fresh[s].to_netcdf( # save to netcdf
+                './data/gdp_wang_sun/GDP_{}.nc4'.format(s),
+                format='NETCDF4',
+                encoding={
+                    'lat': {
+                        'dtype': 'float64',
+                    },
+                    'lon': {
+                        'dtype': 'float64',
+                    }            
+                }
+            )   
+            cdo.remapcon2( # remap netcdf
+                './data/isimip/clm45_area.nc4',  
+                input = './data/gdp_wang_sun/GDP_{}.nc4',
+                output = './data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s),
+                options = '-f nc4'
+            )
+             
+        
+    else:
+
+        # read in remap'd netcdfs
+        for i,s in enumerate(ssps):
+            ds_gdp_regrid = xr.open_dataset('./data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s))
+            ds_gdp_regrid.coords['time'] = time_coords
+            ds_gdp['gdp_{}'.format(s)].loc[{
+                'year': time_coords,
+                'lat': lat,
+                'lon': lon,
+            }] = ds_gdp_regrid[s]

@@ -21,10 +21,24 @@
 #     sf_     : shapefile
 #     ...dir  : directory
 
-# - not yet masked for small countries
-# - how to handle South-Sudan and Palestina? Now manually filtered out in load
-# - south sudan and palestine not dealt with (we only have 176 countries instead of 178 from matlab, these are missing in end mmm values)
-# - for import to hydra, the file loading and dealing with lower case letters in hadgem will need to be addressed (way forward is to test line 236 of load_manip on hydra to see if the gcm key string .upper() method works even though the directory has lower case "a" in hadgem)
+# To do
+# Put all GDP/deprivation loading (GDP and GDP per capita for max time length of product in function under Emergence section)
+    # run read in of isimip hist + rcp26 
+    # pip install py-cdo; write CDO python lines to run remapcon2 if isimip grid Wang and Sun files not there
+    # run read in of wang and sung;
+    # pickle datasets
+# Make lifetime gdp function (birth cohort choice in settings)
+    # currently have sum option, need to add mean (don't worry about fractional last year of life span)
+    # pickle datasets
+# Cross lifetime gdp against emergence masks 
+    # get pop estimates for sample of percentiles for each GDP product (2)
+# Put all deprivation conversion/loading in function and run it in emergence section
+    # pickle data
+# Cross deprivation against emergence masks
+    # get pop estimates for sample percentiles for deprivation
+    
+    
+    
 
 
 #               
@@ -97,13 +111,12 @@ flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean em
                                     # 1: process/load those^ pickles    
 flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
-flags['gdp'] = 0        # do not process lifetime GDP average (load pickles)
+flags['gdp_deprivation'] = 0        # do not process lifetime GDP average (load pickles)
                         # load lifetime GDP average analysis                                   
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
 flags['reporting'] = 0     
 
-# TODO: add rest of flags
 
 
 #%% ----------------------------------------------------------------
@@ -396,6 +409,16 @@ if flags['global_emergence']:
         df_GMT_strj,
     )
     
+# run processing or load GDP data  
+if flags['gdp']:
+    
+    ds_gdp = load_gdp(
+        
+    )
+    
+else:    
+    pass    
+    
 # temporary add in to move files to country directories
 # from directory_solve import *
 # add_directories(
@@ -436,24 +459,6 @@ da_gdp_hist_2005soc_pc = da_gdp_hist_2005soc / da_population.where(da_population
 
 # checking sample country time series for hist + 2005 soc
 for cntry in ['Canada','United States','China', 'France', 'Germany']:
-    # print('')
-    # print('Historical series for {}'.format(cntry))
-    
-    # print('GDP time series:')
-    # da_gdp_hist_2005soc.where(da_gdp_hist_2005soc>0).where(countries_mask==countries_regions.map_keys(cntry)).sel(time=slice(1960,2005)).sum(dim=('lat','lon')).plot()
-    # plt.show()    
-    
-    # print('')
-    # print('Population time series:')
-    # da_population.where(da_population>0).where(countries_mask==countries_regions.map_keys(cntry)).sel(time=slice(1960,2005)).sum(dim=('lat','lon')).plot()
-    # plt.show()
-    
-    # print('GDP per capita time series:')
-    # da_gdp_pc_cntry = da_gdp_hist_2005soc_pc.where(countries_mask==countries_regions.map_keys(cntry))
-    # da_gdp_pc_cntry_mean = da_gdp_pc_cntry.sel(time=slice(1960,2005)).mean(dim=('lat','lon'))    
-    # da_gdp_pc_cntry_mean.plot()
-    # plt.show()
-    # print('')    
     
     print('')
     print('Entire series for {}'.format(cntry))
@@ -507,17 +512,9 @@ for cntry in ['Canada','United States','China', 'France', 'Germany']:
     plt.show()
     print('')   
 
-# da_gdp_pc = da_gdp_pc.where(countries_mask.notnull()) # only take land/country pixels
-
-# # testing trends
-# cntry='France'
-
 # # load demography pickle for country
 # with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
 #     ds_dmg = pk.load(f)     
-
-# da_gdp_cntry = da_gdp_pc.where(ds_dmg['country_extent'].notnull())    
-
 
 # dataset for lifetime average GDP
 ds_gdp = xr.Dataset(
@@ -575,6 +572,8 @@ for cntry in ['Belgium','Netherlands','France','Germany']:
             da_gdp_sum.loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
             ds_gdp['gdp_sum'].loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
         ).transpose('birth_year','lat','lon')
+    
+    
     
 test=ds_gdp['gdp_sum'].sel(birth_year=2020)
 test.plot()
@@ -705,8 +704,7 @@ handles = [
 for cntry in ['Canada','United States','China', 'France', 'Germany']:
     
     print('')
-    print('Entire series for {}'.format(cntry))
-    cntry='Canada'    
+    print('Entire series for {}'.format(cntry))  
     print('plots for {}'.format(cntry))
     f,(ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
 
@@ -744,8 +742,63 @@ for cntry in ['Canada','United States','China', 'France', 'Germany']:
         columnspacing=0.05, 
         handlelength=legend_entrylen, 
         handletextpad=legend_entrypad,
-    )      
+    )     
+    
+    plt.show() 
+    
+# alternative testing for the Wang and Sun data while using ISIMIP historical GDP estimates
+f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
+da_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
+da_gdp_historical_1861_2004 = da_gdp_historical_1861_2005.loc[{'time':np.arange(1960,2005)}] 
+    
+for cntry in ['Canada','United States','China', 'France', 'Germany']:
+    
+    print('')
+    print('Entire series for {}'.format(cntry))  
+    print('plots for {}'.format(cntry))
+    f,(ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
 
+    for s in ssps:
+        
+        future = ds_gdp_regrid[s]
+        historical = da_gdp_historical_1861_2004
+        da_gdp_full = xr.concat([historical,future],dim='time')
+        da_population_subset = da_population.loc[{'time':da_gdp_full.time.values}]    
+        
+        # color
+        clr = ssp_colors[s]
+        
+        da_gdp_full.where(da_gdp_full>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot(
+            ax=ax1,
+            color=clr,
+            add_legend='False'
+        )
+        
+        da_gdp_full_pc = da_gdp_full.where(countries_mask==countries_regions.map_keys(cntry)) / da_population_subset.where(da_population_subset>0).where(countries_mask==countries_regions.map_keys(cntry))
+        da_gdp_full_pc = da_gdp_full_pc.mean(dim=('lat','lon'))    
+        da_gdp_full_pc.plot(
+            ax=ax2,
+            color=clr,
+            add_legend=False,
+        )
+    ax1.set_title('GDP: {}'.format(cntry))
+    ax2.set_title('GDP per capita: {}'.format(cntry))
+    ax2.legend(
+        handles, 
+        list(ssp_colors.keys()), 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc='lower left',
+        ncol=1,
+        fontsize=10, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )     
+    
+    plt.show()     
 
 #%% ----------------------------------------------------------------
 # main text plots
