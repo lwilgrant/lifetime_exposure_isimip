@@ -409,113 +409,18 @@ if flags['global_emergence']:
         df_GMT_strj,
     )
     
-# run processing or load GDP data  
+# load/proc GDP and deprivation data
 if flags['gdp']:
     
-    ds_gdp = load_gdp(
-        
+    ds_gdp, ds_grdi = load_gdp_deprivation(
+        grid_area,
     )
     
-else:    
-    pass    
-    
-# temporary add in to move files to country directories
-# from directory_solve import *
-# add_directories(
-#     gridscale_countries,
-#     flags,
-# )
+else:
+        
+    pass   
 
-#%% ----------------------------------------------------------------
-# gdp analysis; ISIMIP2b Input data
-# ------------------------------------------------------------------
-
-if flags['gdp']:
-    pass
-    
-else:    
-    pass
-
-lat = grid_area.lat.values
-lon = grid_area.lon.values
-
-f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
-f_gdp_future_2006_2099 = './data/isimip/gdp/gdp_2005soc_0p5deg_annual_2006_2099.nc4'
-f_gdp_future_2100_2299 = './data/isimip/gdp/gdp_2005soc_0p5deg_annual_2100_2299.nc4'
-f_gdp_rcp26_2006_2099 = './data/isimip/gdp/gdp_rcp26soc_0p5deg_annual_2006_2099.nc4'
-
-da_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
-da_gdp_future_2006_2099 = open_dataarray_isimip(f_gdp_future_2006_2099)
-da_gdp_future_2100_2299 = open_dataarray_isimip(f_gdp_future_2100_2299)
-da_gdp_rcp26_2006_2099 = open_dataarray_isimip(f_gdp_rcp26_2006_2099)
-
-# full gdp time series for hist + 2005 soc (ISIMIP2b)
-da_gdp_hist_2005soc = xr.concat(
-    [da_gdp_historical_1861_2005,da_gdp_future_2006_2099,da_gdp_future_2100_2299],
-    dim='time'
-).sel(time=slice(year_start,year_end)).where(countries_mask.notnull())
-
-da_gdp_hist_2005soc_pc = da_gdp_hist_2005soc / da_population.where(da_population>0) # get per capita GDP
-
-# checking sample country time series for hist + 2005 soc
-for cntry in ['Canada','United States','China', 'France', 'Germany']:
-    
-    print('')
-    print('Entire series for {}'.format(cntry))
-    
-    print('GDP time series:')
-    da_gdp_hist_2005soc.where(da_gdp_hist_2005soc>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot()
-    plt.show()    
-    
-    print('')
-    print('Population time series:')
-    da_population.where(da_population>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot()
-    plt.show()
-    
-    print('GDP per capita time series:')
-    da_gdp_pc_cntry = da_gdp_hist_2005soc_pc.where(countries_mask==countries_regions.map_keys(cntry))
-    da_gdp_pc_cntry_mean = da_gdp_pc_cntry.mean(dim=('lat','lon'))    
-    da_gdp_pc_cntry_mean.plot()
-    plt.show()
-    print('')      
-    
-
-
-# full gdp time series for hist + rcp26 soc (ISIMIP2b)
-da_gdp_hist_rcp26 = xr.concat(
-    [da_gdp_historical_1861_2005,da_gdp_rcp26_2006_2099],
-    dim='time'
-).sel(time=slice(year_start,2099)).where(countries_mask.notnull())    
-da_population_subset = da_population.sel(time=slice(year_start,2099))
-
-da_gdp_hist_rcp26_pc = da_gdp_hist_rcp26 / da_population_subset.where(da_population_subset>0) # get per capita GDP
-
-# checking sample country time series for hist + rcp26
-for cntry in ['Canada','United States','China', 'France', 'Germany']:
-    
-    print('')
-    print('Entire series for {}'.format(cntry))
-    
-    print('GDP time series:')
-    da_gdp_hist_rcp26.where(da_gdp_hist_rcp26>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot()
-    plt.show()    
-    
-    print('')
-    print('Population time series:')
-    da_population_subset.where(da_population_subset>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot()
-    plt.show()
-    
-    print('GDP per capita time series:')
-    da_gdp_pc_cntry = da_gdp_hist_rcp26_pc.where(countries_mask==countries_regions.map_keys(cntry))
-    da_gdp_pc_cntry_mean = da_gdp_pc_cntry.mean(dim=('lat','lon'))    
-    da_gdp_pc_cntry_mean.plot()
-    plt.show()
-    print('')   
-
-# # load demography pickle for country
-# with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
-#     ds_dmg = pk.load(f)     
-
+# filter emergence masks and pop estimates based on percentiles of GDP and GRDI
 # dataset for lifetime average GDP
 ds_gdp = xr.Dataset(
     data_vars={
@@ -579,7 +484,7 @@ test=ds_gdp['gdp_sum'].sel(birth_year=2020)
 test.plot()
 plt.show()
 test.sel(lat=slice(55.75,41.25),lon=slice(-6.25,16.75)).plot()
-# $$f W 6°01'00"/N 41°40'00" ; W 6°07'00"/N 55°27'00" ; E 16°14'00"/N 55°30'00" ; E 16°20'00"/N 41°45'00" ; W 6°01'00"/N 41°40'00"
+ 
 
 #%% ----------------------------------------------------------------
 # gdp analysis; Wang & Sun 
