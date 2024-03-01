@@ -1047,10 +1047,15 @@ def collect_global_emergence(
 def load_gdp_deprivation(
     grid_area,
     gridscale_countries,
+    df_life_expectancy_5,
 ):
   
     # ------------------------------------------------------------------
     # start with gdp data
+    
+    # define ssps and decades for wang and sun data
+    ssps = ('ssp1','ssp2','ssp3','ssp4','ssp5')
+    decades = ['2030','2040','2050','2060','2070','2080','2090','2100']
   
     # grid data
     lat = grid_area.lat.values
@@ -1065,49 +1070,7 @@ def load_gdp_deprivation(
                     (len(year_range),len(lat),len(lon)),
                     fill_value=np.nan,
                 ),
-            ),      
-            'gdp_ws_ssp1': ( # wang and sun gdp for ssp1, etc.
-                ['year','lat','lon'],
-                np.full(
-                    (len(year_range),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),       
-            'gdp_ws_ssp2': (
-                ['year','lat','lon'],
-                np.full(
-                    (len(year_range),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'gdp_ws_ssp3': (
-                ['year','lat','lon'],
-                np.full(
-                    (len(year_range),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),       
-            'gdp_ws_ssp3': (
-                ['year','lat','lon'],
-                np.full(
-                    (len(year_range),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),                               
-            'gdp_ws_ssp4': (
-                ['year','lat','lon'],
-                np.full(
-                    (len(year_range),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),       
-            'gdp_ws_ssp5': (
-                ['year','lat','lon'],
-                np.full(
-                    (len(year_range),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),                               
+            ),                       
         },
         coords={
             'year': ('year', year_range),
@@ -1115,6 +1078,15 @@ def load_gdp_deprivation(
             'lon': ('lon', lon)
         }
     )    
+    
+    for ssp in ssps:
+        ds_gdp['gdp_ws_{}'.format(ssp)] = ( # will fill this data array with isimip grid gdp information across available years (1960-2113 for rcp26, 2005-2113 for wang & sun)
+            ['year','lat','lon'],    
+            np.full(
+                (len(year_range),len(lat),len(lon)),
+                fill_value=np.nan,
+            )
+        )     
 
     # read in ISIMIP grid data (histsoc + rcp26soc)
     f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
@@ -1140,8 +1112,6 @@ def load_gdp_deprivation(
         }] = ds_gdp['gdp_isimip_rcp26'].loc[{'year':2099,'lat':lat,'lon':lon}]
     
     # Read in Wang and Sun data (2005, 2030-2100 in 10 yr steps)
-    ssps = ('ssp1','ssp2','ssp3','ssp4','ssp5')
-    decades = ['2030','2040','2050','2060','2070','2080','2090','2100']
     time_coords = decades.copy()
     time_coords.insert(0,'2005')
     time_coords = list(map(int,time_coords))
@@ -1230,7 +1200,7 @@ def load_gdp_deprivation(
         
         # for computing lifetime means, we will need to interpolate/extrapolate the gdp_ws_ssps between 2005 and 2113
         for v in list(ds_gdp.data_vars):
-            if 'ws' in v:
+            if '_ws_' in v:
                 ds_gdp[v] = ds_gdp[v].interpolate_na(dim='year') # interpolation
                 for y in np.arange(2101,2114): # "extrapolate" or repeat 2100 until 2113
                     ds_gdp[v].loc[{
@@ -1238,97 +1208,30 @@ def load_gdp_deprivation(
                         'lat': lat,
                         'lon': lon,
                     }] = ds_gdp[v].loc[{'year':2100,'lat':lat,'lon':lon}]
-                da_population_inyears = da_population.rename({'time':'year'})
-                ds_gdp[v] = ds_gdp[v] / da_population_inyears.loc[{'year':np.arange(2005,year_end+1)}] # get per capita gdp by diving by population
-                
-            
-            
-            
-    # filter emergence masks and pop estimates based on percentiles of GDP and GRDI
-    # dataset for lifetime average GDP
-    ds_gdp_mean = xr.Dataset(
-        data_vars={
-            'gdp_isimip_rcp26': (
-                ['birth_year','lat','lon'],
-                np.full(
-                    (len(birth_years),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'gdp_ws_ssp1': (
-                ['birth_year','lat','lon'],
-                np.full(
-                    (len(birth_years),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),         
-            'gdp_ws_ssp2': (
-                ['birth_year','lat','lon'],
-                np.full(
-                    (len(birth_years),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),                    
-            'gdp_ws_ssp3': (
-                ['birth_year','lat','lon'],
-                np.full(
-                    (len(birth_years),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),                
-            'gdp_ws_ssp4': (
-                ['birth_year','lat','lon'],
-                np.full(
-                    (len(birth_years),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),                          
-            'gdp_ws_ssp5': (
-                ['birth_year','lat','lon'],
-                np.full(
-                    (len(birth_years),len(lat),len(lon)),
-                    fill_value=np.nan,
-                ),
-            ),                                      
-        },
-        coords={
-            'birth_year': ('birth_year', birth_years),
-            'lat': ('lat', lat),
-            'lon': ('lon', lon)
-        }
-    )
+                ds_gdp[v] = ds_gdp[v] / da_population.rename({'time':'year'}).loc[{'year':np.arange(2005,year_end+1)}] # get per capita gdp by diving by population
 
-    # fill mean gdp based on country life expectancy
-    
-    for cntry in gridscale_countries:
+    # now compute means for each GDP series
+    for v in list(ds_gdp.data_vars):
+        ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 2020 birth cohort mean
+            ['lat','lon'],    
+            np.full(
+                (len(lat),len(lon)),
+                fill_value=np.nan,
+            )   
+        )
+        # fill mean gdp based on country life expectancy
+        for cntry in gridscale_countries:
+            da_cntry = countries_mask.where(countries_mask==countries_regions.map_keys(cntry)) # country mask
+            cntry_life_expectancy = df_life_expectancy_5.loc[2020,cntry] # country 2020 life expectancy
+            ds_gdp['{}_mean'.format(v)].loc[{
+                'lat':lat,
+                'lon':lon,
+            }] = xr.where( # will this replacement scheme work?
+                da_cntry.notnull(),
+                ds_gdp[v].where(da_cntry.notnull()).sel(year=np.arange(2020,2020+cntry_life_expectancy+1),method='nearest').mean(dim='year'),
+                ds_gdp['{}_mean'.format(v)]
+            )
 
-        # load demography pickle for country
-        with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
-            ds_dmg = pk.load(f)  
-            
-        ds_dmg['country_extent'].plot()
-        plt.show()
-
-        da_gdp_cntry = da_gdp_pc.where(ds_dmg['country_extent'].notnull(),drop=True)    
-        da_gdp_mean = xr.concat(
-            [(da_gdp_cntry.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
-            da_gdp_cntry.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()).drop('time') *\
-            (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
-            for by in birth_years],
-            dim='birth_year',
-        ).assign_coords({'birth_year':birth_years})     
-
-        # make assignment of emergence mask to global emergence 
-        ds_gdp['gdp_sum'].loc[{
-            'birth_year':birth_years,
-            'lat':ds_dmg.lat.data,
-            'lon':ds_dmg.lon.data,                
-        }] = xr.where(
-                ds_dmg['country_extent'].notnull(),
-                da_gdp_sum.loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
-                ds_gdp['gdp_sum'].loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
-            ).transpose('birth_year','lat','lon')    
-            
     # ------------------------------------------------------------------
     # load/proc deprivation data           
     
