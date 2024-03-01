@@ -410,82 +410,44 @@ if flags['global_emergence']:
     )
     
 # load/proc GDP and deprivation data
-if flags['gdp']:
+if flags['gdp_deprivation']:
     
     ds_gdp, ds_grdi = load_gdp_deprivation(
+        flags,
         grid_area,
         gridscale_countries,
         df_life_expectancy_5,
     )
     
+    # do some test plots of geo distribution of percentiles
+    # start with gdp
+    # for v in list(ds_gdp.data_vars):
+    v = 'gdp_ws_ssp5_mean'
+    print('')
+    print(v)
+    # for qntl in [0.1,0.25,0.75,0.9]:
+    for qntl in [0.25]:
+        print('')
+        print(qntl)
+        qntl_gdp = ds_gdp[v].quantile(
+            qntl,
+            dim=('lat','lon'),
+            method='closest_observation',
+        )
+        if qntl > 0.5:
+            p = ds_gdp[v].where(ds_gdp[v]>=qntl_gdp.item()).plot(subplot_kws=dict(projection=ccrs.PlateCarree()),transform=ccrs.PlateCarree())
+            p.axes.set_title('>{}th quantile'.format(qntl*100))
+        elif qntl < 0.5:
+            p = ds_gdp[v].where(ds_gdp[v]<=qntl_gdp.item()).plot(subplot_kws=dict(projection=ccrs.PlateCarree()),transform=ccrs.PlateCarree())
+            p.axes.set_title('<{}th quantile'.format(qntl*100))
+        p.axes.set_global()
+        p.axes.coastlines()
+        plt.show()
+    
 else:
         
     pass   
 
-# filter emergence masks and pop estimates based on percentiles of GDP and GRDI
-# dataset for lifetime average GDP
-ds_gdp = xr.Dataset(
-    data_vars={
-        'gdp_mean': (
-            ['birth_year','lat','lon'],
-            np.full(
-                (len(birth_years),len(lat),len(lon)),
-                fill_value=np.nan,
-            ),
-        ),      
-        'gdp_sum': (
-            ['birth_year','lat','lon'],
-            np.full(
-                (len(birth_years),len(lat),len(lon)),
-                fill_value=np.nan,
-            ),
-        ),              
-    },
-    coords={
-        'birth_year': ('birth_year', birth_years),
-        'lat': ('lat', lat),
-        'lon': ('lon', lon)
-    }
-)
-
-# loop thru countries
-# for cntry in list_countries:
-for cntry in ['Belgium','Netherlands','France','Germany']:
-# for cntry in ['Belgium','France']:
-
-    # load demography pickle for country
-    with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
-        ds_dmg = pk.load(f)  
-        
-    ds_dmg['country_extent'].plot()
-    plt.show()
-
-    da_gdp_cntry = da_gdp_pc.where(ds_dmg['country_extent'].notnull(),drop=True)    
-    da_gdp_sum = xr.concat(
-        [(da_gdp_cntry.loc[{'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1)}].sum(dim='time') +\
-        da_gdp_cntry.sel(time=ds_dmg['death_year'].sel(birth_year=by).item()).drop('time') *\
-        (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item()))\
-        for by in birth_years],
-        dim='birth_year',
-    ).assign_coords({'birth_year':birth_years})     
-
-    # make assignment of emergence mask to global emergence 
-    ds_gdp['gdp_sum'].loc[{
-        'birth_year':birth_years,
-        'lat':ds_dmg.lat.data,
-        'lon':ds_dmg.lon.data,                
-    }] = xr.where(
-            ds_dmg['country_extent'].notnull(),
-            da_gdp_sum.loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
-            ds_gdp['gdp_sum'].loc[{'birth_year':birth_years,'lat':ds_dmg.lat.data,'lon':ds_dmg.lon.data}],
-        ).transpose('birth_year','lat','lon')
-    
-    
-    
-test=ds_gdp['gdp_sum'].sel(birth_year=2020)
-test.plot()
-plt.show()
-test.sel(lat=slice(55.75,41.25),lon=slice(-6.25,16.75)).plot()
  
 
 #%% ----------------------------------------------------------------
