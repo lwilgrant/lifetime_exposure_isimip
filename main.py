@@ -414,6 +414,8 @@ if flags['gdp']:
     
     ds_gdp, ds_grdi = load_gdp_deprivation(
         grid_area,
+        gridscale_countries,
+        df_life_expectancy_5,
     )
     
 else:

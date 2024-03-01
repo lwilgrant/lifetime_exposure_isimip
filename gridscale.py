@@ -1061,181 +1061,197 @@ def load_gdp_deprivation(
     lat = grid_area.lat.values
     lon = grid_area.lon.values  
   
-    # define xarray dataset for our indices
-    ds_gdp = xr.Dataset(
-        data_vars={
-            'gdp_isimip_rcp26': ( # isimip histsoc + rcp26soc
-                ['year','lat','lon'],
+    # if pickle isn't there, go through all GDP processing
+    if not os.path.isfile('./data/{}/gdp_deprivation/gdp_dataset.pkl'.format(flags['version'])):
+    
+        # define xarray dataset for our GDP information
+        ds_gdp = xr.Dataset(
+            data_vars={
+                'gdp_isimip_rcp26': ( # isimip histsoc + rcp26soc
+                    ['year','lat','lon'],
+                    np.full(
+                        (len(year_range),len(lat),len(lon)),
+                        fill_value=np.nan,
+                    ),
+                ),                       
+            },
+            coords={
+                'year': ('year', year_range),
+                'lat': ('lat', lat),
+                'lon': ('lon', lon)
+            }
+        )    
+        
+        # add data arrays for wang and sun GDP over ssps
+        for ssp in ssps:
+            ds_gdp['gdp_ws_{}'.format(ssp)] = ( # will fill this data array with isimip grid gdp information across available years (1960-2113 for rcp26, 2005-2113 for wang & sun)
+                ['year','lat','lon'],    
                 np.full(
                     (len(year_range),len(lat),len(lon)),
                     fill_value=np.nan,
-                ),
-            ),                       
-        },
-        coords={
-            'year': ('year', year_range),
-            'lat': ('lat', lat),
-            'lon': ('lon', lon)
-        }
-    )    
-    
-    for ssp in ssps:
-        ds_gdp['gdp_ws_{}'.format(ssp)] = ( # will fill this data array with isimip grid gdp information across available years (1960-2113 for rcp26, 2005-2113 for wang & sun)
-            ['year','lat','lon'],    
-            np.full(
-                (len(year_range),len(lat),len(lon)),
-                fill_value=np.nan,
-            )
-        )     
+                )
+            )     
 
-    # read in ISIMIP grid data (histsoc + rcp26soc)
-    f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
-    f_gdp_rcp26_2006_2099 = './data/isimip/gdp/gdp_rcp26soc_0p5deg_annual_2006_2099.nc4'
-    da_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
-    da_gdp_rcp26_2006_2099 = open_dataarray_isimip(f_gdp_rcp26_2006_2099)    
-    da_gdp_hist_rcp26 = xr.concat(
-        [da_gdp_historical_1861_2005,da_gdp_rcp26_2006_2099],
-        dim='time'
-    ).sel(time=slice(year_start,2099)).where(countries_mask.notnull())    
-    da_population_subset = da_population.sel(time=slice(year_start,2099))
-    da_gdp_hist_rcp26_pc = da_gdp_hist_rcp26 / da_population_subset.where(da_population_subset>0) # get per capita GDP
-    ds_gdp['gdp_isimip_rcp26'].loc[{
-        'year': da_gdp_hist_rcp26_pc.time.data,
-        'lat': lat,
-        'lon': lon,
-    }] = da_gdp_hist_rcp26_pc
-    for y in np.arange(2100,2114): # repeat final year until end year of analysis
+        # read in ISIMIP grid data (histsoc + rcp26soc)
+        f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
+        f_gdp_rcp26_2006_2099 = './data/isimip/gdp/gdp_rcp26soc_0p5deg_annual_2006_2099.nc4'
+        da_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
+        da_gdp_rcp26_2006_2099 = open_dataarray_isimip(f_gdp_rcp26_2006_2099)    
+        da_gdp_hist_rcp26 = xr.concat(
+            [da_gdp_historical_1861_2005,da_gdp_rcp26_2006_2099],
+            dim='time'
+        ).sel(time=slice(year_start,2099)).where(countries_mask.notnull())    
+        da_population_subset = da_population.sel(time=slice(year_start,2099))
+        da_gdp_hist_rcp26_pc = da_gdp_hist_rcp26 / da_population_subset.where(da_population_subset>0) # get per capita GDP
         ds_gdp['gdp_isimip_rcp26'].loc[{
-            'year': y,
+            'year': da_gdp_hist_rcp26_pc.time.data,
             'lat': lat,
             'lon': lon,
-        }] = ds_gdp['gdp_isimip_rcp26'].loc[{'year':2099,'lat':lat,'lon':lon}]
-    
-    # Read in Wang and Sun data (2005, 2030-2100 in 10 yr steps)
-    time_coords = decades.copy()
-    time_coords.insert(0,'2005')
-    time_coords = list(map(int,time_coords))
-    dims_dict = { # rename dimensions
-        'x':'lon',
-        'y':'lat',
-    }
-    if len(glob.glob('./data/gdp_wang_sun/GDP_*_isimipgrid.nc4')) == 0: # run the Geotiff conversion and py-cdo stuff if proc'd file not there at ISIMIP resolution
-        rds = {}
-        for i,s in enumerate(ssps):
-            rds[s] = {}
-            rds[s]['2005'] = rxr.open_rasterio('./data/gdp_wang_sun/GDP2005.tif')
-            for d in decades:
-                rds[s][d] = rxr.open_rasterio('./data/gdp_wang_sun/GDP{}_{}.tif'.format(d,s))
-            rds[s]['full_series'] = xr.concat(
-                [rds[s][str(t)] for t in time_coords],
-                dim='time'
-            ).squeeze(dim='band').rename(dims_dict)
-            rds[s]['full_series'].coords['time']=time_coords
-            ds = rds[s]['full_series'].to_dataset(name=s)
-            if i == 0:
-                ds_fresh = xr.Dataset( # dataset for netcdf generation
-                    data_vars={
-                        s: (
-                            ['time','lat','lon'],
-                            np.full(
-                                (len(ds.time.data),len(ds.lat.data),len(ds.lon.data)),
-                                fill_value=np.nan,
-                            ),
-                        ),        
-                    },
-                    coords={
-                        'time': ('time', time_coords),
-                        'lat': ('lat', ds.lat.data, {
-                            'standard_name': 'latitude',
-                            'long_name': 'latitude',
-                            'units': 'degrees_north',
-                            'axis': 'Y'
-                        }),
-                        'lon': ('lon', ds.lon.data, {
-                            'standard_name': 'longitude',
-                            'long_name': 'longitude',
-                            'units': 'degrees_east',
-                            'axis': 'X'
-                        })
-                    }
-                )
-            else:
-                ds_fresh[s] = xr.full_like(ds_fresh[ssps[0]],fill_value=np.nan)
-            ds_fresh[s].loc[{
-                'time':ds_fresh.time.data,
-                'lat':ds_fresh.lat.data,
-                'lon':ds_fresh.lon.data,
-            }] = ds[s]
-            ds_fresh[s].to_netcdf( # save to netcdf
-                './data/gdp_wang_sun/GDP_{}.nc4'.format(s),
-                format='NETCDF4',
-                encoding={
-                    'lat': {
-                        'dtype': 'float64',
-                    },
-                    'lon': {
-                        'dtype': 'float64',
-                    }            
-                }
-            )   
-            # cdo.remapcon2( # remap netcdf
-            #     './data/isimip/clm45_area.nc4',  
-            #     input = './data/gdp_wang_sun/GDP_{}.nc4',
-            #     output = './data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s),
-            #     options = '-f nc4'
-            # )
-             
-        
-    else:
-
-        # read in remap'd netcdfs
-        for i,s in enumerate(ssps):
-            ds_gdp_regrid = xr.open_dataset('./data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s))
-            ds_gdp_regrid.coords['time'] = time_coords
-            ds_gdp['gdp_ws_{}'.format(s)].loc[{
-                'year': time_coords,
+        }] = da_gdp_hist_rcp26_pc
+        for y in np.arange(2100,2114): # repeat final year until end year of analysis
+            ds_gdp['gdp_isimip_rcp26'].loc[{
+                'year': y,
                 'lat': lat,
                 'lon': lon,
-            }] = ds_gdp_regrid[s] # interpolation doesn't work well on ds_gdp_regrid for some reason, so I do it below (before division by population)
+            }] = ds_gdp['gdp_isimip_rcp26'].loc[{'year':2099,'lat':lat,'lon':lon}]
         
-        # for computing lifetime means, we will need to interpolate/extrapolate the gdp_ws_ssps between 2005 and 2113
-        for v in list(ds_gdp.data_vars):
-            if '_ws_' in v:
-                ds_gdp[v] = ds_gdp[v].interpolate_na(dim='year') # interpolation
-                for y in np.arange(2101,2114): # "extrapolate" or repeat 2100 until 2113
-                    ds_gdp[v].loc[{
-                        'year': y,
-                        'lat': lat,
-                        'lon': lon,
-                    }] = ds_gdp[v].loc[{'year':2100,'lat':lat,'lon':lon}]
-                ds_gdp[v] = ds_gdp[v] / da_population.rename({'time':'year'}).loc[{'year':np.arange(2005,year_end+1)}] # get per capita gdp by diving by population
+        # Read in Wang and Sun data (2005, 2030-2100 in 10 yr steps)
+        time_coords = decades.copy()
+        time_coords.insert(0,'2005')
+        time_coords = list(map(int,time_coords))
+        dims_dict = { # rename dimensions
+            'x':'lon',
+            'y':'lat',
+        }
+        if len(glob.glob('./data/gdp_wang_sun/GDP_*_isimipgrid.nc4')) == 0: # run the Geotiff conversion and py-cdo stuff if proc'd file not there at ISIMIP resolution
+            rds = {}
+            for i,s in enumerate(ssps):
+                rds[s] = {}
+                rds[s]['2005'] = rxr.open_rasterio('./data/gdp_wang_sun/GDP2005.tif')
+                for d in decades:
+                    rds[s][d] = rxr.open_rasterio('./data/gdp_wang_sun/GDP{}_{}.tif'.format(d,s))
+                rds[s]['full_series'] = xr.concat(
+                    [rds[s][str(t)] for t in time_coords],
+                    dim='time'
+                ).squeeze(dim='band').rename(dims_dict)
+                rds[s]['full_series'].coords['time']=time_coords
+                ds = rds[s]['full_series'].to_dataset(name=s)
+                if i == 0:
+                    ds_fresh = xr.Dataset( # dataset for netcdf generation
+                        data_vars={
+                            s: (
+                                ['time','lat','lon'],
+                                np.full(
+                                    (len(ds.time.data),len(ds.lat.data),len(ds.lon.data)),
+                                    fill_value=np.nan,
+                                ),
+                            ),        
+                        },
+                        coords={
+                            'time': ('time', time_coords),
+                            'lat': ('lat', ds.lat.data, {
+                                'standard_name': 'latitude',
+                                'long_name': 'latitude',
+                                'units': 'degrees_north',
+                                'axis': 'Y'
+                            }),
+                            'lon': ('lon', ds.lon.data, {
+                                'standard_name': 'longitude',
+                                'long_name': 'longitude',
+                                'units': 'degrees_east',
+                                'axis': 'X'
+                            })
+                        }
+                    )
+                else:
+                    ds_fresh[s] = xr.full_like(ds_fresh[ssps[0]],fill_value=np.nan)
+                ds_fresh[s].loc[{
+                    'time':ds_fresh.time.data,
+                    'lat':ds_fresh.lat.data,
+                    'lon':ds_fresh.lon.data,
+                }] = ds[s]
+                ds_fresh[s].to_netcdf( # save to netcdf
+                    './data/gdp_wang_sun/GDP_{}.nc4'.format(s),
+                    format='NETCDF4',
+                    encoding={
+                        'lat': {
+                            'dtype': 'float64',
+                        },
+                        'lon': {
+                            'dtype': 'float64',
+                        }            
+                    }
+                )   
+                # cdo.remapcon2( # remap netcdf
+                #     './data/isimip/clm45_area.nc4',  
+                #     input = './data/gdp_wang_sun/GDP_{}.nc4',
+                #     output = './data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s),
+                #     options = '-f nc4'
+                # )
+                
+            
+        else:
 
-    # now compute means for each GDP series
-    for v in list(ds_gdp.data_vars):
-        ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 2020 birth cohort mean
-            ['lat','lon'],    
-            np.full(
-                (len(lat),len(lon)),
-                fill_value=np.nan,
-            )   
-        )
-        # fill mean gdp based on country life expectancy
-        for cntry in gridscale_countries:
-            da_cntry = countries_mask.where(countries_mask==countries_regions.map_keys(cntry)) # country mask
-            cntry_life_expectancy = df_life_expectancy_5.loc[2020,cntry] # country 2020 life expectancy
-            ds_gdp['{}_mean'.format(v)].loc[{
-                'lat':lat,
-                'lon':lon,
-            }] = xr.where( # will this replacement scheme work?
-                da_cntry.notnull(),
-                ds_gdp[v].where(da_cntry.notnull()).sel(year=np.arange(2020,2020+cntry_life_expectancy+1),method='nearest').mean(dim='year'),
-                ds_gdp['{}_mean'.format(v)]
+            # read in remap'd netcdfs
+            for i,s in enumerate(ssps):
+                ds_gdp_regrid = xr.open_dataset('./data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s))
+                ds_gdp_regrid.coords['time'] = time_coords
+                ds_gdp['gdp_ws_{}'.format(s)].loc[{
+                    'year': time_coords,
+                    'lat': lat,
+                    'lon': lon,
+                }] = ds_gdp_regrid[s] # interpolation doesn't work well on ds_gdp_regrid for some reason, so I do it below (before division by population)
+            
+            # for computing lifetime means, we will need to interpolate/extrapolate the gdp_ws_ssps between 2005 and 2113
+            for v in list(ds_gdp.data_vars):
+                if '_ws_' in v:
+                    ds_gdp[v] = ds_gdp[v].interpolate_na(dim='year') # interpolation
+                    for y in np.arange(2101,2114): # "extrapolate" or repeat 2100 until 2113
+                        ds_gdp[v].loc[{
+                            'year': y,
+                            'lat': lat,
+                            'lon': lon,
+                        }] = ds_gdp[v].loc[{'year':2100,'lat':lat,'lon':lon}]
+                    ds_gdp[v] = ds_gdp[v] / da_population.rename({'time':'year'}).loc[{'year':np.arange(2005,year_end+1)}] # get per capita gdp by diving by population
+
+        # now compute means for each GDP series
+        for v in list(ds_gdp.data_vars):
+            ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 2020 birth cohort mean
+                ['lat','lon'],    
+                np.full(
+                    (len(lat),len(lon)),
+                    fill_value=np.nan,
+                )   
             )
+            # fill mean gdp based on country life expectancy
+            for cntry in gridscale_countries:
+                da_cntry = countries_mask.where(countries_mask==countries_regions.map_keys(cntry)) # country mask
+                cntry_life_expectancy = df_life_expectancy_5.loc[2020,cntry] # country 2020 life expectancy
+                ds_gdp['{}_mean'.format(v)].loc[{
+                    'lat':lat,
+                    'lon':lon,
+                }] = xr.where( # will this replacement scheme work?
+                    da_cntry.notnull(),
+                    ds_gdp[v].where(da_cntry.notnull()).sel(year=np.arange(2020,2020+cntry_life_expectancy+1),method='nearest').mean(dim='year'),
+                    ds_gdp['{}_mean'.format(v)]
+                )
+                
+        # dump pickle
+        with open('./data/{}/gdp_deprivation/gdp_dataset.pkl'.format(flags['version']), 'wb') as f:
+            pk.dump(ds_gdp,f) 
+            
+    else:
+        
+        # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
+        with open('./data/{}/gdp_deprivation/gdp_dataset.pkl'.format(flags['version']), 'rb') as f:
+            ds_gdp = pk.load(f)        
 
     # ------------------------------------------------------------------
     # load/proc deprivation data           
     
+    # check for pickle
     if not os.path.isfile('./data/deprivation/grdi_isimipgrid.nc4'): # run the Geotiff conversion and py-cdo stuff if proc'd file not there
+        
         rda = rxr.open_rasterio('./data/deprivation/povmap-grdi-v1.tif')
         ds_export = xr.Dataset( # dataset for netcdf generation
             data_vars={
@@ -1286,9 +1302,8 @@ def load_gdp_deprivation(
         #     options = '-f nc4'
         # ) 
     else:
-        
+    
         ds_grdi = xr.open_dataset('./data/deprivation/grdi_con_nanreplace_isimipgrid.nc4')
-        # ds_grdi_bilrm = xr.open_dataset('./data/deprivation/grdi_bil_isimipgrid.nc4')
         
     return ds_gdp,ds_grdi
     
