@@ -420,33 +420,44 @@ if flags['gdp_deprivation']:
     )
     
     # do some test plots of geo distribution of percentiles
-    # start with gdp
-    # for v in list(ds_gdp.data_vars):
-    v = 'gdp_ws_ssp5_mean'
-    print('')
-    print(v)
-    # for qntl in [0.1,0.25,0.75,0.9]:
-    for qntl in [0.25]:
+    for v in list(ds_gdp.data_vars):
         print('')
-        print(qntl)
-        qntl_gdp = ds_gdp[v].quantile(
-            qntl,
-            dim=('lat','lon'),
-            method='closest_observation',
+        print(v)
+        f,axes = plt.subplots(
+            nrows=2,
+            ncols=3,
+            figsize=(14,6),
+            subplot_kw=dict(projection=ccrs.PlateCarree()),
+            transform=ccrs.PlateCarree()
         )
-        if qntl > 0.5:
-            p = ds_gdp[v].where(ds_gdp[v]>=qntl_gdp.item()).plot(subplot_kws=dict(projection=ccrs.PlateCarree()),transform=ccrs.PlateCarree())
-            p.axes.set_title('>{}th quantile'.format(qntl*100))
-        elif qntl < 0.5:
-            p = ds_gdp[v].where(ds_gdp[v]<=qntl_gdp.item()).plot(subplot_kws=dict(projection=ccrs.PlateCarree()),transform=ccrs.PlateCarree())
-            p.axes.set_title('<{}th quantile'.format(qntl*100))
-        p.axes.set_global()
-        p.axes.coastlines()
+        for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
+            qntl_gdp = ds_gdp[v].quantile(
+                qntl,
+                dim=('lat','lon'),
+                method='closest_observation',
+            )
+            if qntl > 0.5:
+                p = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan).plot(
+                    ax=ax,
+                    add_colorbar=False,
+                )
+                ax.set_title('>{}th quantile'.format(qntl*100))
+            elif qntl < 0.5:
+                p = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan).plot(
+                    ax=ax,
+                    add_colorbar=False,
+                )
+                ax.set_title('<{}th quantile'.format(qntl*100))
+            ax.set_global()
+            ax.coastlines()
         plt.show()
     
-else:
-        
-    pass   
+# vulnerability subsetting
+if flags['vulnerability']:
+    
+    
+
+
 
  
 

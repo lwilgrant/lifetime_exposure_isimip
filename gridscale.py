@@ -1045,6 +1045,7 @@ def collect_global_emergence(
 # ------------------------------------------------------------------
 
 def load_gdp_deprivation(
+    flags,
     grid_area,
     gridscale_countries,
     df_life_expectancy_5,
@@ -1062,7 +1063,7 @@ def load_gdp_deprivation(
     lon = grid_area.lon.values  
   
     # if pickle isn't there, go through all GDP processing
-    if not os.path.isfile('./data/{}/gdp_deprivation/gdp_dataset.pkl'.format(flags['version'])):
+    if not os.path.isfile('./data/{}/gdp_deprivation/gdp_means_dataset.pkl'.format(flags['version'])):
     
         # define xarray dataset for our GDP information
         ds_gdp = xr.Dataset(
@@ -1236,21 +1237,28 @@ def load_gdp_deprivation(
                     ds_gdp['{}_mean'.format(v)]
                 )
                 
-        # dump pickle
+        # dump pickles
         with open('./data/{}/gdp_deprivation/gdp_dataset.pkl'.format(flags['version']), 'wb') as f:
-            pk.dump(ds_gdp,f) 
+            pk.dump(ds_gdp,f) # first one with all data (pretty large)
+            
+        with open('./data/{}/gdp_deprivation/gdp_means_dataset.pkl'.format(flags['version']), 'wb') as f:
+            ds_gdp_means = ds_gdp.drop_vars([v for v in list(ds_gdp.data_vars) if not 'mean' in v])
+            pk.dump(ds_gdp_means,f) # first one with just means (will read this in)        
+            
+        
+            
             
     else:
         
         # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
-        with open('./data/{}/gdp_deprivation/gdp_dataset.pkl'.format(flags['version']), 'rb') as f:
+        with open('./data/{}/gdp_deprivation/gdp_means_dataset.pkl'.format(flags['version']), 'rb') as f:
             ds_gdp = pk.load(f)        
 
     # ------------------------------------------------------------------
     # load/proc deprivation data           
     
     # check for pickle
-    if not os.path.isfile('./data/deprivation/grdi_isimipgrid.nc4'): # run the Geotiff conversion and py-cdo stuff if proc'd file not there
+    if not os.path.isfile('./data/deprivation/grdi_con_nanreplace_isimipgrid.nc4'): # run the Geotiff conversion and py-cdo stuff if proc'd file not there
         
         rda = rxr.open_rasterio('./data/deprivation/povmap-grdi-v1.tif')
         ds_export = xr.Dataset( # dataset for netcdf generation
@@ -1308,3 +1316,4 @@ def load_gdp_deprivation(
     return ds_gdp,ds_grdi
     
          
+# %%
