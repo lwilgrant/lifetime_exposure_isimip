@@ -341,7 +341,7 @@ gridscale_countries = get_gridscale_regions(
     gdf_country_borders,
 )
 
-# birth year aligned cohort sizes for gridscale analysis
+# birth year aligned cohort sizes for gridscale analysis (summed over lat/lon per country)
 if not os.path.isfile('./data/{}/gs_cohort_sizes.pkl'.format(flags['version'])):
 
     da_gs_popdenom = get_gridscale_popdenom(
@@ -363,6 +363,7 @@ else:
     with open('./data/{}/gs_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
         da_gs_popdenom = pk.load(f)               
 
+# run gridscale emergence analysis
 if flags['gridscale']:
     
     ds_le_gs, ds_pf_gs = gridscale_emergence(
@@ -419,7 +420,7 @@ if flags['gdp_deprivation']:
         df_life_expectancy_5,
     )
     
-    # do some test plots of geo distribution of percentiles
+    # do some test plots of geo distribution of percentiles for gdp
     for v in list(ds_gdp.data_vars):
         print('')
         print(v)
@@ -451,11 +452,92 @@ if flags['gdp_deprivation']:
             ax.set_global()
             ax.coastlines()
         plt.show()
+
+    # then check percentiles of deprivation        
+    v = 'grdi'
+    print('')
+    print(v)
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(14,6),
+        subplot_kw=dict(projection=ccrs.PlateCarree()),
+        transform=ccrs.PlateCarree()
+    )
+    for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
+        qntl_grdi = ds_grdi[v].quantile(
+            qntl,
+            dim=('lat','lon'),
+            method='closest_observation',
+        )
+        if qntl > 0.5:
+            p = xr.where(ds_grdi[v]>=qntl_grdi.item(),1,np.nan).plot(
+                ax=ax,
+                add_colorbar=False,
+            )
+            ax.set_title('>{}th quantile'.format(qntl*100))
+        elif qntl < 0.5:
+            p = xr.where(ds_grdi[v]<=qntl_grdi.item(),1,np.nan).plot(
+                ax=ax,
+                add_colorbar=False,
+            )
+            ax.set_title('<{}th quantile'.format(qntl*100))
+        ax.set_global()
+        ax.coastlines()
+    plt.show()        
     
 # vulnerability subsetting
 if flags['vulnerability']:
     
-    
+    # first need global map of 2020 birth cohort sizes, spatially explicit
+    if not os.path.isfile('./data/{}/2020_cohort_sizes.pkl'.format(flags['version'])):
+        
+        da_cohort_size_2020 = xr.full_like(countries_mask,fill_value=np.nan)
+        
+        for cntry in gridscale_countries:
+            
+            da_cntry = countries_mask.where(countries_mask == countries_regions.map_keys(cntry))
+            cntry_cohort_frac = da_cohort_size.sel(country=cntry,time=2020,ages=0) / da_cohort_size.sel(country=cntry,time=2020).sum(dim='ages')
+            da_cohort_size_2020 = xr.where(
+                da_cntry.notnull(),
+                da_population.sel(time=2020).where(da_cntry.notnull()) * cntry_cohort_frac,
+                da_cohort_size_2020
+            )
+            
+        with open('./data/{}/2020_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
+            pk.dump(da_cohort_size_2020,f)
+        
+    else:
+        
+        with open('./data/{}/2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
+            da_cohort_size_2020 = pk.load(f)     
+            
+    # example of emergence masks for heatwavedarea, 99.9% emergence threshold, 2020 birth year
+    test = d_global_emergence['heatwavedarea']['2.7']['emergence_per_run_heatwavedarea'].sel(qntl='99.9',birth_year=2020).copy(deep=True)
+    ds_test = test.to_dataset()
+    for v in list(ds_gdp.data_vars):
+        for qntl in [0.1,0.25,0.49,0.51,0.75,0.9]:
+            # new var in dataset for emergence constrained by this lifetime GDP projection/quantile
+            ds_test['{}_{}'.format(v,qntl)] = xr.full_like(ds_test['emergence_per_run_heatwavedarea'],fill_value=np.nan)
+            qntl_gdp = ds_gdp[v].quantile(
+                qntl,
+                dim=('lat','lon'),
+                method='closest_observation',
+            )         
+            if qntl > 0.5:   
+                da_mask_gdp_group = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan)
+            elif qntl < 0.5:
+                da_mask_gdp_group = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan)
+            for r in ds_test.run.data:
+                da_emerge = ds_test['emergence_per_run_heatwavedarea'].sel(run=r)
+                da_emerge_constrained = da_emerge.where(da_mask_gdp_group.notnull())
+                ds_test['{}_{}'.format(v,qntl)].loc[{'run':r}] = xr.where(
+                    da_emerge_constrained == 1,
+                    da_cohort_size_2020,
+                    ds_test['{}_{}'.format(v,qntl)].loc[{'run':r}]
+                )
+                
+
 
 
 
