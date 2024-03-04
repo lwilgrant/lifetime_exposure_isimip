@@ -1317,3 +1317,220 @@ def load_gdp_deprivation(
     
          
 # %%
+def timeseries_vulnerability(
+    
+):
+    # use rioxarray to read geotiffs
+    import rioxarray as rxr
+    ssps = ('ssp1','ssp2','ssp3','ssp4','ssp5')
+    decades = ['2030','2040','2050','2060','2070','2080','2090','2100']
+    time_coords = decades.copy()
+    time_coords.insert(0,'2005')
+    time_coords = list(map(int,time_coords))
+    dims_dict = { # rename dimensions
+        'x':'lon',
+        'y':'lat',
+    }
+    ssp_colors={
+        'ssp1':'forestgreen',
+        'ssp2':'slategrey',
+        'ssp3':'purple',
+        'ssp4':'darkorange',
+        'ssp5':'firebrick',
+    }
+
+    # read in tiffs as data array; concat all years, clean up in new array, pump out to netcdf
+    if len(glob.glob('./data/gdp_wang_sun/GDP_*_isimipgrid.nc4')) == 0:
+        
+        rds = {}
+        for i,s in enumerate(ssps):
+            rds[s] = {}
+            rds[s]['2005'] = rxr.open_rasterio('./data/gdp_wang_sun/GDP2005.tif')
+            for d in decades:
+                rds[s][d] = rxr.open_rasterio('./data/gdp_wang_sun/GDP{}_{}.tif'.format(d,s))
+            rds[s]['full_series'] = xr.concat(
+                [rds[s][str(t)] for t in time_coords],
+                dim='time'
+            ).squeeze(dim='band').rename(dims_dict)
+            rds[s]['full_series'].coords['time']=time_coords
+            ds = rds[s]['full_series'].to_dataset(name=s)
+            if i == 0:
+                ds_fresh = xr.Dataset(
+                    data_vars={
+                        s: (
+                            ['time','lat','lon'],
+                            np.full(
+                                (len(ds.time.data),len(ds.lat.data),len(ds.lon.data)),
+                                fill_value=np.nan,
+                            ),
+                        ),        
+                    },
+                    coords={
+                        'time': ('time', time_coords),
+                        'lat': ('lat', ds.lat.data, {
+                            'standard_name': 'latitude',
+                            'long_name': 'latitude',
+                            'units': 'degrees_north',
+                            'axis': 'Y'
+                        }),
+                        'lon': ('lon', ds.lon.data, {
+                            'standard_name': 'longitude',
+                            'long_name': 'longitude',
+                            'units': 'degrees_east',
+                            'axis': 'X'
+                        })
+                    }
+                )
+            else:
+                ds_fresh[s] = xr.full_like(ds_fresh[ssps[0]],fill_value=np.nan)
+            ds_fresh[s].loc[{
+                'time':ds_fresh.time.data,
+                'lat':ds_fresh.lat.data,
+                'lon':ds_fresh.lon.data,
+            }] = ds[s]
+            ds_fresh[s].to_netcdf(
+                './data/gdp_wang_sun/GDP_{}.nc4'.format(s),
+                format='NETCDF4',
+                encoding={
+                    'lat': {
+                        'dtype': 'float64',
+                    },
+                    'lon': {
+                        'dtype': 'float64',
+                    }            
+                }
+            )
+            
+    # enter pycdo stuff for remapping to isimip grid        
+            
+    else:
+
+        # start again, read in netcdf that were regridded on command line
+        for i,s in enumerate(ssps):
+            if i == 0:
+                ds_gdp_regrid = xr.open_dataset('./data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s))
+                ds_gdp_regrid.coords['time'] = time_coords
+            else:
+                other_ssp = xr.open_dataset('./data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s))[s]
+                other_ssp.coords['time'] = time_coords
+                ds_gdp_regrid[s] = other_ssp
+            
+    # associated years in da population
+    da_population_subset = da_population.loc[{'time':ds_gdp_regrid.time.values}]
+
+
+    # checking sample country time series for these ssps
+
+    legend_lw=3.5 # legend line width
+    x0 = 0.15 # bbox for legend
+    y0 = 0.7
+    xlen = 0.2
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    handles = [
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp1']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp2']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp3']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp4']),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp5']),
+    ]  
+    
+    for cntry in ['Canada','United States','China', 'France', 'Germany']:
+        
+        print('')
+        print('Entire series for {}'.format(cntry))  
+        print('plots for {}'.format(cntry))
+        f,(ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
+
+        for s in ssps:
+            
+            # color
+            clr = ssp_colors[s]
+            
+            ds_gdp_regrid[s].where(ds_gdp_regrid[s]>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot(
+                ax=ax1,
+                color=clr,
+                add_legend='False'
+            )
+            
+            da_gdp_regrid_s = ds_gdp_regrid[s]
+            da_gdp_regrid_pc = da_gdp_regrid_s.where(countries_mask==countries_regions.map_keys(cntry)) / da_population_subset.where(da_population_subset>0).where(countries_mask==countries_regions.map_keys(cntry))
+            da_gdp_regrid_pc_mean = da_gdp_regrid_pc.mean(dim=('lat','lon'))    
+            da_gdp_regrid_pc_mean.plot(
+                ax=ax2,
+                color=clr,
+                add_legend=False,
+            )
+        ax1.set_title('GDP: {}'.format(cntry))
+        ax2.set_title('GDP per capita: {}'.format(cntry))
+        ax2.legend(
+            handles, 
+            list(ssp_colors.keys()), 
+            bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+            loc='lower left',
+            ncol=1,
+            fontsize=10, 
+            mode="expand", 
+            borderaxespad=0.,
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad,
+        )     
+        
+        plt.show() 
+        
+    # alternative testing for the Wang and Sun data while using ISIMIP historical GDP estimates
+    f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
+    da_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
+    da_gdp_historical_1861_2004 = da_gdp_historical_1861_2005.loc[{'time':np.arange(1960,2005)}] 
+        
+    for cntry in ['Canada','United States','China', 'France', 'Germany']:
+        
+        print('')
+        print('Entire series for {}'.format(cntry))  
+        print('plots for {}'.format(cntry))
+        f,(ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
+
+        for s in ssps:
+            
+            future = ds_gdp_regrid[s]
+            historical = da_gdp_historical_1861_2004
+            da_gdp_full = xr.concat([historical,future],dim='time')
+            da_population_subset = da_population.loc[{'time':da_gdp_full.time.values}]    
+            
+            # color
+            clr = ssp_colors[s]
+            
+            da_gdp_full.where(da_gdp_full>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot(
+                ax=ax1,
+                color=clr,
+                add_legend='False'
+            )
+            
+            da_gdp_full_pc = da_gdp_full.where(countries_mask==countries_regions.map_keys(cntry)) / da_population_subset.where(da_population_subset>0).where(countries_mask==countries_regions.map_keys(cntry))
+            da_gdp_full_pc = da_gdp_full_pc.mean(dim=('lat','lon'))    
+            da_gdp_full_pc.plot(
+                ax=ax2,
+                color=clr,
+                add_legend=False,
+            )
+        ax1.set_title('GDP: {}'.format(cntry))
+        ax2.set_title('GDP per capita: {}'.format(cntry))
+        ax2.legend(
+            handles, 
+            list(ssp_colors.keys()), 
+            bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+            loc='lower left',
+            ncol=1,
+            fontsize=10, 
+            mode="expand", 
+            borderaxespad=0.,
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad,
+        )     
+        
+        plt.show()         

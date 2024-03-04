@@ -111,8 +111,10 @@ flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean em
                                     # 1: process/load those^ pickles    
 flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
-flags['gdp_deprivation'] = 0        # do not process lifetime GDP average (load pickles)
-                        # load lifetime GDP average analysis                                   
+flags['gdp_deprivation'] = 0        # 0: do not process/load lifetime GDP/GRDI average
+                                    # 1: load lifetime GDP average analysis        
+flags['vulnerability'] = 0          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
+                                    # 1: process/load d_collect_emergence vs gdp & deprivation quantiles for vulnerability analysis
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
 flags['reporting'] = 0     
@@ -420,71 +422,71 @@ if flags['gdp_deprivation']:
         df_life_expectancy_5,
     )
     
-    # do some test plots of geo distribution of percentiles for gdp
-    for v in list(ds_gdp.data_vars):
-        print('')
-        print(v)
-        f,axes = plt.subplots(
-            nrows=2,
-            ncols=3,
-            figsize=(14,6),
-            subplot_kw=dict(projection=ccrs.PlateCarree()),
-            transform=ccrs.PlateCarree()
-        )
-        for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
-            qntl_gdp = ds_gdp[v].quantile(
-                qntl,
-                dim=('lat','lon'),
-                method='closest_observation',
-            )
-            if qntl > 0.5:
-                p = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan).plot(
-                    ax=ax,
-                    add_colorbar=False,
-                )
-                ax.set_title('>{}th quantile'.format(qntl*100))
-            elif qntl < 0.5:
-                p = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan).plot(
-                    ax=ax,
-                    add_colorbar=False,
-                )
-                ax.set_title('<{}th quantile'.format(qntl*100))
-            ax.set_global()
-            ax.coastlines()
-        plt.show()
+    # # do some test plots of geo distribution of percentiles for gdp
+    # for v in list(ds_gdp.data_vars):
+    #     print('')
+    #     print(v)
+    #     f,axes = plt.subplots(
+    #         nrows=2,
+    #         ncols=3,
+    #         figsize=(14,6),
+    #         subplot_kw=dict(projection=ccrs.PlateCarree()),
+    #         transform=ccrs.PlateCarree()
+    #     )
+    #     for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
+    #         qntl_gdp = ds_gdp[v].quantile(
+    #             qntl,
+    #             dim=('lat','lon'),
+    #             method='closest_observation',
+    #         )
+    #         if qntl > 0.5:
+    #             p = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan).plot(
+    #                 ax=ax,
+    #                 add_colorbar=False,
+    #             )
+    #             ax.set_title('>{}th quantile'.format(qntl*100))
+    #         elif qntl < 0.5:
+    #             p = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan).plot(
+    #                 ax=ax,
+    #                 add_colorbar=False,
+    #             )
+    #             ax.set_title('<{}th quantile'.format(qntl*100))
+    #         ax.set_global()
+    #         ax.coastlines()
+    #     plt.show()
 
-    # then check percentiles of deprivation        
-    v = 'grdi'
-    print('')
-    print(v)
-    f,axes = plt.subplots(
-        nrows=2,
-        ncols=3,
-        figsize=(14,6),
-        subplot_kw=dict(projection=ccrs.PlateCarree()),
-        transform=ccrs.PlateCarree()
-    )
-    for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
-        qntl_grdi = ds_grdi[v].quantile(
-            qntl,
-            dim=('lat','lon'),
-            method='closest_observation',
-        )
-        if qntl > 0.5:
-            p = xr.where(ds_grdi[v]>=qntl_grdi.item(),1,np.nan).plot(
-                ax=ax,
-                add_colorbar=False,
-            )
-            ax.set_title('>{}th quantile'.format(qntl*100))
-        elif qntl < 0.5:
-            p = xr.where(ds_grdi[v]<=qntl_grdi.item(),1,np.nan).plot(
-                ax=ax,
-                add_colorbar=False,
-            )
-            ax.set_title('<{}th quantile'.format(qntl*100))
-        ax.set_global()
-        ax.coastlines()
-    plt.show()        
+    # # then check percentiles of deprivation        
+    # v = 'grdi'
+    # print('')
+    # print(v)
+    # f,axes = plt.subplots(
+    #     nrows=2,
+    #     ncols=3,
+    #     figsize=(14,6),
+    #     subplot_kw=dict(projection=ccrs.PlateCarree()),
+    #     transform=ccrs.PlateCarree()
+    # )
+    # for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
+    #     qntl_grdi = ds_grdi[v].quantile(
+    #         qntl,
+    #         dim=('lat','lon'),
+    #         method='closest_observation',
+    #     )
+    #     if qntl > 0.5:
+    #         p = xr.where(ds_grdi[v]>=qntl_grdi.item(),1,np.nan).plot(
+    #             ax=ax,
+    #             add_colorbar=False,
+    #         )
+    #         ax.set_title('>{}th quantile'.format(qntl*100))
+    #     elif qntl < 0.5:
+    #         p = xr.where(ds_grdi[v]<=qntl_grdi.item(),1,np.nan).plot(
+    #             ax=ax,
+    #             add_colorbar=False,
+    #         )
+    #         ax.set_title('<{}th quantile'.format(qntl*100))
+    #     ax.set_global()
+    #     ax.coastlines()
+    # plt.show()        
     
 # vulnerability subsetting
 if flags['vulnerability']:
@@ -512,31 +514,145 @@ if flags['vulnerability']:
         with open('./data/{}/2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
             da_cohort_size_2020 = pk.load(f)     
             
-    # example of emergence masks for heatwavedarea, 99.9% emergence threshold, 2020 birth year
-    test = d_global_emergence['heatwavedarea']['2.7']['emergence_per_run_heatwavedarea'].sel(qntl='99.9',birth_year=2020).copy(deep=True)
-    ds_test = test.to_dataset()
-    for v in list(ds_gdp.data_vars):
-        for qntl in [0.1,0.25,0.49,0.51,0.75,0.9]:
-            # new var in dataset for emergence constrained by this lifetime GDP projection/quantile
-            ds_test['{}_{}'.format(v,qntl)] = xr.full_like(ds_test['emergence_per_run_heatwavedarea'],fill_value=np.nan)
-            qntl_gdp = ds_gdp[v].quantile(
-                qntl,
-                dim=('lat','lon'),
-                method='closest_observation',
-            )         
-            if qntl > 0.5:   
-                da_mask_gdp_group = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan)
-            elif qntl < 0.5:
-                da_mask_gdp_group = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan)
-            for r in ds_test.run.data:
-                da_emerge = ds_test['emergence_per_run_heatwavedarea'].sel(run=r)
-                da_emerge_constrained = da_emerge.where(da_mask_gdp_group.notnull())
-                ds_test['{}_{}'.format(v,qntl)].loc[{'run':r}] = xr.where(
-                    da_emerge_constrained == 1,
-                    da_cohort_size_2020,
-                    ds_test['{}_{}'.format(v,qntl)].loc[{'run':r}]
-                )
-                
+    # vulnerability dataset
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
+    qntls_vulnerability = [0.1,0.25,0.49,0.51,0.75,0.9]
+    indices_vulnerability = []
+    for v in ds_gdp.data_vars:
+        indices_vulnerability.append(v)
+    for v in ds_grdi.data_vars:
+        indices_vulnerability.append(v)
+    all_runs=np.arange(1,87)
+    ds_vulnerability = xr.Dataset(
+        data_vars={
+            'heatwavedarea': (
+                ['run','qntl','vulnerability_index'],
+                np.full(
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'cropfailedarea': (
+                ['run','qntl','vulnerability_index'],
+                np.full(
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    fill_value=np.nan,
+                ),
+            ),            
+            'floodedarea': (
+                ['run','qntl','vulnerability_index'],
+                np.full(
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'burntarea': (
+                ['run','qntl','vulnerability_index'],
+                np.full(
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    fill_value=np.nan,
+                ),
+            ),
+            'driedarea': (
+                ['run','qntl','vulnerability_index'],
+                np.full(
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    fill_value=np.nan,
+                ),
+            ),            
+            'floodedarea': (
+                ['run','qntl','vulnerability_index'],
+                np.full(
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    fill_value=np.nan,
+                ),
+            ),             
+            'tropicalcyclonedarea': (
+                ['run','qntl','vulnerability_index'],
+                np.full(
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    fill_value=np.nan,
+                ),
+            ),                                           
+        },
+        coords={
+            'run': ('run', all_runs),
+            'qntl': ('qntl', qntls_vulnerability),
+            'vulnerability_index': ('vulnerability_index', indices_vulnerability),
+        }
+    )
+    # test = d_global_emergence['heatwavedarea']['2.7']['emergence_per_run_heatwavedarea'].sel(qntl='99.9',birth_year=2020).copy(deep=True)
+    # ds_test = test.to_dataset()
+    for e in extremes:
+        for v in list(ds_gdp.data_vars):
+            for q in qntls_vulnerability:
+                qntl_gdp = ds_gdp[v].quantile(
+                    q,
+                    dim=('lat','lon'),
+                    method='closest_observation',
+                )         
+                if qntl > 0.5:   
+                    da_mask_gdp_group = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan)
+                elif qntl < 0.5:
+                    da_mask_gdp_group = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan)
+                for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
+                    da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.9',birth_year=2020,run=r)
+                    da_emerge_constrained = da_emerge.where(da_mask_gdp_group.notnull())
+                    ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
+                        da_emerge_constrained == 1,
+                        da_cohort_size_2020,
+                        0
+                    ).sum(dim=('lat','lon'))
+        for v in list(ds_grdi.data_vars):
+            for q in qntls_vulnerability:
+                qntl_grdi = ds_grdi[v].quantile(
+                    q,
+                    dim=('lat','lon'),
+                    method='closest_observation',
+                )    
+                if qntl > 0.5:   
+                    da_mask_grdi_group = xr.where(ds_grdi[v]>=qntl_grdi.item(),1,np.nan)
+                elif qntl < 0.5:
+                    da_mask_grdi_group = xr.where(ds_grdi[v]<=qntl_grdi.item(),1,np.nan)
+                for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
+                    da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.9',birth_year=2020,run=r)
+                    da_emerge_constrained = da_emerge.where(da_mask_grdi_group.notnull())
+                    ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
+                        da_emerge_constrained == 1,
+                        da_cohort_size_2020,
+                        0
+                    ).sum(dim=('lat','lon'))                                  
+            
+# convert to millions people
+# 6 rows for extremes
+# 7 columns for vulnerability index
+df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
+for e in extremes:
+    print(e)
+    f,axes = plt.subplots(
+        nrows=4,
+        ncols=2,
+        figsize=(16,14)
+    )
+    df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index',e]]
+    df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people
+    for ax,v in zip(axes.flatten(),indices_vulnerability):
+        # ax.set_title()
+        df_vulnerability_v = df_vulnerability_e[df_vulnerability_e['vulnerability_index']==v]
+        df_vulnerability_v.boxplot(column=e,by='qntl',ax=ax)
+        ax.set_title(None)
+        ax.set_title(v)
+        ax.set_xlabel(None)
+    f.delaxes(axes[-1][-1])
+    plt.show()
+    
 
 
 
@@ -547,220 +663,6 @@ if flags['vulnerability']:
 # gdp analysis; Wang & Sun 
 # ------------------------------------------------------------------    
 
-# use rioxarray to read geotiffs
-import rioxarray as rxr
-ssps = ('ssp1','ssp2','ssp3','ssp4','ssp5')
-decades = ['2030','2040','2050','2060','2070','2080','2090','2100']
-time_coords = decades.copy()
-time_coords.insert(0,'2005')
-time_coords = list(map(int,time_coords))
-dims_dict = { # rename dimensions
-    'x':'lon',
-    'y':'lat',
-}
-ssp_colors={
-    'ssp1':'forestgreen',
-    'ssp2':'slategrey',
-    'ssp3':'purple',
-    'ssp4':'darkorange',
-    'ssp5':'firebrick',
-}
-
-# read in tiffs as data array; concat all years, clean up in new array, pump out to netcdf
-if len(glob.glob('./data/gdp_wang_sun/GDP_*_isimipgrid.nc4')) == 0:
-    
-    rds = {}
-    for i,s in enumerate(ssps):
-        rds[s] = {}
-        rds[s]['2005'] = rxr.open_rasterio('./data/gdp_wang_sun/GDP2005.tif')
-        for d in decades:
-            rds[s][d] = rxr.open_rasterio('./data/gdp_wang_sun/GDP{}_{}.tif'.format(d,s))
-        rds[s]['full_series'] = xr.concat(
-            [rds[s][str(t)] for t in time_coords],
-            dim='time'
-        ).squeeze(dim='band').rename(dims_dict)
-        rds[s]['full_series'].coords['time']=time_coords
-        ds = rds[s]['full_series'].to_dataset(name=s)
-        if i == 0:
-            ds_fresh = xr.Dataset(
-                data_vars={
-                    s: (
-                        ['time','lat','lon'],
-                        np.full(
-                            (len(ds.time.data),len(ds.lat.data),len(ds.lon.data)),
-                            fill_value=np.nan,
-                        ),
-                    ),        
-                },
-                coords={
-                    'time': ('time', time_coords),
-                    'lat': ('lat', ds.lat.data, {
-                        'standard_name': 'latitude',
-                        'long_name': 'latitude',
-                        'units': 'degrees_north',
-                        'axis': 'Y'
-                    }),
-                    'lon': ('lon', ds.lon.data, {
-                        'standard_name': 'longitude',
-                        'long_name': 'longitude',
-                        'units': 'degrees_east',
-                        'axis': 'X'
-                    })
-                }
-            )
-        else:
-            ds_fresh[s] = xr.full_like(ds_fresh[ssps[0]],fill_value=np.nan)
-        ds_fresh[s].loc[{
-            'time':ds_fresh.time.data,
-            'lat':ds_fresh.lat.data,
-            'lon':ds_fresh.lon.data,
-        }] = ds[s]
-        ds_fresh[s].to_netcdf(
-            './data/gdp_wang_sun/GDP_{}.nc4'.format(s),
-            format='NETCDF4',
-            encoding={
-                'lat': {
-                    'dtype': 'float64',
-                },
-                'lon': {
-                    'dtype': 'float64',
-                }            
-            }
-        )
-        
-# enter pycdo stuff for remapping to isimip grid        
-        
-else:
-
-    # start again, read in netcdf that were regridded on command line
-    for i,s in enumerate(ssps):
-        if i == 0:
-            ds_gdp_regrid = xr.open_dataset('./data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s))
-            ds_gdp_regrid.coords['time'] = time_coords
-        else:
-            other_ssp = xr.open_dataset('./data/gdp_wang_sun/GDP_{}_isimipgrid.nc4'.format(s))[s]
-            other_ssp.coords['time'] = time_coords
-            ds_gdp_regrid[s] = other_ssp
-        
-# associated years in da population
-da_population_subset = da_population.loc[{'time':ds_gdp_regrid.time.values}]
-
-
-# checking sample country time series for these ssps
-
-legend_lw=3.5 # legend line width
-x0 = 0.15 # bbox for legend
-y0 = 0.7
-xlen = 0.2
-ylen = 0.2    
-legend_entrypad = 0.5 # space between entries
-legend_entrylen = 0.75 # length per entry
-handles = [
-    Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp1']),
-    Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp2']),
-    Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp3']),
-    Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp4']),
-    Line2D([0],[0],linestyle='-',lw=legend_lw,color=ssp_colors['ssp5']),
-]  
-  
-for cntry in ['Canada','United States','China', 'France', 'Germany']:
-    
-    print('')
-    print('Entire series for {}'.format(cntry))  
-    print('plots for {}'.format(cntry))
-    f,(ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
-
-    for s in ssps:
-        
-        # color
-        clr = ssp_colors[s]
-        
-        ds_gdp_regrid[s].where(ds_gdp_regrid[s]>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot(
-            ax=ax1,
-            color=clr,
-            add_legend='False'
-        )
-        
-        da_gdp_regrid_s = ds_gdp_regrid[s]
-        da_gdp_regrid_pc = da_gdp_regrid_s.where(countries_mask==countries_regions.map_keys(cntry)) / da_population_subset.where(da_population_subset>0).where(countries_mask==countries_regions.map_keys(cntry))
-        da_gdp_regrid_pc_mean = da_gdp_regrid_pc.mean(dim=('lat','lon'))    
-        da_gdp_regrid_pc_mean.plot(
-            ax=ax2,
-            color=clr,
-            add_legend=False,
-        )
-    ax1.set_title('GDP: {}'.format(cntry))
-    ax2.set_title('GDP per capita: {}'.format(cntry))
-    ax2.legend(
-        handles, 
-        list(ssp_colors.keys()), 
-        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
-        loc='lower left',
-        ncol=1,
-        fontsize=10, 
-        mode="expand", 
-        borderaxespad=0.,
-        frameon=False, 
-        columnspacing=0.05, 
-        handlelength=legend_entrylen, 
-        handletextpad=legend_entrypad,
-    )     
-    
-    plt.show() 
-    
-# alternative testing for the Wang and Sun data while using ISIMIP historical GDP estimates
-f_gdp_historical_1861_2005 = './data/isimip/gdp/gdp_histsoc_0p5deg_annual_1861_2005.nc4'
-da_gdp_historical_1861_2005 = open_dataarray_isimip(f_gdp_historical_1861_2005)
-da_gdp_historical_1861_2004 = da_gdp_historical_1861_2005.loc[{'time':np.arange(1960,2005)}] 
-    
-for cntry in ['Canada','United States','China', 'France', 'Germany']:
-    
-    print('')
-    print('Entire series for {}'.format(cntry))  
-    print('plots for {}'.format(cntry))
-    f,(ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
-
-    for s in ssps:
-        
-        future = ds_gdp_regrid[s]
-        historical = da_gdp_historical_1861_2004
-        da_gdp_full = xr.concat([historical,future],dim='time')
-        da_population_subset = da_population.loc[{'time':da_gdp_full.time.values}]    
-        
-        # color
-        clr = ssp_colors[s]
-        
-        da_gdp_full.where(da_gdp_full>0).where(countries_mask==countries_regions.map_keys(cntry)).sum(dim=('lat','lon')).plot(
-            ax=ax1,
-            color=clr,
-            add_legend='False'
-        )
-        
-        da_gdp_full_pc = da_gdp_full.where(countries_mask==countries_regions.map_keys(cntry)) / da_population_subset.where(da_population_subset>0).where(countries_mask==countries_regions.map_keys(cntry))
-        da_gdp_full_pc = da_gdp_full_pc.mean(dim=('lat','lon'))    
-        da_gdp_full_pc.plot(
-            ax=ax2,
-            color=clr,
-            add_legend=False,
-        )
-    ax1.set_title('GDP: {}'.format(cntry))
-    ax2.set_title('GDP per capita: {}'.format(cntry))
-    ax2.legend(
-        handles, 
-        list(ssp_colors.keys()), 
-        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
-        loc='lower left',
-        ncol=1,
-        fontsize=10, 
-        mode="expand", 
-        borderaxespad=0.,
-        frameon=False, 
-        columnspacing=0.05, 
-        handlelength=legend_entrylen, 
-        handletextpad=legend_entrypad,
-    )     
-    
-    plt.show()     
 
 #%% ----------------------------------------------------------------
 # main text plots
