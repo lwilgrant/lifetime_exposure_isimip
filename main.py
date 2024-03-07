@@ -355,13 +355,13 @@ if not os.path.isfile('./data/{}/gs_cohort_sizes.pkl'.format(flags['version'])):
         df_life_expectancy_5,
     )
 
-    # pickle birth year aligned cohort sizes for gridscale analysis
+    # pickle birth year aligned cohort sizes for gridscale analysis (summed per country)
     with open('./data/{}/gs_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
         pk.dump(da_gs_popdenom,f)  
         
 else:
     
-    # load pickle birth year aligned cohort sizes for gridscale analysis
+    # load pickle birth year aligned cohort sizes for gridscale analysis (summed per country)
     with open('./data/{}/gs_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
         da_gs_popdenom = pk.load(f)               
 
@@ -422,72 +422,6 @@ if flags['gdp_deprivation']:
         df_life_expectancy_5,
     )
     
-    # # do some test plots of geo distribution of percentiles for gdp
-    # for v in list(ds_gdp.data_vars):
-    #     print('')
-    #     print(v)
-    #     f,axes = plt.subplots(
-    #         nrows=2,
-    #         ncols=3,
-    #         figsize=(14,6),
-    #         subplot_kw=dict(projection=ccrs.PlateCarree()),
-    #         transform=ccrs.PlateCarree()
-    #     )
-    #     for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
-    #         qntl_gdp = ds_gdp[v].quantile(
-    #             qntl,
-    #             dim=('lat','lon'),
-    #             method='closest_observation',
-    #         )
-    #         if qntl > 0.5:
-    #             p = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan).plot(
-    #                 ax=ax,
-    #                 add_colorbar=False,
-    #             )
-    #             ax.set_title('>{}th quantile'.format(qntl*100))
-    #         elif qntl < 0.5:
-    #             p = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan).plot(
-    #                 ax=ax,
-    #                 add_colorbar=False,
-    #             )
-    #             ax.set_title('<{}th quantile'.format(qntl*100))
-    #         ax.set_global()
-    #         ax.coastlines()
-    #     plt.show()
-
-    # # then check percentiles of deprivation        
-    # v = 'grdi'
-    # print('')
-    # print(v)
-    # f,axes = plt.subplots(
-    #     nrows=2,
-    #     ncols=3,
-    #     figsize=(14,6),
-    #     subplot_kw=dict(projection=ccrs.PlateCarree()),
-    #     transform=ccrs.PlateCarree()
-    # )
-    # for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
-    #     qntl_grdi = ds_grdi[v].quantile(
-    #         qntl,
-    #         dim=('lat','lon'),
-    #         method='closest_observation',
-    #     )
-    #     if qntl > 0.5:
-    #         p = xr.where(ds_grdi[v]>=qntl_grdi.item(),1,np.nan).plot(
-    #             ax=ax,
-    #             add_colorbar=False,
-    #         )
-    #         ax.set_title('>{}th quantile'.format(qntl*100))
-    #     elif qntl < 0.5:
-    #         p = xr.where(ds_grdi[v]<=qntl_grdi.item(),1,np.nan).plot(
-    #             ax=ax,
-    #             add_colorbar=False,
-    #         )
-    #         ax.set_title('<{}th quantile'.format(qntl*100))
-    #     ax.set_global()
-    #     ax.coastlines()
-    # plt.show()        
-    
 # vulnerability subsetting
 if flags['vulnerability']:
     
@@ -514,6 +448,34 @@ if flags['vulnerability']:
         with open('./data/{}/2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
             da_cohort_size_2020 = pk.load(f)     
             
+    # same thing but repeat for all years in birth cohort assessmet (1960-2020)
+    if not os.path.isfile('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version'])):
+        
+        da_cohort_size_1960_2020 = xr.concat(
+            [xr.full_like(countries_mask,fill_value=np.nan) for by in birth_years],
+            dim='birth_year'
+        ).assign_coords({'birth_year':birth_years})
+        
+        for by in birth_years:
+            
+            for cntry in gridscale_countries:
+                
+                da_cntry = countries_mask.where(countries_mask == countries_regions.map_keys(cntry))
+                cntry_cohort_frac = da_cohort_size.sel(country=cntry,time=by,ages=0) / da_cohort_size.sel(country=cntry,time=by).sum(dim='ages')
+                da_cohort_size_1960_2020.loc[{'birth_year':by}] = xr.where(
+                    da_cntry.notnull(),
+                    da_population.sel(time=by).where(da_cntry.notnull()) * cntry_cohort_frac,
+                    da_cohort_size_1960_2020.loc[{'birth_year':by}],
+                )
+            
+        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
+            pk.dump(da_cohort_size_1960_2020,f)
+        
+    else:
+        
+        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
+            da_cohort_size_1960_2020 = pk.load(f)     
+            
     # vulnerability dataset
     extremes = [
         'burntarea', 
@@ -524,60 +486,60 @@ if flags['vulnerability']:
         'tropicalcyclonedarea',
     ]
     qntls_vulnerability = [0.1,0.25,0.49,0.51,0.75,0.9]
-    indices_vulnerability = []
-    for v in ds_gdp.data_vars:
-        indices_vulnerability.append(v)
-    for v in ds_grdi.data_vars:
-        indices_vulnerability.append(v)
+    indices_vulnerability = ['gdp_isimip_rcp26_mean','grdi'] # instead just rcp26 and grdi
+    # for v in ds_gdp.data_vars:
+    #     indices_vulnerability.append(v)
+    # for v in ds_grdi.data_vars:
+    #     indices_vulnerability.append(v)
     all_runs=np.arange(1,87)
     ds_vulnerability = xr.Dataset(
         data_vars={
             'heatwavedarea': (
-                ['run','qntl','vulnerability_index'],
+                ['run','qntl','vulnerability_index', 'birth_year'],
                 np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),
             'cropfailedarea': (
                 ['run','qntl','vulnerability_index'],
                 np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),            
             'floodedarea': (
                 ['run','qntl','vulnerability_index'],
                 np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),
             'burntarea': (
                 ['run','qntl','vulnerability_index'],
                 np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),
             'driedarea': (
                 ['run','qntl','vulnerability_index'],
                 np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),            
             'floodedarea': (
                 ['run','qntl','vulnerability_index'],
                 np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),             
             'tropicalcyclonedarea': (
                 ['run','qntl','vulnerability_index'],
                 np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability)),
+                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
                     fill_value=np.nan,
                 ),
             ),                                           
@@ -586,6 +548,7 @@ if flags['vulnerability']:
             'run': ('run', all_runs),
             'qntl': ('qntl', qntls_vulnerability),
             'vulnerability_index': ('vulnerability_index', indices_vulnerability),
+            'birth_year': ('birth_year', birth_years)
         }
     )
     # test = d_global_emergence['heatwavedarea']['2.7']['emergence_per_run_heatwavedarea'].sel(qntl='99.9',birth_year=2020).copy(deep=True)
@@ -593,23 +556,24 @@ if flags['vulnerability']:
     for e in extremes:
         for v in list(ds_gdp.data_vars):
             for q in qntls_vulnerability:
-                qntl_gdp = ds_gdp[v].quantile(
-                    q,
-                    dim=('lat','lon'),
-                    method='closest_observation',
-                )         
-                if qntl > 0.5:   
-                    da_mask_gdp_group = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan)
-                elif qntl < 0.5:
-                    da_mask_gdp_group = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan)
-                for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
-                    da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.9',birth_year=2020,run=r)
-                    da_emerge_constrained = da_emerge.where(da_mask_gdp_group.notnull())
-                    ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
-                        da_emerge_constrained == 1,
-                        da_cohort_size_2020,
-                        0
-                    ).sum(dim=('lat','lon'))
+                for by in birth_years:
+                    qntl_gdp = ds_gdp[v].loc[{'birth_year':by}].quantile(
+                        q,
+                        dim=('lat','lon'),
+                        method='closest_observation',
+                    )         
+                    if q > 0.5:   
+                        da_mask_gdp_group = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan)
+                    elif q < 0.5:
+                        da_mask_gdp_group = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan)
+                    for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
+                        da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.9',birth_year=2020,run=r)
+                        da_emerge_constrained = da_emerge.where(da_mask_gdp_group.notnull())
+                        ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
+                            da_emerge_constrained == 1,
+                            da_cohort_size_2020,
+                            0
+                        ).sum(dim=('lat','lon'))
         for v in list(ds_grdi.data_vars):
             for q in qntls_vulnerability:
                 qntl_grdi = ds_grdi[v].quantile(
@@ -617,9 +581,9 @@ if flags['vulnerability']:
                     dim=('lat','lon'),
                     method='closest_observation',
                 )    
-                if qntl > 0.5:   
+                if q > 0.5:   
                     da_mask_grdi_group = xr.where(ds_grdi[v]>=qntl_grdi.item(),1,np.nan)
-                elif qntl < 0.5:
+                elif q < 0.5:
                     da_mask_grdi_group = xr.where(ds_grdi[v]<=qntl_grdi.item(),1,np.nan)
                 for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
                     da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.9',birth_year=2020,run=r)

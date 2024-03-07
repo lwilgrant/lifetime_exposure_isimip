@@ -1217,25 +1217,50 @@ def load_gdp_deprivation(
 
         # now compute means for each GDP series
         for v in list(ds_gdp.data_vars):
-            ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 2020 birth cohort mean
-                ['lat','lon'],    
-                np.full(
-                    (len(lat),len(lon)),
-                    fill_value=np.nan,
-                )   
-            )
-            # fill mean gdp based on country life expectancy
-            for cntry in gridscale_countries:
-                da_cntry = countries_mask.where(countries_mask==countries_regions.map_keys(cntry)) # country mask
-                cntry_life_expectancy = df_life_expectancy_5.loc[2020,cntry] # country 2020 life expectancy
-                ds_gdp['{}_mean'.format(v)].loc[{
-                    'lat':lat,
-                    'lon':lon,
-                }] = xr.where( # will this replacement scheme work?
-                    da_cntry.notnull(),
-                    ds_gdp[v].where(da_cntry.notnull()).sel(year=np.arange(2020,2020+cntry_life_expectancy+1),method='nearest').mean(dim='year'),
-                    ds_gdp['{}_mean'.format(v)]
+            if v != 'gdp_isimip_rcp26': # patching this to have 1960-2020 for isimiprcp26
+                ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 2020 birth cohort mean
+                    ['lat','lon'],    
+                    np.full(
+                        (len(lat),len(lon)),
+                        fill_value=np.nan,
+                    )   
                 )
+                # fill mean gdp based on country life expectancy
+                for cntry in gridscale_countries:
+                    da_cntry = countries_mask.where(countries_mask==countries_regions.map_keys(cntry)) # country mask
+                    cntry_life_expectancy = df_life_expectancy_5.loc[2020,cntry] # country 2020 life expectancy
+                    ds_gdp['{}_mean'.format(v)].loc[{
+                        'lat':lat,
+                        'lon':lon,
+                    }] = xr.where( # will this replacement scheme work?
+                        da_cntry.notnull(),
+                        ds_gdp[v].where(da_cntry.notnull()).sel(year=np.arange(2020,2020+cntry_life_expectancy+1),method='nearest').mean(dim='year'),
+                        ds_gdp['{}_mean'.format(v)]
+                    )
+            else: # use all birth years for isimip rcp26 dataset
+                ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 2020 birth cohort mean
+                    ['birth_year','lat','lon'],    
+                    np.full(
+                        (len(birth_years),len(lat),len(lon)),
+                        fill_value=np.nan,
+                    )   
+                )   
+                ds_gdp['{}_mean'.format(v)] = ds_gdp['{}_mean'.format(v)].assign_coords({'birth_year':birth_years})
+                for by in birth_years:
+                    # fill mean gdp based on country life expectancy
+                    for cntry in gridscale_countries:
+                        da_cntry = countries_mask.where(countries_mask==countries_regions.map_keys(cntry)) # country mask
+                        cntry_life_expectancy = df_life_expectancy_5.loc[by,cntry] # country 2020 life expectancy
+                        ds_gdp['{}_mean'.format(v)].loc[{
+                            'birth_year':by,
+                            'lat':lat,
+                            'lon':lon,
+                        }] = xr.where( # will this replacement scheme work?
+                            da_cntry.notnull(),
+                            ds_gdp[v].where(da_cntry.notnull()).sel(year=np.arange(by,by+cntry_life_expectancy+1),method='nearest').mean(dim='year'),
+                            ds_gdp['{}_mean'.format(v)].loc[{'birth_year':by}]
+                        )                             
+            
                 
         # dump pickles
         with open('./data/{}/gdp_deprivation/gdp_dataset.pkl'.format(flags['version']), 'wb') as f:
@@ -1244,9 +1269,6 @@ def load_gdp_deprivation(
         with open('./data/{}/gdp_deprivation/gdp_means_dataset.pkl'.format(flags['version']), 'wb') as f:
             ds_gdp_means = ds_gdp.drop_vars([v for v in list(ds_gdp.data_vars) if not 'mean' in v])
             pk.dump(ds_gdp_means,f) # first one with just means (will read this in)        
-            
-        
-            
             
     else:
         
@@ -1534,3 +1556,73 @@ def timeseries_vulnerability(
         )     
         
         plt.show()         
+        
+# %%        
+def plot_maps_gdp_grdi():
+    pass
+    
+        # # do some test plots of geo distribution of percentiles for gdp
+    # for v in list(ds_gdp.data_vars):
+    #     print('')
+    #     print(v)
+    #     f,axes = plt.subplots(
+    #         nrows=2,
+    #         ncols=3,
+    #         figsize=(14,6),
+    #         subplot_kw=dict(projection=ccrs.PlateCarree()),
+    #         transform=ccrs.PlateCarree()
+    #     )
+    #     for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
+    #         qntl_gdp = ds_gdp[v].quantile(
+    #             qntl,
+    #             dim=('lat','lon'),
+    #             method='closest_observation',
+    #         )
+    #         if qntl > 0.5:
+    #             p = xr.where(ds_gdp[v]>=qntl_gdp.item(),1,np.nan).plot(
+    #                 ax=ax,
+    #                 add_colorbar=False,
+    #             )
+    #             ax.set_title('>{}th quantile'.format(qntl*100))
+    #         elif qntl < 0.5:
+    #             p = xr.where(ds_gdp[v]<=qntl_gdp.item(),1,np.nan).plot(
+    #                 ax=ax,
+    #                 add_colorbar=False,
+    #             )
+    #             ax.set_title('<{}th quantile'.format(qntl*100))
+    #         ax.set_global()
+    #         ax.coastlines()
+    #     plt.show()
+
+    # # then check percentiles of deprivation        
+    # v = 'grdi'
+    # print('')
+    # print(v)
+    # f,axes = plt.subplots(
+    #     nrows=2,
+    #     ncols=3,
+    #     figsize=(14,6),
+    #     subplot_kw=dict(projection=ccrs.PlateCarree()),
+    #     transform=ccrs.PlateCarree()
+    # )
+    # for ax,qntl in zip(axes.flatten(),[0.1,0.25,0.49,0.51,0.75,0.9]):
+    #     qntl_grdi = ds_grdi[v].quantile(
+    #         qntl,
+    #         dim=('lat','lon'),
+    #         method='closest_observation',
+    #     )
+    #     if qntl > 0.5:
+    #         p = xr.where(ds_grdi[v]>=qntl_grdi.item(),1,np.nan).plot(
+    #             ax=ax,
+    #             add_colorbar=False,
+    #         )
+    #         ax.set_title('>{}th quantile'.format(qntl*100))
+    #     elif qntl < 0.5:
+    #         p = xr.where(ds_grdi[v]<=qntl_grdi.item(),1,np.nan).plot(
+    #             ax=ax,
+    #             add_colorbar=False,
+    #         )
+    #         ax.set_title('<{}th quantile'.format(qntl*100))
+    #     ax.set_global()
+    #     ax.coastlines()
+    # plt.show()                
