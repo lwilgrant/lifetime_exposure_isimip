@@ -476,16 +476,105 @@ if flags['vulnerability']:
         with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
             da_cohort_size_1960_2020 = pk.load(f)     
             
-    # vulnerability dataset
-    extremes = [
-        'burntarea', 
-        'cropfailedarea', 
-        'driedarea', 
-        'floodedarea', 
-        'heatwavedarea', 
-        'tropicalcyclonedarea',
-    ]
-    qntls_vulnerability = [0.1,0.25,0.49,0.51,0.75,0.9]
+# vulnerability dataset
+extremes = [
+    'burntarea', 
+    'cropfailedarea', 
+    'driedarea', 
+    'floodedarea', 
+    'heatwavedarea', 
+    'tropicalcyclonedarea',
+]
+    # qntls_vulnerability = [0.1,0.25,0.49,0.51,0.75,0.9] # change to 10 quantiles of 10%
+
+
+qntls_vulnerability = np.arange(0.,1.01,0.1)
+# testing ranking of pixels for lifetime mean gdp
+# how to rank order population pixels by gdp?
+# mask of rank integers (by gdp)
+    # get 
+    # bin the ranks
+xr.groupby_bins()
+test.sortby(dim='lat')
+test.rank(('lat'))
+# for q in qntls_vulnerability:
+np.reshape()
+ds_gdp['gdp_isimip_rcp26_mean']
+test = ds_gdp['gdp_isimip_rcp26_mean'].sel(birth_year=2020)
+np.sort(test.values.flatten())
+np.unique(np.sort(test.values.flatten()))
+i = 0
+f = i+0.1
+q_i = test.quantile(i,dim=('lat','lon'),method='linear')
+q_f = test.quantile(f,dim=('lat','lon'),method='linear')
+
+
+# good ex of ranking:
+arr = xr.DataArray([[4, 3, 6],[1,7,9]], dims=("y","x"))
+print(arr)
+arr2 = xr.DataArray(arr.values.flatten())
+print(arr2)
+print(arr2.rank(dim='dim_0'))
+arr3 = xr.DataArray(np.reshape(arr2.rank(dim='dim_0').values,newshape=(len(arr.y),len(arr.x))), dims=("y","x"))
+print(arr3)
+
+# working ex on how to run a ranking; now need to figure how to 
+
+# first make sure gdp and 
+gdp = ds_gdp['gdp_isimip_rcp26_mean'].sel(birth_year=2020)
+pop = da_cohort_size_1960_2020.sel(birth_year=2020)
+
+gdp = gdp.where(pop.notnull())
+pop = pop.where(gdp.notnull())
+
+# check that this worked by seeing len of non-nans
+if len(xr.DataArray(gdp.values.flatten())) == len(xr.DataArray(pop.values.flatten())):
+    print('should only be using overlapping grid cells')
+
+vulnerability = xr.DataArray(gdp.values.flatten())
+vulnerability_ranks = xr.DataArray(gdp.values.flatten()).rank(dim='dim_0').round()
+vulnerability_indices = vulnerability_ranks.dim_0
+sorted_vi = vulnerability_indices.sortby(vulnerability_ranks) # puts nans at back
+sorted_vr = vulnerability_ranks.sortby(vulnerability_ranks) # puts nans at back
+
+pop_flat = xr.DataArray(pop.values.flatten())
+sorted_pop = pop_flat.sortby(vulnerability_ranks) # failed because gdp and pop need common mask
+sorted_pop_cumsum = sorted_pop.cumsum()
+sorted_pop_cumsum_pct = sorted_pop_cumsum / sorted_pop.sum()
+vulnerability_binned = vulnerability.groupby_bins(sorted_pop_cumsum_pct,bins=10)
+testpop_binned = sorted_pop.groupby_bins(sorted_pop_cumsum_pct,bins=10) # sums here are pretty close!
+# now, how to go from binned vulnerbility from flat array back to map shape
+
+np.nanmin(vulnerability_ranks)
+
+test = ds_gdp['gdp_isimip_rcp26_mean'].sel(birth_year=2020)
+test2 = xr.DataArray(test.values.flatten()).rank(dim='dim_0') # 1D array of ranks of lifetime gdp means
+test3 = xr.DataArray( # reshape rank array
+    np.reshape(test2.values,newshape=(len(test.lat),len(test.lon))),
+    coords={
+        'lat': ('lat', test.lat.data),
+        'lon': ('lon', test.lon.data),
+    }
+)
+
+testp2 = xr.DataArray(da_cohort_size_1960_2020.sel(birth_year=2020).values.flatten())
+test4 = test3.groupby_bins(
+    group=da_cohort_size_1960_2020.sel(birth_year=2020),
+    bins=10,
+    right=True
+)
+
+
+
+test_qif = xr.where(
+    (test < q_f) & (test >=q_i),
+    test,
+    np.nan
+)
+test_qif.sel(birth_year=2020).plot()
+
+for q in qntls_vulnerability:    
+    
     indices_vulnerability = ['gdp_isimip_rcp26_mean','grdi'] # instead just rcp26 and grdi
     # for v in ds_gdp.data_vars:
     #     indices_vulnerability.append(v)
