@@ -494,7 +494,7 @@ qntls_vulnerability = np.arange(0.,1.01,0.1)
 # mask of rank integers (by gdp)
     # get 
     # bin the ranks
-xr.groupby_bins()
+
 test.sortby(dim='lat')
 test.rank(('lat'))
 # for q in qntls_vulnerability:
@@ -539,11 +539,42 @@ sorted_vr = vulnerability_ranks.sortby(vulnerability_ranks) # puts nans at back
 
 pop_flat = xr.DataArray(pop.values.flatten())
 sorted_pop = pop_flat.sortby(vulnerability_ranks) # failed because gdp and pop need common mask
+sorted_pop.plot()
 sorted_pop_cumsum = sorted_pop.cumsum()
 sorted_pop_cumsum_pct = sorted_pop_cumsum / sorted_pop.sum()
+sorted_pop_cumsum_pct.plot()
 vulnerability_binned = vulnerability.groupby_bins(sorted_pop_cumsum_pct,bins=10)
 testpop_binned = sorted_pop.groupby_bins(sorted_pop_cumsum_pct,bins=10) # sums here are pretty close!
 # now, how to go from binned vulnerbility from flat array back to map shape
+vulnerability_binned.count() # shows 0 elements in most groups? not good: due to nans I think
+
+# need to do binning on array without nans
+    # drop nans from flat/sorted vulnerability and pop 
+    # keep original coord (dim_0) labels, 
+    # bin the data, save the coord labels of the binned elements
+    # per bin (i.e. 10 times): 
+        # copy flattened arrays of pop and vulnerability; fill with nan (use full_like)
+        # assign bin i's elements to copied, flattened array based on their retained coord labels
+        # can then reshape this array to be the global map, thereby acting as a mask of this 10% quantile group for emergence masks
+
+# need to do nan dropping on sorted pop (cumsum and cumsum_pct convert nans to real values because of addition)
+# run where on cumsum percent based on notnull() of vulnerability
+sorted_pop_cumsum_pct.where(vulnerability_ranks.notnull()).plot()
+# this is necessary to make sure coord labels are kept after dropping nans
+test_binner = sorted_pop_cumsum_pct.where(vulnerability_ranks.notnull()).rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(vulnerability_ranks.dim_0))})
+test_binner = test_binner.dropna(dim='gridcell_number')
+
+test_tobebinned = vulnerability.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(vulnerability_ranks.dim_0))})
+test_tobebinned = test_tobebinned.dropna(dim='gridcell_number')
+test_binned = test_tobebinned.groupby_bins(test_binner,bins=10)
+
+test_pop_tobebinned = sorted_pop.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(vulnerability_ranks.dim_0))})
+test_pop_tobebinned = test_pop_tobebinned.dropna(dim='gridcell_number')
+test_pop_binned = test_pop_tobebinned.groupby_bins(test_binner,bins=10)
+test_pop_binned.sum() # sums here are not even like above; does that mean I should reconsider order of dropping nans before sorting?
+
+sorted_pop_cumsum_pct.where(vulnerability_ranks.notnull()).dropna(dim='dim_0').dim_0
+
 
 np.nanmin(vulnerability_ranks)
 
