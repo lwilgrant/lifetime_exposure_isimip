@@ -58,7 +58,7 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy as cr
 import geopandas as gpd
-import seaborn as sns # must comment this out for things to work on the server
+# import seaborn as sns # must comment this out for things to work on the server
 scriptsdir = os.getcwd()
 
 
@@ -111,9 +111,9 @@ flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean em
                                     # 1: process/load those^ pickles    
 flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
-flags['gdp_deprivation'] = 0        # 0: do not process/load lifetime GDP/GRDI average
+flags['gdp_deprivation'] = 1        # 0: do not process/load lifetime GDP/GRDI average
                                     # 1: load lifetime GDP average analysis        
-flags['vulnerability'] = 0          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
+flags['vulnerability'] = 1          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
                                     # 1: process/load d_collect_emergence vs gdp & deprivation quantiles for vulnerability analysis
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
@@ -425,129 +425,134 @@ if flags['gdp_deprivation']:
 # vulnerability subsetting
 if flags['vulnerability']:  
 
+    for c in ds_gdp.coords:
+        print(ds_gdp[c])
+    
     # adds data arrays to ds_gdp and ds_grdi with ranked vulnerability binned by population (i.e. ranges of ranked vulnerability, physically distributed, grouped/binned by population size)            
     ds_gdp, ds_grdi, da_cohort_size_1960_2020 = get_vulnerability_quantiles(
         flags,
+        grid_area,
         ds_gdp,
         ds_grdi,
     )
     
-    # vulnerability subsets of emergence (so crossing quantiles above with emergence masks to see unprecedented populations based on your vulnerablity group)
-    
-def emergence_by_vulnerability(
-    ds_gdp,
-    ds_grdi,
-    da_cohort_size_1960_2020,
-    d_global_emergence,
-    
-):
-    qntls_vulnerability = range(10)
-    indices_vulnerability = ['gdp_q_by_p','grdi_q_by_p'] # instead just rcp26 and grdi
-    all_runs=np.arange(1,87)
-    ds_vulnerability = xr.Dataset(
-        data_vars={
-            'heatwavedarea': (
-                ['run','qntl','vulnerability_index', 'birth_year'],
-                np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'cropfailedarea': (
-                ['run','qntl','vulnerability_index', 'birth_year'],
-                np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),        
-            'floodedarea': (
-                ['run','qntl','vulnerability_index', 'birth_year'],
-                np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'burntarea': (
-                ['run','qntl','vulnerability_index', 'birth_year'],
-                np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),
-            'driedarea': (
-                ['run','qntl','vulnerability_index', 'birth_year'],
-                np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),          
-            'tropicalcyclonedarea': (
-                ['run','qntl','vulnerability_index', 'birth_year'],
-                np.full(
-                    (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
-                    fill_value=np.nan,
-                ),
-            ),                                     
-        },
-        coords={
-            'run': ('run', all_runs),
-            'qntl': ('qntl', qntls_vulnerability),
-            'vulnerability_index': ('vulnerability_index', indices_vulnerability),
-            'birth_year': ('birth_year', birth_years)
-        }
-    )
-
-    # get number people living unprecedented exposure for each vulnerability group
-    for e in extremes:
+    # first get all cohorts (spatially explicit) for vulnerability population binning and for crossing with emergence masks
+    if not os.path.isfile('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version'])):
         
-        # first with gdp dataset
-        v = 'gdp_q_by_p'
+        da_cohort_size_1960_2020 = xr.concat(
+            [xr.full_like(countries_mask,fill_value=np.nan) for by in birth_years],
+            dim='birth_year'
+        ).assign_coords({'birth_year':birth_years})
+        
         for by in birth_years:
-            for q in qntls_vulnerability:
-                qntl_gdp = ds_gdp[v].loc[{'birth_year':by,'qntl':q}]         
-                for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
-                    da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.9',birth_year=by,run=r)
-                    da_emerge_constrained = da_emerge.where(qntl_gdp.notnull())
-                    ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
-                        da_emerge_constrained == 1,
-                        da_cohort_size_1960_2020.sel(birth_year=by),
-                        0
-                    ).sum(dim=('lat','lon'))
-        # grdi dataset 
-        v = 'grdi_q_by_p'
-        for q in qntls_vulnerability:
-            qntl_grdi = ds_grdi[v].loc[{'qntl':q}]
-            for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
-                da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.9',birth_year=2020,run=r)
-                da_emerge_constrained = da_emerge.where(qntl_grdi.notnull())
-                ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
-                    da_emerge_constrained == 1,
-                    da_cohort_size_1960_2020.sel(birth_year=2020),
-                    0
-                ).sum(dim=('lat','lon'))                        
+            
+            for cntry in gridscale_countries:
+                
+                da_cntry = countries_mask.where(countries_mask == countries_regions.map_keys(cntry))
+                cntry_cohort_frac = da_cohort_size.sel(country=cntry,time=by,ages=0) / da_cohort_size.sel(country=cntry,time=by).sum(dim='ages')
+                da_cohort_size_1960_2020.loc[{'birth_year':by}] = xr.where(
+                    da_cntry.notnull(),
+                    da_population.sel(time=by).where(da_cntry.notnull()) * cntry_cohort_frac,
+                    da_cohort_size_1960_2020.loc[{'birth_year':by}],
+                )
+            
+        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
+            pk.dump(da_cohort_size_1960_2020,f)
+        
+    else:
+        
+        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
+            da_cohort_size_1960_2020 = pk.load(f)        
+    
+    # just a dummy d_global_emergence to run emergence_by_vulnerability
+    d_global_emergence = {}
+    ds_vulnerability = emergence_by_vulnerability(
+        flags,
+        ds_gdp,
+        ds_grdi,
+        da_cohort_size_1960_2020,
+        d_global_emergence,
+    )
+        
+        
                 
     # convert to millions people
     # 6 rows for extremes
     # 7 columns for vulnerability index
+    indices_vulnerability = ds_vulnerability.vulnerability_index.data
     df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
     for e in extremes:
         print(e)
         f,axes = plt.subplots(
-            nrows=4,
+            nrows=1,
             ncols=2,
             figsize=(16,14)
         )
-        df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index',e]]
+        df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
         df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people
+        by=2020
         for ax,v in zip(axes.flatten(),indices_vulnerability):
             # ax.set_title()
-            df_vulnerability_v = df_vulnerability_e[df_vulnerability_e['vulnerability_index']==v]
+            df_vulnerability_v = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)]
             df_vulnerability_v.boxplot(column=e,by='qntl',ax=ax)
             ax.set_title(None)
             ax.set_title(v)
             ax.set_xlabel(None)
-        f.delaxes(axes[-1][-1])
+        # f.delaxes(axes[-1][-1])
         plt.show()
+        
+    # also plot 1960 vs 2020 for gdp (grdi only has 2020)
+    e='heatwavedarea'
+    df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
+    df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people
+    
+    population_quantiles_10poorest = []
+    population_quantiles_10richest = []
+    for by in birth_years:
+        
+        gdp = ds_gdp['gdp_isimip_rcp26_mean'].sel(birth_year=by)
+        pop = da_cohort_size_1960_2020.sel(birth_year=by)
+
+        gdp = gdp.where(pop.notnull())
+        pop = pop.where(gdp.notnull())
+
+        # check that this worked by seeing len of non-nans
+        if len(xr.DataArray(gdp.values.flatten())) == len(xr.DataArray(pop.values.flatten())):
+            print('should only be using overlapping grid cells')
+
+        #=======================
+        # another attempt where I rename and assign coords to "dim_0" so that coord labels are preserved after dropping nans
+        # will play around with order of sorting/dropping nans/binning here until I get population to bin with roughly equal group sizes, like above, 
+        # NOTE this is the correct/working approach
+        vulnerability = xr.DataArray(gdp.values.flatten())
+        vulnerability = vulnerability.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(vulnerability))}) # have to do this so the coords are traceable back to the 2-D layout
+        vulnerability_ranks = vulnerability.rank(dim='gridcell_number').round()
+        vulnerability_indices = vulnerability_ranks.gridcell_number
+        sorted_vi = vulnerability_indices.sortby(vulnerability_ranks) # (I don't end up using this)
+        sorted_vr = vulnerability_ranks.sortby(vulnerability_ranks) # sort ranks of vulnerability
+        sorted_vr_nonans = sorted_vr[sorted_vr.notnull()] # drop nans from sorted v-ranks
+        sorted_v = vulnerability.sortby(vulnerability_ranks) # sort vulnerability
+        sorted_v_nonans = sorted_v[sorted_v.notnull()] # drop nans from sorted vulnerability array
+
+        pop_flat = xr.DataArray(pop.values.flatten())
+        pop_flat = pop_flat.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(pop_flat))}) # have to do this so the coords are traceable back to the 2-D layout
+        sorted_pop = pop_flat.sortby(vulnerability_ranks) # failed because gdp and pop need common mask
+        sorted_pop_nonans = sorted_pop[sorted_pop.notnull()]
+        sorted_pop_nonans_cumsum = sorted_pop_nonans.cumsum()
+        sorted_pop_nonans_cumsum_pct = sorted_pop_nonans_cumsum / sorted_pop_nonans.sum()
+
+        # test the bins on population
+        population_quantiles_10poorest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[0]) # groups all even population!!!    
+        population_quantiles_10richest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[-1]) # groups all even population!!!    
+    
+    y= 
+    width= 
+    height=0.8
+    f,(ax1,ax2) = plt.subplots(
+        nrows=1,
+        ncols=2,
+    )
+    
     
 
 
