@@ -42,7 +42,7 @@ import seaborn as sns
 import cartopy as cr
 import cartopy.feature as feature
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, GMT_current_policies, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 
 # %% ---------------------------------------------------------------
@@ -1314,18 +1314,17 @@ def plot_gmt_pathways(
     col_hi = 'darkred'       # mean color for GMT trajectories above 2.5 at 2100
     col_med = 'darkgoldenrod'   # mean color for GMT trajectories above 1.5 to 2.5 at 2100     
     col_low = 'steelblue'       # mean color for GMT trajectories from min to 1.5 at 2100
-    gmt_indices_sample = [6,15,17,24]
     colors_rcp = {
         'rcp26': col_low,
         'rcp60': col_med,
         'rcp85': col_hi,
     }
-    colors = {
-        '3.5':'firebrick',
-        'CP':'darkorange',
-        '2.5':'yellow',
-        '1.5':'steelblue',
-    }    
+    colors = dict(zip(GMT_indices_plot,['steelblue','darkgoldenrod','darkred']))
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    } 
     legend_lw=3.5 # legend line width
     x0 = 0.15 # bbox for legend
     y0 = 0.5
@@ -1375,7 +1374,7 @@ def plot_gmt_pathways(
     # plot GMTs
 
     # plot all new scenarios in grey, then overlay marker scens
-    df_GMT_strj.loc[:,6:24].plot(
+    df_GMT_strj.loc[:2101,:].plot(
         ax=axar6,
         color='grey',
         zorder=1,
@@ -1385,7 +1384,7 @@ def plot_gmt_pathways(
     # plot smooth gmts from RCPs
     for gcm in gcms:
         for rcp in rcps:  
-            GMTs[gcm][rcp].plot(
+            GMTs[gcm][rcp].loc[:2101].plot(
                 ax=axrcp,
                 color=colors_rcp[rcp],
                 zorder=2,
@@ -1394,32 +1393,25 @@ def plot_gmt_pathways(
             )  
             
     # plot new ar6 marker scenarios in color
-
-    df_GMT_15 = df_GMT_strj.loc[:,gmt_indices_sample[0]]
+    df_GMT_15 = df_GMT_strj.loc[:,GMT_indices_plot[0]]
     df_GMT_15.plot(
         ax=axar6,
-        color=colors['1.5'],
+        color=colors[0],
         zorder=1,
         lw=lw_mean,
     )
-    df_GMT_25 = df_GMT_strj.loc[:,gmt_indices_sample[1]]
+    df_GMT_25 = df_GMT_strj.loc[:,GMT_indices_plot[1]]
     df_GMT_25.plot(
         ax=axar6,
-        color=colors['2.5'],
+        color=colors[10],
         zorder=1,
         lw=lw_mean,
     )
-    df_GMT_NDC = df_GMT_strj.loc[:,gmt_indices_sample[2]]
-    df_GMT_NDC.plot(
-        ax=axar6,
-        color=colors['CP'],
-        zorder=1,
-        lw=lw_mean,
-    )
-    df_GMT_35 = df_GMT_strj.loc[:,gmt_indices_sample[3]]
+
+    df_GMT_35 = df_GMT_strj.loc[:,GMT_indices_plot[2]]
     df_GMT_35.plot(
         ax=axar6,
-        color=colors['3.5'],
+        color=colors[20],
         zorder=1,
         lw=lw_mean,
     )
@@ -1476,12 +1468,12 @@ def plot_gmt_pathways(
         )    
         ax.set_axisbelow(True) 
 
-    handles_ar6 = [
-        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['1.5']),
-        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['2.5']),
-        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['CP']),
-        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['3.5']),
-    ]    
+    # handles_ar6 = [
+    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['1.5']),
+    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['2.5']),
+    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['CP']),
+    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['3.5']),
+    # ]    
 
     handles_rcp = [
         Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp85']),
@@ -1489,32 +1481,32 @@ def plot_gmt_pathways(
         Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp26'])         
     ]
 
-    labels_ar6= [
-        '1.5 °C',
-        '2.5 °C',
-        'Current pledges',
-        '3.5 °C',
-    ]
+    # labels_ar6= [
+    #     '1.5 °C',
+    #     '2.5 °C',
+    #     'Current pledges',
+    #     '3.5 °C',
+    # ]
     labels_rcp = [
         'RCP 8.5',
         'RCP 6.0',
         'RCP 2.6',        
     ]    
         
-    axar6.legend(
-        handles_ar6, 
-        labels_ar6, 
-        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
-        loc=3,
-        ncol=1,
-        fontsize=legend_font, 
-        mode="expand", 
-        borderaxespad=0.,
-        frameon=False, 
-        columnspacing=0.05, 
-        handlelength=legend_entrylen, 
-        handletextpad=legend_entrypad,
-    )  
+    # axar6.legend(
+    #     handles_ar6, 
+    #     labels_ar6, 
+    #     bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+    #     loc=3,
+    #     ncol=1,
+    #     fontsize=legend_font, 
+    #     mode="expand", 
+    #     borderaxespad=0.,
+    #     frameon=False, 
+    #     columnspacing=0.05, 
+    #     handlelength=legend_entrylen, 
+    #     handletextpad=legend_entrypad,
+    # )  
     axrcp.legend(
         handles_rcp, 
         labels_rcp, 
@@ -1531,7 +1523,7 @@ def plot_gmt_pathways(
     )               
             
     # f.savefig('./si_figures/GMT_trajectories.png',bbox_inches='tight',dpi=1000)    
-    f.savefig('./si_figures/GMT_trajectories.pdf',bbox_inches='tight',dpi=500)    
+    f.savefig('./si_figures/GMT_trajectories_v2.pdf',bbox_inches='tight',dpi=500)    
     
 #%% ----------------------------------------------------------------
 # plot heatmaps for countrylevel emergence

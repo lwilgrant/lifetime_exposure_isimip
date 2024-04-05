@@ -425,89 +425,73 @@ if flags['gdp_deprivation']:
 # vulnerability subsetting
 if flags['vulnerability']:  
 
-    for c in ds_gdp.coords:
-        print(ds_gdp[c])
+    da_cohort_size_1960_2020 = get_spatially_explicit_cohorts_1960_2020(
+        flags,
+        gridscale_countries,
+        countries_mask,
+        countries_regions,
+        da_cohort_size,
+    )
     
     # adds data arrays to ds_gdp and ds_grdi with ranked vulnerability binned by population (i.e. ranges of ranked vulnerability, physically distributed, grouped/binned by population size)            
-    ds_gdp, ds_grdi, da_cohort_size_1960_2020 = get_vulnerability_quantiles(
+    ds_gdp, ds_grdi = get_vulnerability_quantiles(
         flags,
         grid_area,
+        da_cohort_size_1960_2020,
         ds_gdp,
         ds_grdi,
     )
-    
-    # first get all cohorts (spatially explicit) for vulnerability population binning and for crossing with emergence masks
-    if not os.path.isfile('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version'])):
         
-        da_cohort_size_1960_2020 = xr.concat(
-            [xr.full_like(countries_mask,fill_value=np.nan) for by in birth_years],
-            dim='birth_year'
-        ).assign_coords({'birth_year':birth_years})
-        
-        for by in birth_years:
-            
-            for cntry in gridscale_countries:
-                
-                da_cntry = countries_mask.where(countries_mask == countries_regions.map_keys(cntry))
-                cntry_cohort_frac = da_cohort_size.sel(country=cntry,time=by,ages=0) / da_cohort_size.sel(country=cntry,time=by).sum(dim='ages')
-                da_cohort_size_1960_2020.loc[{'birth_year':by}] = xr.where(
-                    da_cntry.notnull(),
-                    da_population.sel(time=by).where(da_cntry.notnull()) * cntry_cohort_frac,
-                    da_cohort_size_1960_2020.loc[{'birth_year':by}],
-                )
-            
-        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
-            pk.dump(da_cohort_size_1960_2020,f)
-        
-    else:
-        
-        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
-            da_cohort_size_1960_2020 = pk.load(f)        
-    
     # just a dummy d_global_emergence to run emergence_by_vulnerability
-    d_global_emergence = {}
+    d_global_emergence = {} # just to dummify d_global_emergence since the real thing is too much data
     ds_vulnerability = emergence_by_vulnerability(
         flags,
+        df_GMT_strj,
         ds_gdp,
         ds_grdi,
         da_cohort_size_1960_2020,
         d_global_emergence,
     )
-        
-        
-                
+               
     # convert to millions people
     # 6 rows for extremes
     # 7 columns for vulnerability index
-    indices_vulnerability = ds_vulnerability.vulnerability_index.data
-    df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
-    for e in extremes:
-        print(e)
-        f,axes = plt.subplots(
-            nrows=1,
-            ncols=2,
-            figsize=(16,14)
-        )
-        df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
-        df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people
-        by=2020
-        for ax,v in zip(axes.flatten(),indices_vulnerability):
-            # ax.set_title()
-            df_vulnerability_v = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)]
-            df_vulnerability_v.boxplot(column=e,by='qntl',ax=ax)
-            ax.set_title(None)
-            ax.set_title(v)
-            ax.set_xlabel(None)
-        # f.delaxes(axes[-1][-1])
-        plt.show()
+    # indices_vulnerability = ds_vulnerability.vulnerability_index.data
+    # df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
+    # for e in extremes:
+    #     print(e)
+    #     f,axes = plt.subplots(
+    #         nrows=1,
+    #         ncols=2,
+    #         figsize=(16,14)
+    #     )
+    #     df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
+    #     df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people
+    #     by=2020
+    #     for ax,v in zip(axes.flatten(),indices_vulnerability):
+    #         # ax.set_title()
+    #         df_vulnerability_v = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)]
+    #         df_vulnerability_v.boxplot(column=e,by='qntl',ax=ax)
+    #         ax.set_title(None)
+    #         ax.set_title(v)
+    #         ax.set_xlabel(None)
+    #     # f.delaxes(axes[-1][-1])
+    #     plt.show()
         
     # also plot 1960 vs 2020 for gdp (grdi only has 2020)
-    e='heatwavedarea'
-    df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
-    df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people
-    
     population_quantiles_10poorest = []
     population_quantiles_10richest = []
+    
+    unprec_pop_quantiles_10poorest = []
+    unprec_pop_quantiles_10richest = []
+    
+    indices_vulnerability = ds_vulnerability.vulnerability_index.data
+    e='heatwavedarea'
+    v='gdp_q_by_p'
+    df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
+    df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
+    df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people    
+    
     for by in birth_years:
         
         gdp = ds_gdp['gdp_isimip_rcp26_mean'].sel(birth_year=by)
@@ -541,17 +525,44 @@ if flags['vulnerability']:
         sorted_pop_nonans_cumsum = sorted_pop_nonans.cumsum()
         sorted_pop_nonans_cumsum_pct = sorted_pop_nonans_cumsum / sorted_pop_nonans.sum()
 
-        # test the bins on population
-        population_quantiles_10poorest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[0]) # groups all even population!!!    
-        population_quantiles_10richest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[-1]) # groups all even population!!!    
+        # gather pop totals for plotting for each birth year
+        population_quantiles_10poorest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[0].item()/10**6) # groups all even population!!!    
+        population_quantiles_10richest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[-1].item()/10**6) # groups all even population!!!    
+        
+        # gather unprec totals for plotting
+        poor_unprec = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)&(df_vulnerability_e['qntl']==0)]['heatwavedarea'].mean()
+        unprec_pop_quantiles_10poorest.append(poor_unprec)
+        
+        rich_unprec = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)&(df_vulnerability_e['qntl']==9)]['heatwavedarea'].mean()
+        unprec_pop_quantiles_10richest.append(rich_unprec)
     
-    y= 
-    width= 
-    height=0.8
+    # FUCK, all the unprecedented numbers are the same across birth years. something wrong.        
     f,(ax1,ax2) = plt.subplots(
         nrows=1,
         ncols=2,
     )
+    # full population poor quantile (gdp)
+    ax1.barh(
+        y=np.arange(1960,2021),
+        width=[i * -1 for i in population_quantiles_10poorest],
+        height=0.8,
+        color='navy'
+    )
+    # full population rich quantile (grdi)
+    ax2.barh(
+        y=np.arange(1960,2021),
+        width=population_quantiles_10richest,
+        height=0.8,
+        color='navy'    
+    )    
+    # unprecedented population poor quantile (gdp)
+    ax1.barh(
+        
+    )
+    # unprecedented population rich quantile (grdi)
+    ax2.barh(
+        
+    )        
     
     
 

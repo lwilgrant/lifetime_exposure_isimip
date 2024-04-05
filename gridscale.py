@@ -1731,41 +1731,14 @@ def plot_maps_gdp_grdi():
 def get_vulnerability_quantiles(
     flags,
     grid_area,
+    da_cohort_size_1960_2020,
     ds_gdp,
     ds_grdi,
 ):
        
     lat = grid_area.lat.values
     lon = grid_area.lon.values
-    qntls_vulnerability=np.arange(10)
-    
-    # first get all cohorts (spatially explicit) for vulnerability population binning and for crossing with emergence masks
-    if not os.path.isfile('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version'])):
-        
-        da_cohort_size_1960_2020 = xr.concat(
-            [xr.full_like(countries_mask,fill_value=np.nan) for by in birth_years],
-            dim='birth_year'
-        ).assign_coords({'birth_year':birth_years})
-        
-        for by in birth_years:
-            
-            for cntry in gridscale_countries:
-                
-                da_cntry = countries_mask.where(countries_mask == countries_regions.map_keys(cntry))
-                cntry_cohort_frac = da_cohort_size.sel(country=cntry,time=by,ages=0) / da_cohort_size.sel(country=cntry,time=by).sum(dim='ages')
-                da_cohort_size_1960_2020.loc[{'birth_year':by}] = xr.where(
-                    da_cntry.notnull(),
-                    da_population.sel(time=by).where(da_cntry.notnull()) * cntry_cohort_frac,
-                    da_cohort_size_1960_2020.loc[{'birth_year':by}],
-                )
-            
-        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
-            pk.dump(da_cohort_size_1960_2020,f)
-        
-    else:
-        
-        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
-            da_cohort_size_1960_2020 = pk.load(f)    
+    qntls_vulnerability=np.arange(10)  
             
     if not os.path.isfile('./data/{}/gdp_deprivation/gdp_quantiles.pkl'.format(flags['version'])):
     
@@ -2051,7 +2024,7 @@ def get_vulnerability_quantiles(
         with open('./data/{}/gdp_deprivation/grdi_quantiles.pkl'.format(flags['version']), 'rb') as f:
             ds_grdi_qntls = pk.load(f)            
         
-    return ds_gdp_qntls, ds_grdi_qntls, da_cohort_size_1960_2020
+    return ds_gdp_qntls, ds_grdi_qntls
 
 #%% ----------------------------------------------------------------
 # get quantiles of vulnerability (gdp and grdi) based on population
@@ -2060,6 +2033,7 @@ def get_vulnerability_quantiles(
 # vulnerability subsets of emergence (so crossing quantiles above with emergence masks to see unprecedented populations based on your vulnerablity group)
 def emergence_by_vulnerability(
     flags,
+    df_GMT_strj,
     ds_gdp,
     ds_grdi,
     da_cohort_size_1960_2020,
@@ -2076,51 +2050,50 @@ def emergence_by_vulnerability(
             'heatwavedarea', 
             'tropicalcyclonedarea',
         ]
-        
         qntls_vulnerability = range(10)
         indices_vulnerability = ['gdp_q_by_p','grdi_q_by_p'] # instead just rcp26 and grdi
         all_runs=np.arange(1,87)
         ds_vulnerability = xr.Dataset(
             data_vars={
                 'heatwavedarea': (
-                    ['run','qntl','vulnerability_index', 'birth_year'],
+                    ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),
                 'cropfailedarea': (
-                    ['run','qntl','vulnerability_index', 'birth_year'],
+                    ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),        
                 'floodedarea': (
-                    ['run','qntl','vulnerability_index', 'birth_year'],
+                    ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),
                 'burntarea': (
-                    ['run','qntl','vulnerability_index', 'birth_year'],
+                    ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),
                 'driedarea': (
-                    ['run','qntl','vulnerability_index', 'birth_year'],
+                    ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),          
                 'tropicalcyclonedarea': (
-                    ['run','qntl','vulnerability_index', 'birth_year'],
+                    ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),                                     
@@ -2129,6 +2102,7 @@ def emergence_by_vulnerability(
                 'run': ('run', all_runs),
                 'qntl': ('qntl', qntls_vulnerability),
                 'vulnerability_index': ('vulnerability_index', indices_vulnerability),
+                'GMT': ('GMT', GMT_current_policies),
                 'birth_year': ('birth_year', birth_years)
             }
         )
@@ -2140,15 +2114,17 @@ def emergence_by_vulnerability(
             v = 'gdp_q_by_p'
             for by in birth_years:
                 for q in qntls_vulnerability:
-                    qntl_gdp = ds_gdp[v].loc[{'birth_year':by,'qntl':q}]         
-                    for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
-                        da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.99',birth_year=by,run=r)
-                        da_emerge_constrained = da_emerge.where(qntl_gdp.notnull())
-                        ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
-                            da_emerge_constrained == 1,
-                            da_cohort_size_1960_2020.sel(birth_year=by),
-                            0
-                        ).sum(dim=('lat','lon'))
+                    qntl_gdp = ds_gdp[v].loc[{'birth_year':by,'qntl':q}]
+                    for step in GMT_current_policies:  
+                        for r in d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].run.data:
+                            da_emerge = d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].sel(qntl='99.99',birth_year=by,run=r).copy()
+                            da_emerge_constrained = da_emerge.where(qntl_gdp.notnull())
+                            unprec_pop = xr.where(
+                                da_emerge_constrained == 1,
+                                da_cohort_size_1960_2020.sel(birth_year=by),
+                                0
+                            ).sum(dim=('lat','lon'))
+                            ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v,'GMT':step,'birth_year':by}] = unprec_pop.copy()
             # then the grdi dataset 
             v = 'grdi_q_by_p'
             for q in qntls_vulnerability:
@@ -2172,4 +2148,42 @@ def emergence_by_vulnerability(
             
     return ds_vulnerability
 
-# %%
+# %%=========================================================================
+
+def get_spatially_explicit_cohorts_1960_2020(
+    flags,
+    gridscale_countries,
+    countries_mask,
+    countries_regions,
+    da_cohort_size,
+):
+
+    # first get all cohorts (spatially explicit) for vulnerability population binning and for crossing with emergence masks
+    if not os.path.isfile('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version'])):
+        
+        da_cohort_size_1960_2020 = xr.concat(
+            [xr.full_like(countries_mask,fill_value=np.nan) for by in birth_years],
+            dim='birth_year'
+        ).assign_coords({'birth_year':birth_years})
+        
+        for by in birth_years:
+            
+            for cntry in gridscale_countries:
+                
+                da_cntry = countries_mask.where(countries_mask == countries_regions.map_keys(cntry))
+                cntry_cohort_frac = da_cohort_size.sel(country=cntry,time=by,ages=0) / da_cohort_size.sel(country=cntry,time=by).sum(dim='ages')
+                da_cohort_size_1960_2020.loc[{'birth_year':by}] = xr.where(
+                    da_cntry.notnull(),
+                    da_population.sel(time=by).where(da_cntry.notnull()) * cntry_cohort_frac,
+                    da_cohort_size_1960_2020.loc[{'birth_year':by}],
+                )
+            
+        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
+            pk.dump(da_cohort_size_1960_2020,f)
+        
+    else:
+        
+        with open('./data/{}/1960-2020_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
+            da_cohort_size_1960_2020 = pk.load(f)
+            
+    return da_cohort_size_1960_2020   
