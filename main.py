@@ -443,7 +443,14 @@ if flags['vulnerability']:
     )
         
     # just a dummy d_global_emergence to run emergence_by_vulnerability
-    d_global_emergence = {} # just to dummify d_global_emergence since the real thing is too much data
+    try:
+        d_global_emergence
+    except NameError:
+        print('to save memory on my laptop, d_global_emergence is not unpickled. defining a dummy var for emergence_by_vulnerability')
+        d_global_emergence={}
+    else:
+        pass
+
     ds_vulnerability = emergence_by_vulnerability(
         flags,
         df_GMT_strj,
@@ -477,93 +484,167 @@ if flags['vulnerability']:
     #         ax.set_xlabel(None)
     #     # f.delaxes(axes[-1][-1])
     #     plt.show()
-        
-    # also plot 1960 vs 2020 for gdp (grdi only has 2020)
-    population_quantiles_10poorest = []
-    population_quantiles_10richest = []
+    extremes = [
+        'burntarea', 
+        'cropfailedarea', 
+        'driedarea', 
+        'floodedarea', 
+        'heatwavedarea', 
+        'tropicalcyclonedarea',
+    ]
     
-    unprec_pop_quantiles_10poorest = []
-    unprec_pop_quantiles_10richest = []
-    
-    indices_vulnerability = ds_vulnerability.vulnerability_index.data
-    e='heatwavedarea'
-    v='gdp_q_by_p'
-    df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
-    df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
-    df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people    
-    
-    for by in birth_years:
+    for e in extremes:
         
-        gdp = ds_gdp['gdp_isimip_rcp26_mean'].sel(birth_year=by)
-        pop = da_cohort_size_1960_2020.sel(birth_year=by)
-
-        gdp = gdp.where(pop.notnull())
-        pop = pop.where(gdp.notnull())
-
-        # check that this worked by seeing len of non-nans
-        if len(xr.DataArray(gdp.values.flatten())) == len(xr.DataArray(pop.values.flatten())):
-            print('should only be using overlapping grid cells')
-
-        #=======================
-        # another attempt where I rename and assign coords to "dim_0" so that coord labels are preserved after dropping nans
-        # will play around with order of sorting/dropping nans/binning here until I get population to bin with roughly equal group sizes, like above, 
-        # NOTE this is the correct/working approach
-        vulnerability = xr.DataArray(gdp.values.flatten())
-        vulnerability = vulnerability.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(vulnerability))}) # have to do this so the coords are traceable back to the 2-D layout
-        vulnerability_ranks = vulnerability.rank(dim='gridcell_number').round()
-        vulnerability_indices = vulnerability_ranks.gridcell_number
-        sorted_vi = vulnerability_indices.sortby(vulnerability_ranks) # (I don't end up using this)
-        sorted_vr = vulnerability_ranks.sortby(vulnerability_ranks) # sort ranks of vulnerability
-        sorted_vr_nonans = sorted_vr[sorted_vr.notnull()] # drop nans from sorted v-ranks
-        sorted_v = vulnerability.sortby(vulnerability_ranks) # sort vulnerability
-        sorted_v_nonans = sorted_v[sorted_v.notnull()] # drop nans from sorted vulnerability array
-
-        pop_flat = xr.DataArray(pop.values.flatten())
-        pop_flat = pop_flat.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(pop_flat))}) # have to do this so the coords are traceable back to the 2-D layout
-        sorted_pop = pop_flat.sortby(vulnerability_ranks) # failed because gdp and pop need common mask
-        sorted_pop_nonans = sorted_pop[sorted_pop.notnull()]
-        sorted_pop_nonans_cumsum = sorted_pop_nonans.cumsum()
-        sorted_pop_nonans_cumsum_pct = sorted_pop_nonans_cumsum / sorted_pop_nonans.sum()
-
-        # gather pop totals for plotting for each birth year
-        population_quantiles_10poorest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[0].item()/10**6) # groups all even population!!!    
-        population_quantiles_10richest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[-1].item()/10**6) # groups all even population!!!    
+        # also plot 1960 vs 2020 for gdp (grdi only has 2020)
+        population_quantiles_10poorest = []
+        population_quantiles_10richest = []
         
-        # gather unprec totals for plotting
-        poor_unprec = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)&(df_vulnerability_e['qntl']==0)]['heatwavedarea'].mean()
-        unprec_pop_quantiles_10poorest.append(poor_unprec)
+        population_quantiles_20poorest = []
+        population_quantiles_20richest = []    
         
-        rich_unprec = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)&(df_vulnerability_e['qntl']==9)]['heatwavedarea'].mean()
-        unprec_pop_quantiles_10richest.append(rich_unprec)
-    
-    # FUCK, all the unprecedented numbers are the same across birth years. something wrong.        
-    f,(ax1,ax2) = plt.subplots(
-        nrows=1,
-        ncols=2,
-    )
-    # full population poor quantile (gdp)
-    ax1.barh(
-        y=np.arange(1960,2021),
-        width=[i * -1 for i in population_quantiles_10poorest],
-        height=0.8,
-        color='navy'
-    )
-    # full population rich quantile (grdi)
-    ax2.barh(
-        y=np.arange(1960,2021),
-        width=population_quantiles_10richest,
-        height=0.8,
-        color='navy'    
-    )    
-    # unprecedented population poor quantile (gdp)
-    ax1.barh(
+        # ensemble mean unprecedented population for poor and rich quantiles
+        unprec_pop_quantiles_10poorest = []
+        unprec_pop_quantiles_10richest = []
         
-    )
-    # unprecedented population rich quantile (grdi)
-    ax2.barh(
+        unprec_pop_quantiles_20poorest = []
+        unprec_pop_quantiles_20richest = []     
         
-    )        
-    
+        # errorbar info (+/- std) for the above quantiles
+        unprec_pop_std_10poorest = []
+        unprec_pop_std_10richest = []
+        
+        indices_vulnerability = ds_vulnerability.vulnerability_index.data
+        # e='heatwavedarea'
+        v='gdp_q_by_p'
+        df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
+        df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
+        df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people    
+        
+        for by in birth_years:
+            
+            gdp = ds_gdp['gdp_isimip_rcp26_mean'].sel(birth_year=by)
+            pop = da_cohort_size_1960_2020.sel(birth_year=by)
+
+            gdp = gdp.where(pop.notnull())
+            pop = pop.where(gdp.notnull())
+
+            #=======================
+            # another attempt where I rename and assign coords to "dim_0" so that coord labels are preserved after dropping nans
+            # will play around with order of sorting/dropping nans/binning here until I get population to bin with roughly equal group sizes, like above, 
+            # NOTE this is the correct/working approach
+            vulnerability = xr.DataArray(gdp.values.flatten())
+            vulnerability = vulnerability.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(vulnerability))}) # have to do this so the coords are traceable back to the 2-D layout
+            vulnerability_ranks = vulnerability.rank(dim='gridcell_number').round()
+            vulnerability_indices = vulnerability_ranks.gridcell_number
+            sorted_vi = vulnerability_indices.sortby(vulnerability_ranks) # (I don't end up using this)
+            sorted_vr = vulnerability_ranks.sortby(vulnerability_ranks) # sort ranks of vulnerability
+            sorted_vr_nonans = sorted_vr[sorted_vr.notnull()] # drop nans from sorted v-ranks
+            sorted_v = vulnerability.sortby(vulnerability_ranks) # sort vulnerability
+            sorted_v_nonans = sorted_v[sorted_v.notnull()] # drop nans from sorted vulnerability array
+
+            pop_flat = xr.DataArray(pop.values.flatten())
+            pop_flat = pop_flat.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(pop_flat))}) # have to do this so the coords are traceable back to the 2-D layout
+            sorted_pop = pop_flat.sortby(vulnerability_ranks) # failed because gdp and pop need common mask
+            sorted_pop_nonans = sorted_pop[sorted_pop.notnull()]
+            sorted_pop_nonans_cumsum = sorted_pop_nonans.cumsum()
+            sorted_pop_nonans_cumsum_pct = sorted_pop_nonans_cumsum / sorted_pop_nonans.sum()
+
+            # gather pop totals for plotting for each birth year
+            population_quantiles_10poorest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[0].item()/10**6) # groups all even population!!!    
+            population_quantiles_10richest.append(sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum()[-1].item()/10**6) # groups all even population!!!    
+            
+            # gather unprec totals for plotting
+            poor_unprec = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)&(df_vulnerability_e['qntl']==0)][e].mean()
+            unprec_pop_quantiles_10poorest.append(poor_unprec)
+            
+            rich_unprec = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)&(df_vulnerability_e['qntl']==9)][e].mean()
+            unprec_pop_quantiles_10richest.append(rich_unprec)
+        
+        
+        print(e)
+        f,(ax1,ax2) = plt.subplots(
+            nrows=1,
+            ncols=2,
+            figsize=(6,6),
+            sharey=True,
+        )
+        f.subplots_adjust(wspace=0)
+        # full population poor quantile (gdp)
+        ax1.barh(
+            y=np.arange(1960,2021,10),
+            width=[i * -1 for i in population_quantiles_10poorest[0::10]],
+            height=8,
+            color='darkgoldenrod',
+            zorder=1,
+            alpha=0.3
+        )
+        # unprec population poor quantile (gdp)
+        ax1.barh(
+            y=np.arange(1960,2021,10),
+            width=[i * -1 for i in unprec_pop_quantiles_10poorest[0::10]],
+            height=8,
+            color='darkgoldenrod',
+            zorder=1,
+        )    
+        # # ax1.set_xlabel('Millions of people')
+        ax1.text(
+            x=1,y=-0.1,
+            s='Millions of people',
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=ax1.transAxes,
+            fontsize=10
+        )
+        ax1.set_xticks(
+            ticks=[-4,-8,-12],
+            labels=["4","8","12"]
+        )
+        ax1.set_ylabel(
+            "Birth year",
+            fontsize=10,
+            labelpad=5,
+        )
+        ax1.text(
+            x=0.5,y=1.1,
+            s='Poorest 10% in \n lifetime mean GDP',
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=ax1.transAxes,
+            fontsize=10
+        )    
+        
+        # full population rich quantile (grdi)
+        ax2.barh(
+            y=np.arange(1960,2021,10),
+            width=population_quantiles_10richest[0::10],
+            height=8,
+            color='forestgreen',
+            zorder=1,
+            alpha=0.3) 
+        # unprec population rich quantile (grdi)
+        ax2.barh(
+            y=np.arange(1960,2021,10),
+            width=unprec_pop_quantiles_10richest[0::10],
+            height=8,
+            color='forestgreen',
+            zorder=1,)     
+        ax2.set_xticks(
+            ticks=[4,8,12],
+            labels=["4","8","12"]
+        )     
+        ax2.text(
+            x=0.5,y=1.1,
+            s='Richest 10% in \n lifetime mean GDP',
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=ax2.transAxes,
+            fontsize=10
+        )        
+        ax1.spines['top'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+        f.savefig('./figures/vln_pyramid_{}.png'.format(e))
+        plt.show()
     
 
 
