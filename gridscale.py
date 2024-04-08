@@ -2125,18 +2125,22 @@ def emergence_by_vulnerability(
                                 0
                             ).sum(dim=('lat','lon'))
                             ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v,'GMT':step,'birth_year':by}] = unprec_pop.copy()
+                            
             # then the grdi dataset 
             v = 'grdi_q_by_p'
-            for q in qntls_vulnerability:
-                qntl_grdi = ds_grdi[v].loc[{'qntl':q}]
-                for r in d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].run.data:
-                    da_emerge = d_global_emergence[e]['2.7']['emergence_per_run_{}'.format(e)].sel(qntl='99.99',birth_year=2020,run=r)
-                    da_emerge_constrained = da_emerge.where(qntl_grdi.notnull())
-                    ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v}] = xr.where(
-                        da_emerge_constrained == 1,
-                        da_cohort_size_1960_2020.sel(birth_year=2020),
-                        0
-                    ).sum(dim=('lat','lon')) 
+            for by in birth_years:
+                for q in qntls_vulnerability:
+                    qntl_grdi = ds_grdi[v].loc[{'qntl':q}] # broadcasting 2020 quantiles of grdi against all birth years
+                    for step in GMT_current_policies: 
+                        for r in d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].run.data:
+                            da_emerge = d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].sel(qntl='99.99',birth_year=by,run=r).copy()
+                            da_emerge_constrained = da_emerge.where(qntl_grdi.notnull())
+                            unprec_pop = xr.where(
+                                da_emerge_constrained == 1,
+                                da_cohort_size_1960_2020.sel(birth_year=by),
+                                0
+                            ).sum(dim=('lat','lon'))                            
+                            ds_vulnerability['{}'.format(e)].loc[{'run':r,'qntl':q,'vulnerability_index':v,'GMT':step,'birth_year':by}] = unprec_pop.copy()
                     
         with open('./data/{}/emergence_by_vulnerability.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(ds_vulnerability,f) 
