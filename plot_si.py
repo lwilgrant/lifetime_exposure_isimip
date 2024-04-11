@@ -1389,7 +1389,7 @@ def plot_gmt_pathways(
                 color=colors_rcp[rcp],
                 zorder=2,
                 lw=lw_mean,
-                style='-'
+                style='-',
             )  
             
     # plot new ar6 marker scenarios in color
@@ -1422,7 +1422,6 @@ def plot_gmt_pathways(
         lw=2,
     )                
 
-
     axrcp.set_ylabel(
         axar6_ylab, 
         va='center', 
@@ -1450,6 +1449,8 @@ def plot_gmt_pathways(
         fontsize=axis_font, 
         labelpad=10,
     )    
+    
+    axrcp.get_legend().remove()
 
 
     for i,ax in enumerate([axrcp,axar6]):
@@ -1468,45 +1469,45 @@ def plot_gmt_pathways(
         )    
         ax.set_axisbelow(True) 
 
-    # handles_ar6 = [
-    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['1.5']),
-    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['2.5']),
-    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['CP']),
-    #     Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors['3.5']),
-    # ]    
+    handles_ar6 = [
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color='grey'),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors[0]),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors[10]),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors[20]),
+    ]    
 
     handles_rcp = [
         Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp85']),
         Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp60']),
-        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp26'])         
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp26']),
     ]
 
-    # labels_ar6= [
-    #     '1.5 °C',
-    #     '2.5 °C',
-    #     'Current pledges',
-    #     '3.5 °C',
-    # ]
+    labels_ar6= [
+        'All trajectories',
+        '1.5 °C',
+        '2.5 °C',
+        '3.5 °C',
+    ]
     labels_rcp = [
         'RCP 8.5',
         'RCP 6.0',
         'RCP 2.6',        
     ]    
         
-    # axar6.legend(
-    #     handles_ar6, 
-    #     labels_ar6, 
-    #     bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
-    #     loc=3,
-    #     ncol=1,
-    #     fontsize=legend_font, 
-    #     mode="expand", 
-    #     borderaxespad=0.,
-    #     frameon=False, 
-    #     columnspacing=0.05, 
-    #     handlelength=legend_entrylen, 
-    #     handletextpad=legend_entrypad,
-    # )  
+    axar6.legend(
+        handles_ar6, 
+        labels_ar6, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )  
     axrcp.legend(
         handles_rcp, 
         labels_rcp, 

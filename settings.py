@@ -130,7 +130,7 @@ def init():
     # GMT_labels = np.arange(0,29).astype('int')
     GMT_labels = np.arange(0,21).astype('int')
     GMT_window = 21
-    GMT_current_policies = [12,17]
+    GMT_current_policies = [12,17] # this is for 2.7 and 3.2 degrees warming targets, unknown which is best to use
 
     # set kernel x-values
     global kernel_x

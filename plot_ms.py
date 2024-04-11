@@ -51,8 +51,11 @@ def plot_conceptual(
     df_life_expectancy_5,
 ):
     # get data
-    cntry='Belgium'
-    city_name='Brussels'
+    #
+    # cntry='Belgium'
+    # city_name='Brussels'
+    cntry='Switzerland'
+    city_name='Zurich'
     # concept_bys = np.arange(1960,2021,30)
     concept_bys = np.arange(1960,2021,1)
     print(cntry)
@@ -68,8 +71,12 @@ def plot_conceptual(
     lat_weights = np.cos(np.deg2rad(da_cntry.lat))
     lat_weights.name = "weights"   
     # brussels coords  
-    city_lat = 50.8476
-    city_lon = 4.3572   
+    # city_lat = 50.8476
+    # city_lon = 4.3572  
+    # zurich coords
+    # 47.3769° N, 8.5417° E
+    city_lat = 47.3769
+    city_lon = 8.5417
 
     ds_spatial = xr.Dataset(
         data_vars={
@@ -779,7 +786,7 @@ def plot_conceptual(
     unprecedented=ds_dmg['by_population_y0'].sel(birth_year=np.arange(y1,y2+1),lat=city_lat,lon=city_lon,method='nearest').sum(dim='birth_year').round().item()    
     print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,20))        
 
-    f.savefig('./ms_figures/f1_concept_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/f1_concept_{}_{}.png'.format(flags['version'],cntry),dpi=1000,bbox_inches='tight')
 
 #%% ----------------------------------------------------------------
 # plotting pf heatmaps for grid scale across hazards with and without
