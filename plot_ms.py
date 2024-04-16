@@ -3635,7 +3635,7 @@ def plot_hexagon_landfrac_union(
 
     f.savefig('./ms_figures/emergence_landfrac_union_hexagons_{}.png'.format(landfrac_threshold),dpi=1000,bbox_inches='tight')
 
-# %%
+#%% ----------------------------------------------------------------
 
 def plot_hexagon_multithreshold(
     d_global_emergence,
@@ -3916,4 +3916,153 @@ def plot_hexagon_multithreshold(
     cb_u.outline.set_color('gray')
 
     # f.savefig('./ms_figures/emergence_union_hexagons_multithresh.png',dpi=1000,bbox_inches='tight')
+#%% ----------------------------------------------------------------
+
+def pyramid_plot(
+    e,
+    GMT,
+    df_GMT_strj,
+    poor_pop,
+    poor_unprec,
+    poor_std,
+    rich_pop,
+    rich_unprec,
+    rich_std,
+    pvalues_poor,
+    pvalues_rich,
+    sl,
+    qntl_range,
+    unit,
+    ax_xts,
+    vln_type,
+):
+    per_x = 5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
+    height = 4 # thickness of bars
+    
+    if unit == 'pct':
+        poor_unprec = poor_unprec / poor_pop * 100
+        poor_std = poor_std / poor_pop * 100
+        rich_unprec = rich_unprec / rich_pop * 100
+        rich_std = rich_std / rich_pop * 100
+        
+    print('{}-{}'.format(e,str(df_GMT_strj.loc[2100,GMT])))
+    f,(ax1,ax2) = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=(6,6),
+        sharey=True,
+    )
+    f.subplots_adjust(wspace=0)
+    # full population poor quantile (gdp)
+    if unit == 'pple':
+        ax1.barh(
+            y=np.arange(1960,2021,per_x),
+            width=[i * -1 for i in poor_pop[0::per_x]],
+            height=height,
+            color='darkgoldenrod',
+            zorder=1,
+            alpha=0.3
+        )
+    # unprec population poor quantile (gdp)
+    ax1.barh(
+        y=np.arange(1960,2021,per_x),
+        width=[i * -1 for i in poor_unprec[0::per_x]],
+        height=height,
+        color='darkgoldenrod',
+        zorder=1,
+        xerr=[i * -1 for i in poor_std[0::per_x]],
+        # xerr=poor_std,
+    )    
+    # # ax1.set_xlabel('Millions of people')
+    if unit == 'pple':
+        variable = 'Millions of people'
+    else:
+        variable = 'Percentage of cohort'
+    ax1.text(
+        x=1,y=-0.1,
+        s=variable,
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes,
+        fontsize=10
+    )
+    ax1.set_xticks(
+        ticks=ax_xts['ax1_xticks_{}'.format(unit)],
+        labels=ax_xts['xtick_labels_{}'.format(unit)],
+    )
+    ax1.set_ylabel(
+        "Birth year",
+        fontsize=10,
+        labelpad=5,
+    )
+    ax1.text(
+        x=0.5,y=1.1,
+        s='Poorest {}% in \n lifetime mean GDP'.format(qntl_range),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes,
+        fontsize=10
+    )    
+    
+    # full population rich quantile (grdi)
+    if unit == 'pple':
+        ax2.barh(
+            y=np.arange(1960,2021,per_x),
+            width=rich_pop[0::per_x],
+            height=height,
+            color='forestgreen',
+            zorder=1,
+            alpha=0.3
+        ) 
+    # unprec population rich quantile (grdi)
+    ax2.barh(
+        y=np.arange(1960,2021,per_x),
+        width=rich_unprec[0::per_x],
+        height=height,
+        color='forestgreen',
+        zorder=1,
+        # xerr=rich_std,
+        xerr=[i * -1 for i in rich_std[0::per_x]],
+    )     
+    ax2.tick_params(left=False)
+    ax2.set_xticks(
+        ticks=ax_xts['ax2_xticks_{}'.format(unit)],
+        labels=ax_xts['xtick_labels_{}'.format(unit)]
+    )     
+    ax2.text(
+        x=0.5,y=1.1,
+        s='Richest {}% in \n lifetime mean GDP'.format(qntl_range),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax2.transAxes,
+        fontsize=10
+    )        
+    ax1.spines['top'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    
+    # plot asterisk or star in middle of bar (0.5 * unprec number as position) if significant differenc and if given side is bigger
+    for i,by in enumerate(birth_years[0::per_x]):
+        if pvalues_poor[0::per_x][i] < sl:
+            # if poor_unprec[0::per_x][i] > rich_unprec[0::per_x][i]: # plot on side with greater unprecedented numbers
+            ax1.plot(
+                poor_unprec[0::per_x][i]/2 * -1, # negative so it's on the left side, place halfway through bar
+                by,
+                marker=(6,2,0),
+                zorder=5,
+                markersize=10,
+                color='k',
+            )
+        if pvalues_rich[0::per_x][i] < sl:
+            # elif rich_unprec[0::per_x][i] > poor_unprec[0::per_x][i]:
+            ax2.plot(
+                rich_unprec[0::per_x][i]/2,
+                by,
+                marker=(6,2,0),
+                zorder=5,
+                markersize=10,  
+                color='k',                  
+            )                
+    # f.savefig('./figures/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit))
+    plt.show()
 # %%

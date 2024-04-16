@@ -26,6 +26,7 @@ import pandas as pd
 import geopandas as gpd
 # import rioxarray as rxr
 from scipy import interpolate
+from scipy.stats import ttest_rel
 import cartopy.crs as ccrs
 from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, GMT_current_policies, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
@@ -160,7 +161,6 @@ def gridscale_emergence(
     countries_regions,
     countries_mask,
     df_life_expectancy_5,
-    GMT_indices,
     da_population,
 ):
 
@@ -921,6 +921,7 @@ def collect_global_emergence(
     ar6_land_3D = rm.defined_regions.ar6.land.mask_3D(lon,lat)
     grid_area_land = grid_area.where(land_mask.notnull())
     da_grid_area_total_ar6 = grid_area_land.where(ar6_land_3D).sum(dim=('lat','lon'))
+    GMT_integers = [0,10,12,17,20]
 
     extremes = [
         'burntarea', 
@@ -1057,7 +1058,7 @@ def collect_global_emergence(
                         sims_per_step[step].append(i)
 
             # per current policies GMT trajectory, collect emergence masks
-            for step in GMT_current_policies:
+            for step in GMT_integers:
             
                 ds_global_emergence = xr.Dataset(
                     data_vars={
@@ -2064,47 +2065,48 @@ def emergence_by_vulnerability(
         qntls_vulnerability = range(10)
         indices_vulnerability = ['gdp_q_by_p','grdi_q_by_p'] # instead just rcp26 and grdi
         all_runs=np.arange(1,87)
+        GMT_integers = [0,10,12,17,20]
         ds_vulnerability = xr.Dataset(
             data_vars={
                 'heatwavedarea': (
                     ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_integers),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),
                 'cropfailedarea': (
                     ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_integers),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),        
                 'floodedarea': (
                     ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_integers),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),
                 'burntarea': (
                     ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_integers),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),
                 'driedarea': (
                     ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_integers),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),          
                 'tropicalcyclonedarea': (
                     ['run','qntl','vulnerability_index', 'GMT', 'birth_year'],
                     np.full(
-                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_current_policies),len(birth_years)),
+                        (len(all_runs),len(qntls_vulnerability),len(indices_vulnerability),len(GMT_integers),len(birth_years)),
                         fill_value=np.nan,
                     ),
                 ),                                     
@@ -2113,7 +2115,7 @@ def emergence_by_vulnerability(
                 'run': ('run', all_runs),
                 'qntl': ('qntl', qntls_vulnerability),
                 'vulnerability_index': ('vulnerability_index', indices_vulnerability),
-                'GMT': ('GMT', GMT_current_policies),
+                'GMT': ('GMT', GMT_integers),
                 'birth_year': ('birth_year', birth_years)
             }
         )
@@ -2126,7 +2128,7 @@ def emergence_by_vulnerability(
             for by in birth_years:
                 for q in qntls_vulnerability:
                     qntl_gdp = ds_gdp[v].loc[{'birth_year':by,'qntl':q}]
-                    for step in GMT_current_policies:  
+                    for step in GMT_integers:  
                         for r in d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].run.data:
                             da_emerge = d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].sel(qntl='99.99',birth_year=by,run=r).copy()
                             da_emerge_constrained = da_emerge.where(qntl_gdp.notnull())
@@ -2142,7 +2144,7 @@ def emergence_by_vulnerability(
             for by in birth_years:
                 for q in qntls_vulnerability:
                     qntl_grdi = ds_grdi[v].loc[{'birth_year':by,'qntl':q}] # broadcasting 2020 quantiles of grdi against all birth years
-                    for step in GMT_current_policies: 
+                    for step in GMT_integers: 
                         for r in d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].run.data:
                             da_emerge = d_global_emergence[e][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(e)].sel(qntl='99.99',birth_year=by,run=r).copy()
                             da_emerge_constrained = da_emerge.where(qntl_grdi.notnull())

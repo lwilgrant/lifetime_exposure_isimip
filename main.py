@@ -109,7 +109,7 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles    
-flags['global_emergence'] = 1       # 0: do not load pickles of global emergence masks
+flags['global_emergence_recollect'] = 1       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
 flags['gdp_deprivation'] = 1        # 0: do not process/load lifetime GDP/GRDI average
                                     # 1: load lifetime GDP average analysis        
@@ -142,7 +142,7 @@ from load_manip import *
 # Load global mean temperature projections
 global df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj
 
-df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, GMT_indices = load_GMT(
+df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj = load_GMT(
     year_start,
     year_end,
     year_range,
@@ -378,7 +378,6 @@ if flags['gridscale']:
         countries_regions,
         countries_mask,
         df_life_expectancy_5,
-        GMT_indices,
         da_population,
     )
     
@@ -402,7 +401,7 @@ else:
 #     )
 
 # read in global emergence masks
-if flags['global_emergence']:
+if flags['global_emergence_recollect']:
     
     d_global_emergence = collect_global_emergence(
         grid_area,
@@ -460,34 +459,9 @@ if flags['vulnerability']:
         da_cohort_size_1960_2020,
         d_global_emergence,
     )
-               
-    # convert to millions people
-    # 6 rows for extremes
-    # 7 columns for vulnerability index
-    # indices_vulnerability = ds_vulnerability.vulnerability_index.data
-    # df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
-    # for e in extremes:
-    #     print(e)
-    #     f,axes = plt.subplots(
-    #         nrows=1,
-    #         ncols=2,
-    #         figsize=(16,14)
-    #     )
-    #     df_vulnerability_e = df_vulnerability.loc[:,['run','qntl','vulnerability_index','birth_year',e]]
-    #     df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people
-    #     by=2020
-    #     for ax,v in zip(axes.flatten(),indices_vulnerability):
-    #         # ax.set_title()
-    #         df_vulnerability_v = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&(df_vulnerability_e['birth_year']==by)]
-    #         df_vulnerability_v.boxplot(column=e,by='qntl',ax=ax)
-    #         ax.set_title(None)
-    #         ax.set_title(v)
-    #         ax.set_xlabel(None)
-    #     # f.delaxes(axes[-1][-1])
-    #     plt.show()
     
     if flags['testing']:
-    
+            
         # GDP vulnerability quantile pyramid plots ===========================================================
         extremes = [
             'burntarea', 
@@ -497,6 +471,8 @@ if flags['vulnerability']:
             'heatwavedarea', 
             'tropicalcyclonedarea',
         ]
+        
+        GMT_integers = [0,10,12,17,20]
         
         # also plot 1960 vs 2020 for gdp (grdi only has 2020)
         population_quantiles_10poorest = []
@@ -549,7 +525,7 @@ if flags['vulnerability']:
             
         for e in extremes:
             
-            for GMT in GMT_current_policies:
+            for GMT in GMT_current_policies:#GMT_integers:
                 
                 # ensemble mean unprecedented population for poor and rich quantiles
                 unprec_pop_quantiles_10poorest = []
@@ -563,7 +539,13 @@ if flags['vulnerability']:
                 unprec_pop_std_10richest = []
                 
                 unprec_pop_std_20poorest = []
-                unprec_pop_std_20richest = []                
+                unprec_pop_std_20richest = []         
+                
+                # ttest results ("*_poor" means that we test for poor quantiles to be greater. "*_rich" for rich quantiles to be greater)
+                ttest_10pc_pvals_poor = []       
+                ttest_20pc_pvals_poor = []       
+                ttest_10pc_pvals_rich = []       
+                ttest_20pc_pvals_rich = []       
                 
                 indices_vulnerability = ds_vulnerability.vulnerability_index.data
                 v='gdp_q_by_p'
@@ -589,6 +571,21 @@ if flags['vulnerability']:
                                 (df_vulnerability_e['GMT']==GMT)][e]
                     unprec_pop_quantiles_10richest.append(rich_unprec_10pc.mean())
                     unprec_pop_std_10richest.append(rich_unprec_10pc.std())
+                    
+                    # t test for difference between rich and poor samples
+                    ttest_10pc_poor = ttest_rel(
+                        a=poor_unprec_10pc[poor_unprec_10pc.notnull()].values,
+                        b=rich_unprec_10pc[rich_unprec_10pc.notnull()].values,
+                        alternative='greater'
+                    )
+                    ttest_10pc_pvals_poor.append(ttest_10pc_poor.pvalue)
+                    ttest_10pc_rich = ttest_rel(
+                        a=rich_unprec_10pc[rich_unprec_10pc.notnull()].values,
+                        b=poor_unprec_10pc[poor_unprec_10pc.notnull()].values,
+                        alternative='greater',
+                    )
+                    ttest_10pc_pvals_poor.append(ttest_10pc_poor.pvalue) 
+                    ttest_10pc_pvals_rich.append(ttest_10pc_rich.pvalue)                   
                     
                     # poorest 20 percent
                     poor_unprec_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
@@ -624,134 +621,96 @@ if flags['vulnerability']:
                         (df_vulnerability_e['birth_year']==by)&\
                             (df_vulnerability_e['qntl']>=8)&\
                                     (df_vulnerability_e['GMT']==GMT)][e].std()
-                    )                    
+                    )  
+                    
+                    # t test for difference between rich and poor samples
+                    ttest_20pc_poor = ttest_rel(
+                        a=np.concatenate((poor_unprec_20pci[poor_unprec_20pci.notnull()].values,poor_unprec_20pcii[poor_unprec_20pcii.notnull()].values)),
+                        b=np.concatenate((rich_unprec_20pci[rich_unprec_20pci.notnull()].values,rich_unprec_20pcii[rich_unprec_20pcii.notnull()].values)),
+                        alternative='greater'
+                    )  
+                    ttest_20pc_pvals_poor.append(ttest_20pc_poor.pvalue)
+                    ttest_20pc_rich = ttest_rel(
+                        a=np.concatenate((rich_unprec_20pci[rich_unprec_20pci.notnull()].values,rich_unprec_20pcii[rich_unprec_20pcii.notnull()].values)),
+                        b=np.concatenate((poor_unprec_20pci[poor_unprec_20pci.notnull()].values,poor_unprec_20pcii[poor_unprec_20pcii.notnull()].values)),
+                        alternative='greater'
+                    )                      
+                    ttest_20pc_pvals_rich.append(ttest_20pc_rich.pvalue)
                 
-                for qntl_range in ('10', '20'):
+                # for qntl_range in ('10', '20'):
+                qntl_range='10'
                     
-                    if qntl_range == '10':
-                        
-                        # data
-                        poor_unprec = unprec_pop_quantiles_10poorest
-                        poor_std = unprec_pop_std_10poorest
-                        poor_pop = population_quantiles_10poorest
-                        rich_unprec = unprec_pop_quantiles_10richest
-                        rich_std = unprec_pop_std_10richest
-                        rich_pop = population_quantiles_10richest
-                        
-                        # labels
-                        ax1_xticks = [-4,-8,-12]
-                        ax1_xtick_labels = ["4","8","12"]
-                        
-                        ax2_xticks = [4,8,12]
-                        ax2_xtick_labels = ax1_xtick_labels             
-                        
-                    elif qntl_range == '20':
-                        
-                        poor_unprec = unprec_pop_quantiles_20poorest
-                        poor_std = unprec_pop_std_20poorest
-                        poor_pop = population_quantiles_20poorest
-                        rich_unprec = unprec_pop_quantiles_20richest
-                        rich_std = unprec_pop_std_20richest
-                        rich_pop = population_quantiles_20richest    
-                        
-                        # labels
-                        ax1_xticks = [-5,-10,-15,-20,-25]
-                        ax1_xtick_labels = ["5","10","15","20","25"]
-                        
-                        ax2_xticks = [5,10,15,20,25]
-                        ax2_xtick_labels = ax1_xtick_labels                                           
-                        
-                    print('{}-{}'.format(e,str(df_GMT_strj.loc[2100,GMT])))
-                    f,(ax1,ax2) = plt.subplots(
-                        nrows=1,
-                        ncols=2,
-                        figsize=(6,6),
-                        sharey=True,
-                    )
-                    f.subplots_adjust(wspace=0)
-                    # full population poor quantile (gdp)
-                    ax1.barh(
-                        y=np.arange(1960,2021,10),
-                        width=[i * -1 for i in poor_pop[0::10]],
-                        height=8,
-                        color='darkgoldenrod',
-                        zorder=1,
-                        alpha=0.3
-                    )
-                    # unprec population poor quantile (gdp)
-                    ax1.barh(
-                        y=np.arange(1960,2021,10),
-                        width=[i * -1 for i in poor_unprec[0::10]],
-                        height=8,
-                        color='darkgoldenrod',
-                        zorder=1,
-                        xerr=[i * -1 for i in poor_std[0::10]],
-                        # xerr=poor_std,
-                    )    
-                    # # ax1.set_xlabel('Millions of people')
-                    ax1.text(
-                        x=1,y=-0.1,
-                        s='Millions of people',
-                        horizontalalignment='center',
-                        verticalalignment='center',
-                        transform=ax1.transAxes,
-                        fontsize=10
-                    )
-                    ax1.set_xticks(
-                        ticks=ax1_xticks,
-                        labels=ax1_xtick_labels,
-                    )
-                    ax1.set_ylabel(
-                        "Birth year",
-                        fontsize=10,
-                        labelpad=5,
-                    )
-                    ax1.text(
-                        x=0.5,y=1.1,
-                        s='Poorest {}% in \n lifetime mean GDP'.format(qntl_range),
-                        horizontalalignment='center',
-                        verticalalignment='center',
-                        transform=ax1.transAxes,
-                        fontsize=10
-                    )    
+                if qntl_range == '10':
                     
-                    # full population rich quantile (grdi)
-                    ax2.barh(
-                        y=np.arange(1960,2021,10),
-                        width=rich_pop[0::10],
-                        height=8,
-                        color='forestgreen',
-                        zorder=1,
-                        alpha=0.3
-                    ) 
-                    # unprec population rich quantile (grdi)
-                    ax2.barh(
-                        y=np.arange(1960,2021,10),
-                        width=rich_unprec[0::10],
-                        height=8,
-                        color='forestgreen',
-                        zorder=1,
-                        # xerr=rich_std,
-                        xerr=[i * -1 for i in rich_std[0::10]],
-                    )     
-                    ax2.tick_params(left=False)
-                    ax2.set_xticks(
-                        ticks=ax2_xticks,
-                        labels=ax2_xtick_labels
-                    )     
-                    ax2.text(
-                        x=0.5,y=1.1,
-                        s='Richest {}% in \n lifetime mean GDP'.format(qntl_range),
-                        horizontalalignment='center',
-                        verticalalignment='center',
-                        transform=ax2.transAxes,
-                        fontsize=10
-                    )        
-                    ax1.spines['top'].set_visible(False)
-                    ax2.spines['top'].set_visible(False)
-                    ax2.spines['right'].set_visible(False)
-                    f.savefig('./figures/vln_pyramid_gdp_{}_{}_{}.png'.format(e,str(df_GMT_strj.loc[2100,GMT]),qntl_range))
-                    plt.show()
+                    # data
+                    poor_unprec = np.asarray(unprec_pop_quantiles_10poorest)
+                    poor_std = np.asarray(unprec_pop_std_10poorest)
+                    poor_pop = np.asarray(population_quantiles_10poorest)
+                    rich_unprec = np.asarray(unprec_pop_quantiles_10richest)
+                    rich_std = np.asarray(unprec_pop_std_10richest)
+                    rich_pop = np.asarray(population_quantiles_10richest)
+                    pvalues_poor = np.asarray(ttest_10pc_pvals_poor)
+                    pvalues_rich = np.asarray(ttest_10pc_pvals_rich)
+                    
+                    # # labels
+                    # ax1_xticks = [-4,-8,-12]
+                    # ax1_xtick_labels = ["4","8","12"]
+                    
+                    # ax2_xticks = [4,8,12]
+                    # ax2_xtick_labels = ax1_xtick_labels      
+                    # labels
+                    ax_xts = {}
+                    ax_xts['ax1_xticks_pple'] = [-4,-8,-12]
+                    ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+                    ax_xts['xtick_labels_pple'] = ["4","8","12"]
+                    ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+
+                    ax_xts['ax2_xticks_pple'] = [4,8,12]
+                    ax_xts['ax2_xticks_pct'] = [25,50,75,100]                               
+                    
+                elif qntl_range == '20':
+                    
+                    poor_unprec = np.asarray(unprec_pop_quantiles_20poorest)
+                    poor_std = np.asarray(unprec_pop_std_20poorest)
+                    poor_pop = np.asarray(population_quantiles_20poorest)
+                    rich_unprec = np.asarray(unprec_pop_quantiles_20richest)
+                    rich_std = np.asarray(unprec_pop_std_20richest)
+                    rich_pop = np.asarray(population_quantiles_20richest)
+                    pvalues_poor = np.asarray(ttest_20pc_pvals_poor)
+                    pvalues_rich = np.asarray(ttest_20pc_pvals_rich)
+                    
+                    # labels
+                    ax_xts = {}
+                    ax_xts['ax1_xticks_pple'] = [-5,-10,-15,-20,-25]
+                    ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+                    ax_xts['xtick_labels_pple'] = ["5","10","15","20","25"]
+                    ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+
+                    ax_xts['ax2_xticks_pple'] = [5,10,15,20,25]
+                    ax_xts['ax2_xticks_pct'] = [25,50,75,100]
+                
+                vln_type='gdp'
+                sl=0.05 # significance level
+                # for unit in ('pct','pple'): # 'pple' ("people") or 'pct' ("percentage"), for xaxis ticks
+                unit='pple'
+                pyramid_plot(
+                    e,
+                    GMT,
+                    df_GMT_strj,
+                    poor_pop,
+                    poor_unprec,
+                    poor_std,
+                    rich_pop,
+                    rich_unprec,
+                    rich_std,
+                    pvalues_poor,
+                    pvalues_rich,
+                    sl,
+                    qntl_range,
+                    unit,
+                    ax_xts,
+                    vln_type,
+                )
         
         # grdi vulnerability quantil pyramid plots ===========================================================
         
@@ -847,6 +806,9 @@ if flags['vulnerability']:
                     unprec_pop_quantiles_10richest.append(rich_unprec_10pc.mean())
                     unprec_pop_std_10richest.append(rich_unprec_10pc.std())
                     
+                    # t test for difference between rich and poor samples
+                    ttest_rel(a=)                    
+                    
                     # poorest 20 percent
                     poor_unprec_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
                         (df_vulnerability_e['birth_year']==by)&\
@@ -916,99 +878,25 @@ if flags['vulnerability']:
                         ax1_xtick_labels = ["5","10","15","20","25"]
                         
                         ax2_xticks = [5,10,15,20,25]
-                        ax2_xtick_labels = ax1_xtick_labels                                           
-                        
-                    print('{}-{}'.format(e,str(df_GMT_strj.loc[2100,GMT])))
-                    f,(ax1,ax2) = plt.subplots(
-                        nrows=1,
-                        ncols=2,
-                        figsize=(6,6),
-                        sharey=True,
-                    )
-                    f.subplots_adjust(wspace=0)
-                    # full population poor quantile (gdp)
-                    ax1.barh(
-                        y=np.arange(1960,2021,10),
-                        width=[i * -1 for i in poor_pop[0::10]],
-                        height=8,
-                        color='darkgoldenrod',
-                        zorder=1,
-                        alpha=0.3
-                    )
-                    # unprec population poor quantile (gdp)
-                    ax1.barh(
-                        y=np.arange(1960,2021,10),
-                        width=[i * -1 for i in poor_unprec[0::10]],
-                        height=8,
-                        color='darkgoldenrod',
-                        zorder=1,
-                        xerr=[i * -1 for i in poor_std[0::10]],
-                        # xerr=poor_std,
-                    )    
-                    # # ax1.set_xlabel('Millions of people')
-                    ax1.text(
-                        x=1,y=-0.1,
-                        s='Millions of people',
-                        horizontalalignment='center',
-                        verticalalignment='center',
-                        transform=ax1.transAxes,
-                        fontsize=10
-                    )
-                    ax1.set_xticks(
-                        ticks=ax1_xticks,
-                        labels=ax1_xtick_labels,
-                    )
-                    ax1.set_ylabel(
-                        "Birth year",
-                        fontsize=10,
-                        labelpad=5,
-                    )
-                    ax1.text(
-                        x=0.5,y=1.1,
-                        s='{}% most \n depraved in GRDI'.format(qntl_range),
-                        horizontalalignment='center',
-                        verticalalignment='center',
-                        transform=ax1.transAxes,
-                        fontsize=10
-                    )    
+                        ax2_xtick_labels = ax1_xtick_labels
                     
-                    # full population rich quantile (grdi)
-                    ax2.barh(
-                        y=np.arange(1960,2021,10),
-                        width=rich_pop[0::10],
-                        height=8,
-                        color='forestgreen',
-                        zorder=1,
-                        alpha=0.3
-                    ) 
-                    # unprec population rich quantile (grdi)
-                    ax2.barh(
-                        y=np.arange(1960,2021,10),
-                        width=rich_unprec[0::10],
-                        height=8,
-                        color='forestgreen',
-                        zorder=1,
-                        # xerr=rich_std,
-                        xerr=[i * -1 for i in rich_std[0::10]],
-                    )     
-                    ax2.tick_params(left=False)
-                    ax2.set_xticks(
-                        ticks=ax2_xticks,
-                        labels=ax2_xtick_labels
-                    )     
-                    ax2.text(
-                        x=0.5,y=1.1,
-                        s='{}% least \n depraved in GRDI'.format(qntl_range),
-                        horizontalalignment='center',
-                        verticalalignment='center',
-                        transform=ax2.transAxes,
-                        fontsize=10
-                    )        
-                    ax1.spines['top'].set_visible(False)
-                    ax2.spines['top'].set_visible(False)
-                    ax2.spines['right'].set_visible(False)
-                    f.savefig('./figures/vln_pyramid_grdi_{}_{}_{}.png'.format(e,str(df_GMT_strj.loc[2100,GMT]),qntl_range))
-                    plt.show()
+                        
+                    vln_type='grdi'
+                    pyramid_plot(
+                        df_GMT_strj,
+                        poor_pop,
+                        poor_unprec,
+                        poor_std,
+                        rich_pop,
+                        rich_unprec,
+                        rich_std,
+                        qntl_range,
+                        ax1_xticks,
+                        ax1_xtick_labels,
+                        ax2_xticks,
+                        ax2_xtick_labels,
+                        vln_type,
+                    )
 
 #%% ----------------------------------------------------------------
 # main text plots
