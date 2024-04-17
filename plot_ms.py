@@ -3995,9 +3995,13 @@ def pyramid_plot(
         fontsize=10,
         labelpad=5,
     )
+    if vln_type == 'gdp':
+        ax1_title = 'Poorest {}% in \n lifetime mean GDP'.format(qntl_range)
+    elif vln_type == 'grdi':
+        ax1_title = '{}% most depraved'.format(qntl_range)    
     ax1.text(
         x=0.5,y=1.1,
-        s='Poorest {}% in \n lifetime mean GDP'.format(qntl_range),
+        s=ax1_title,
         horizontalalignment='center',
         verticalalignment='center',
         transform=ax1.transAxes,
@@ -4029,9 +4033,13 @@ def pyramid_plot(
         ticks=ax_xts['ax2_xticks_{}'.format(unit)],
         labels=ax_xts['xtick_labels_{}'.format(unit)]
     )     
+    if vln_type == 'gdp':
+        ax2_title = 'Richest {}% in \n lifetime mean GDP'.format(qntl_range)
+    elif vln_type == 'grdi':
+        ax2_title = '{}% least depraved'.format(qntl_range)
     ax2.text(
         x=0.5,y=1.1,
-        s='Richest {}% in \n lifetime mean GDP'.format(qntl_range),
+        s=ax2_title,
         horizontalalignment='center',
         verticalalignment='center',
         transform=ax2.transAxes,
@@ -4063,6 +4071,6 @@ def pyramid_plot(
                 markersize=10,  
                 color='k',                  
             )                
-    # f.savefig('./figures/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit))
+    f.savefig('./figures/pyramid/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit))
     plt.show()
 # %%
