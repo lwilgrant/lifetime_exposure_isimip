@@ -1145,6 +1145,9 @@ def collect_global_emergence(
 def load_gdp_deprivation(
     flags,
     grid_area,
+    da_population,
+    countries_mask,
+    countries_regions,
     gridscale_countries,
     df_life_expectancy_5,
 ):
@@ -1336,7 +1339,7 @@ def load_gdp_deprivation(
                         ds_gdp['{}_mean'.format(v)]
                     )
             else: # use all birth years for isimip rcp26 dataset
-                ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 2020 birth cohort mean
+                ds_gdp['{}_mean'.format(v)] = ( # will fill this data array with 1960-2020 birth cohort life expectancy means
                     ['birth_year','lat','lon'],    
                     np.full(
                         (len(birth_years),len(lat),len(lon)),
@@ -1799,7 +1802,7 @@ def get_vulnerability_quantiles(
             pop_flat = xr.DataArray(pop.values.flatten())
             pop_flat = pop_flat.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(pop_flat))}) # have to do this so the coords are traceable back to the 2-D layout
             sorted_pop = pop_flat.sortby(vulnerability_ranks) # failed because gdp and pop need common mask
-            sorted_pop_nonans = sorted_pop[sorted_pop.notnull()]
+            sorted_pop_nonans = sorted_pop[sorted_pop.notnull()] # have to remove nans because they will all add 0s in cumulative sum, which messes with binning (forget how, but it did)
             sorted_pop_nonans_cumsum = sorted_pop_nonans.cumsum()
             sorted_pop_nonans_cumsum_pct = sorted_pop_nonans_cumsum / sorted_pop_nonans.sum()
 
@@ -1939,102 +1942,7 @@ def get_vulnerability_quantiles(
     else:
         
         with open('./data/{}/gdp_deprivation/grdi_quantiles.pkl'.format(flags['version']), 'rb') as f:
-            ds_grdi_qntls = pk.load(f)              
-        
-    #     ds_grdi_qntls = xr.Dataset(
-    #         data_vars={
-    #             'grdi_q_by_p': ( 
-    #                 ['qntl','lat','lon'],
-    #                 np.full(
-    #                     (len(qntls_vulnerability),len(lat),len(lon)),
-    #                     fill_value=np.nan,
-    #                 ),
-    #             ),                
-    #             'grdi_ranks_q_by_p': ( 
-    #                 ['qntl','lat','lon'],
-    #                 np.full(
-    #                     (len(qntls_vulnerability),len(lat),len(lon)),
-    #                     fill_value=np.nan,
-    #                 ),
-    #             ),                               
-    #         },
-    #         coords={
-    #             'qntl': ('qntl', qntls_vulnerability),
-    #             'lat': ('lat', lat),
-    #             'lon': ('lon', lon),
-    #         },
-    #     )          
-
-    #     grdi = ds_grdi['grdi']
-    #     pop = da_cohort_size_1960_2020.sel(birth_year=2020)
-
-    #     grdi = grdi.where(pop.notnull())
-    #     pop = pop.where(grdi.notnull())
-
-    #     # check that this worked by seeing len of non-nans
-    #     if len(xr.DataArray(grdi.values.flatten())) == len(xr.DataArray(pop.values.flatten())):
-    #         print('should only be using overlapping grid cells')
-
-    #     #=======================
-    #     # another attempt where I rename and assign coords to "dim_0" so that coord labels are preserved after dropping nans
-    #     # will play around with order of sorting/dropping nans/binning here until I get population to bin with roughly equal group sizes, like above, 
-    #     # NOTE this is the correct/working approach
-    #     vulnerability = xr.DataArray(grdi.values.flatten())
-    #     vulnerability = vulnerability.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(vulnerability))}) # have to do this so the coords are traceable back to the 2-D layout
-    #     vulnerability_ranks = vulnerability.rank(dim='gridcell_number').round()
-    #     vulnerability_indices = vulnerability_ranks.gridcell_number
-    #     sorted_vi = vulnerability_indices.sortby(vulnerability_ranks) # (I don't end up using this)
-    #     sorted_vr = vulnerability_ranks.sortby(vulnerability_ranks) # sort ranks of vulnerability
-    #     sorted_vr_nonans = sorted_vr[sorted_vr.notnull()] # drop nans from sorted v-ranks
-    #     sorted_v = vulnerability.sortby(vulnerability_ranks) # sort vulnerability
-    #     sorted_v_nonans = sorted_v[sorted_v.notnull()] # drop nans from sorted vulnerability array
-
-    #     pop_flat = xr.DataArray(pop.values.flatten())
-    #     pop_flat = pop_flat.rename({'dim_0':'gridcell_number'}).assign_coords({'gridcell_number':range(len(pop_flat))}) # have to do this so the coords are traceable back to the 2-D layout
-    #     sorted_pop = pop_flat.sortby(vulnerability_ranks) # failed because gdp and pop need common mask
-    #     sorted_pop_nonans = sorted_pop[sorted_pop.notnull()]
-    #     sorted_pop_nonans_cumsum = sorted_pop_nonans.cumsum()
-    #     sorted_pop_nonans_cumsum_pct = sorted_pop_nonans_cumsum / sorted_pop_nonans.sum()
-
-    #     # test the bins on population
-    #     sorted_pop_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).sum() # groups all even population!!!
-
-    #     # bin vulnerability and ranked vulnerability
-    #     sorted_v_nonans_bins = sorted_v_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10)
-    #     sorted_vr_nonans_bins = sorted_vr_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10)
-    #     sorted_v_nonans_bin_means = sorted_v_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).mean() # to check that vulnerability vals are making sense after binning
-    #     sorted_v_nonans_bin_keys = list(sorted_v_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).groups.keys()) # keys per group for looping
-    #     sorted_vr_nonans_bin_keys = list(sorted_vr_nonans.groupby_bins(sorted_pop_nonans_cumsum_pct,bins=10).groups.keys()) # keys per group for looping
-    #     group1 = sorted_v_nonans_bins[sorted_v_nonans_bin_keys[0]] # test key
-    #     template_for_groups = xr.full_like(vulnerability,fill_value=np.nan) # will copy this template for each group
-
-    #     # assign vulnerability quantile ranges, reshaped to ISIMIP lat/lon grid to ds_grdi; for both ranks and original vulnerability estimates
-    #     for i,(vgroup,vrgroup) in enumerate(zip(sorted_v_nonans_bin_keys,sorted_vr_nonans_bin_keys)):
-    #         print(vgroup)
-    #         template_v = template_for_groups.copy() # for absolute vulnerability numbers
-    #         template_vr = template_for_groups.copy() # for ranks of vulnerability (would like to see maps of both)
-    #         template_v.loc[{'gridcell_number':sorted_v_nonans_bins[vgroup].gridcell_number}] = sorted_v_nonans_bins[vgroup]
-    #         template_vr.loc[{'gridcell_number':sorted_vr_nonans_bins[vrgroup].gridcell_number}] = sorted_vr_nonans_bins[vrgroup]
-    #         v_assigned_reshape = template_v.coarsen(gridcell_number=720).construct(gridcell_number=('lat', 'lon')).assign_coords({'lat':lat,'lon':lon})
-    #         vr_assigned_reshape = template_vr.coarsen(gridcell_number=720).construct(gridcell_number=('lat', 'lon')).assign_coords({'lat':lat,'lon':lon})
-    #         ds_grdi_qntls['grdi_q_by_p'].loc[{
-    #             'qntl':i,
-    #             'lat':lat,
-    #             'lon':lon,
-    #         }] = v_assigned_reshape
-    #         ds_grdi_qntls['grdi_ranks_q_by_p'].loc[{
-    #             'qntl':i,
-    #             'lat':lat,
-    #             'lon':lon,
-    #         }] = vr_assigned_reshape
-            
-    #     with open('./data/{}/gdp_deprivation/grdi_quantiles.pkl'.format(flags['version']), 'wb') as f:
-    #         pk.dump(ds_grdi_qntls,f)    
-        
-    # else:
-        
-    #     with open('./data/{}/gdp_deprivation/grdi_quantiles.pkl'.format(flags['version']), 'rb') as f:
-    #         ds_grdi_qntls = pk.load(f)            
+            ds_grdi_qntls = pk.load(f)                      
         
     return ds_gdp_qntls, ds_grdi_qntls
 

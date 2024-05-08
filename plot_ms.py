@@ -3930,15 +3930,16 @@ def pyramid_setup_plot(
 
     # GDP vulnerability quantile pyramid plots ===========================================================
     extremes = [
-        'burntarea', 
-        'cropfailedarea', 
-        'driedarea', 
-        'floodedarea', 
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
+        # 'floodedarea', 
         'heatwavedarea', 
-        'tropicalcyclonedarea',
+        # 'tropicalcyclonedarea',
     ]
     
     GMT_integers = [0,10,12,17,20]
+    # GMT_integers = [12,17]
     
     # also plot 1960 vs 2020 for gdp (grdi only has 2020)
     population_quantiles_10poorest = []
@@ -4419,21 +4420,26 @@ def pyramid_plot(
     # full population poor quantile (gdp)
     if unit == 'pple':
         ax1.barh(
-            y=np.arange(1960,2021,per_x),
-            width=[i * -1 for i in poor_pop[0::per_x]],
+            # y=np.arange(1960,2021,per_x),
+            y=birth_years[::-1*per_x], # added to flip y axis
+            # width=[i * -1 for i in poor_pop[0::per_x]],
+            width=[i * -1 for i in poor_pop[::-1*per_x]],
             height=height,
             color='darkgoldenrod',
             zorder=1,
             alpha=0.3
         )
+        
     # unprec population poor quantile (gdp)
     ax1.barh(
-        y=np.arange(1960,2021,per_x),
-        width=[i * -1 for i in poor_unprec[0::per_x]],
+        y=birth_years[::-1*per_x], # added to flip y axis
+        # width=[i * -1 for i in poor_unprec[0::per_x]],
+        width=[i * -1 for i in poor_unprec[::-1*per_x]],
         height=height,
         color='darkgoldenrod',
         zorder=1,
-        xerr=[i * -1 for i in poor_std[0::per_x]],
+        # xerr=[i * -1 for i in poor_std[0::per_x]],
+        xerr=[i * -1 for i in poor_std[::-1*per_x]],
         # xerr=poor_std,
     )    
     # # ax1.set_xlabel('Millions of people')
@@ -4474,8 +4480,10 @@ def pyramid_plot(
     # full population rich quantile (grdi)
     if unit == 'pple':
         ax2.barh(
-            y=np.arange(1960,2021,per_x),
-            width=rich_pop[0::per_x],
+            # y=np.arange(1960,2021,per_x),
+            y=birth_years[::-1*per_x],
+            # width=rich_pop[0::per_x],
+            width=rich_pop[::-1*per_x],
             height=height,
             color='forestgreen',
             zorder=1,
@@ -4483,13 +4491,17 @@ def pyramid_plot(
         ) 
     # unprec population rich quantile (grdi)
     ax2.barh(
-        y=np.arange(1960,2021,per_x),
-        width=rich_unprec[0::per_x],
+        # y=np.arange(1960,2021,per_x),
+        y=birth_years[::-1*per_x],
+        # width=rich_unprec[0::per_x],
+        width=rich_unprec[::-1*per_x],
         height=height,
         color='forestgreen',
         zorder=1,
         # xerr=rich_std,
-        xerr=[i * -1 for i in rich_std[0::per_x]],
+        # xerr=[i * -1 for i in rich_std[0::per_x]],
+        xerr=[i * -1 for i in rich_std[::-1*per_x]],
+        
     )     
     ax2.tick_params(left=False)
     ax2.set_xticks(
@@ -4513,27 +4525,34 @@ def pyramid_plot(
     ax2.spines['right'].set_visible(False)
     
     # plot asterisk or star in middle of bar (0.5 * unprec number as position) if significant differenc and if given side is bigger
-    for i,by in enumerate(birth_years[0::per_x]):
-        if pvalues_poor[0::per_x][i] < sl:
+    # for i,by in enumerate(birth_years[0::per_x]):
+    for i,by in enumerate(birth_years[::-1*per_x]):
+        # if pvalues_poor[0::per_x][i] < sl:
+        if pvalues_poor[::-1*per_x][i] < sl:
             # if poor_unprec[0::per_x][i] > rich_unprec[0::per_x][i]: # plot on side with greater unprecedented numbers
             ax1.plot(
-                poor_unprec[0::per_x][i]/2 * -1, # negative so it's on the left side, place halfway through bar
+                # poor_unprec[0::per_x][i]/2 * -1, # negative so it's on the left side, place halfway through bar
+                poor_unprec[::-1*per_x][i]/2 * -1,
                 by,
                 marker=(6,2,0),
                 zorder=5,
                 markersize=10,
                 color='k',
             )
-        if pvalues_rich[0::per_x][i] < sl:
+        # if pvalues_rich[0::per_x][i] < sl:
+        if pvalues_rich[::-1*per_x][i] < sl:
             # elif rich_unprec[0::per_x][i] > poor_unprec[0::per_x][i]:
             ax2.plot(
-                rich_unprec[0::per_x][i]/2,
+                # rich_unprec[0::per_x][i]/2,
+                rich_unprec[::-1*per_x][i]/2,
                 by,
                 marker=(6,2,0),
                 zorder=5,
                 markersize=10,  
                 color='k',                  
             )                
-    f.savefig('./figures/pyramid/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit))
+    ax1.invert_yaxis() # only have to do this once because because y axis are shared
+    # ax2.invert_yaxis()
+    f.savefig('./figures/pyramid/inverted/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit))
     plt.show()
 # %%

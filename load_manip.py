@@ -499,7 +499,7 @@ def load_GMT(
         )       
         df_GMT_strj = cp(df_GMT_strj_new) 
 
-    return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj, indices
+    return df_GMT_15, df_GMT_20, df_GMT_NDC, df_GMT_strj
 
 #%% ----------------------------------------------------------------
 # Load SSP population totals

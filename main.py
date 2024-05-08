@@ -418,6 +418,9 @@ if flags['gdp_deprivation']:
     ds_gdp, ds_grdi = load_gdp_deprivation(
         flags,
         grid_area,
+        da_population,
+        countries_mask,
+        countries_regions,
         gridscale_countries,
         df_life_expectancy_5,
     )
@@ -461,6 +464,221 @@ if flags['vulnerability']:
         da_cohort_size_1960_2020,
         d_global_emergence,
     )
+    
+if flags['testing']:
+    
+    # vulnerability maps, F1
+    
+    x=10
+    y=6
+    markersize=10
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+    mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
+    col_cbticlbl = 'gray'   # colorbar color of tick labels
+    col_cbtic = 'gray'   # colorbar color of ticks
+    col_cbedg = '0'   # colorbar color of edge
+    cb_ticlen = 3.5   # colorbar length of ticks
+    cb_ticwid = 0.4   # colorbar thickness of ticks
+    cb_edgthic = 0   # colorbar thickness of edges between colors    
+    density=6
+
+    # colorbar stuff ------------------------------------------------------------
+    cmap_whole = plt.cm.get_cmap('Reds')
+    levels = np.arange(0,1.0009,0.1)
+    levels = np.insert(levels,1,0.001)
+    levels[0] = -0.1
+    colors = [cmap_whole(i) for i in levels[2:]]
+    colors.insert(0,'gray')
+    cmap_list_frac = mpl.colors.ListedColormap(colors,N=len(colors))
+    ticks = np.arange(0,1.01,.10)
+    ticks[0] = -0.05
+    tick_labels = ['0','0.1','0.2','0.3','0.4','0.5','0.6','0.7','0.8','0.9','1.0']
+    norm = mpl.colors.BoundaryNorm(levels,cmap_list_frac.N)
+    
+    f,((ax0,ax1),(ax2,ax3)) = plt.subplots(
+        ncols=2,
+        nrows=2,
+        subplot_kw={'projection':ccrs.Robinson()},
+        transform=ccrs.PlateCarree()
+    )
+    for i,ax in enumerate((ax0,ax1,ax2,ax3)):
+        ax.set_title(i+1)
+
+    # colobar
+    pos0 = ax2.get_position()
+    cax = f.add_axes([
+        pos0.x0,
+        pos0.y0-0.1,
+        pos0.width*3.05,
+        pos0.height*0.2
+    ])
+
+    i=0
+    l=0
+    
+    # labels around axes
+    ax0.annotate(
+        '1960 birth \n cohort',
+        (-0.2,0.5),
+        xycoords=ax0.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )
+    ax3.annotate(
+        '2020 birth \n cohort',
+        (-0.2,0.5),
+        xycoords=ax2.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )       
+    ax0_title = 'Poorest {}% in \n lifetime mean GDP'.format(qntl_range)
+    ax1_title = 'Richest {}% in \n lifetime mean GDP'.format(qntl_range)    
+
+    i+=1
+    for ax,extr in zip((ax0,ax1,ax2,ax3),extremes):
+        
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
+        p1960 = da_emergence_mean.loc[{
+            'hazard':extr,
+            'GMT':17,
+            'birth_year':1960,
+        }]
+        p1960 = xr.where( # applying correction since 1st are missing in plot for some reason
+            p1960 == 1,
+            0.99,
+            p1960
+        )
+        # p = p.where(mask.notnull())
+        p1960.plot(
+            ax=ax,
+            cmap=cmap_list_frac,
+            levels=levels,
+            add_colorbar=False,
+            add_labels=False,
+            transform=ccrs.PlateCarree(),
+            zorder=5
+        )    
+        ax.contourf(
+            p1960.lon.data,
+            p1960.lat.data,
+            p1960.where(p1960>0.25).notnull(),
+            levels=[.5,1.5],
+            colors='none',
+            transform=ccrs.PlateCarree(),
+            hatches=[density*'/',density*'/'],
+            zorder=10,
+        )        
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            color='gray'
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1    
+        i+=1
+
+    # 2020 birth cohort
+    ax02.annotate(
+        '2020 birth cohort',
+        (0.55,1.3),
+        xycoords=ax02.transAxes,
+        fontsize=14,
+        rotation='horizontal',
+        color='gray',
+        fontweight='bold',
+    )       
+    for ax,extr in zip((ax02,ax12,ax22,ax03,ax13,ax23),extremes):
+        
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
+        p2020 = da_emergence_mean.loc[{
+            'hazard':extr,
+            'GMT':17,
+            'birth_year':2020,
+        }]
+        p2020 = xr.where( # applying correction since 1st are missing in plot for some reason
+            p2020 == 1,
+            0.99,
+            p2020
+        )    
+        p2020.plot(
+            ax=ax,
+            cmap=cmap_list_frac,
+            levels=levels,
+            add_colorbar=False,
+            add_labels=False,
+            transform=ccrs.PlateCarree(),
+            zorder=5
+        )    
+        ax.contourf(
+            p2020.lon.data,
+            p2020.lat.data,
+            p2020.where(p2020>0.25).notnull(),
+            levels=[.5,1.5],
+            colors='none',
+            transform=ccrs.PlateCarree(),
+            hatches=[density*'/',density*'/'],
+            zorder=10,
+        )                
+        ax.set_title(
+            extremes_labels[extr],
+            loc='center',
+            fontweight='bold',
+            color='gray',
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            color='k',
+            fontsize=10,
+        )    
+        l+=1          
+        i+=1            
+        
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cax, 
+        cmap=cmap_list_frac,
+        norm=norm,
+        orientation='horizontal',
+        spacing='uniform',
+        ticks=ticks,
+        drawedges=False,
+    )
+
+    cb.set_label(
+        'Lifetime mean GDP per capita',
+        fontsize=14,
+        labelpad=10,
+        color='gray',
+    )
+    cb.ax.xaxis.set_label_position('top')
+    cb.ax.tick_params(
+        labelcolor=col_cbticlbl,
+        labelsize=12,
+        color=col_cbtic,
+        length=cb_ticlen,
+        width=cb_ticwid,
+        direction='out'
+    )   
+    cb.ax.set_xticklabels(tick_labels)
+
+        
+    f.savefig('./si_figures/vulnerability_maps_gdp.png',dpi=1000,bbox_inches='tight')    
+    
 
 #%% ----------------------------------------------------------------
 # main text plots
