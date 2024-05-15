@@ -749,15 +749,22 @@ if flags['plot_ms']:
         d_global_emergence,
     )    
 
-    # f4 pyramid plotting (actual plot call within the setup function below)
-    # plots for all extremes
-    pyramid_setup_plot(
+    # f4 pyramid plotting
+    # first set up quantiles for plotting
+    pyramid_setup(
+        flags,
         ds_gdp,
         ds_grdi,
         da_cohort_size_1960_2020,
         ds_vulnerability,
-        df_GMT_strj,
     )
+    # then run plots
+    for vln_type in ('gdp','grdi'):
+        pyramid_plot(
+            flags,
+            df_GMT_strj,
+            vln_type,
+        )
     
 #%% ----------------------------------------------------------------
 # supplementary text plots
