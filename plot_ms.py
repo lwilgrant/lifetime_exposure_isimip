@@ -4314,6 +4314,8 @@ def pyramid_setup(
 # actual function for plotting pyramid stuff
 def pyramid_plot(
     flags,
+    ds_gdp_qntls,
+    ds_grdi_qntls,
     df_GMT_strj,
     vln_type,
 ):
@@ -4523,4 +4525,52 @@ def pyramid_plot(
             ax1.invert_yaxis() # only have to do this once because because y axis are shared
             # f.savefig('./figures/pyramid/inverted/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit))
             plt.show()
+            
+    # map testing for panel showing all the quantiles
+    # in grdi, poor is high integers (8 & 9), in gdp, rich is low integers (0 & 1)
+    # ds_grdi_qntls
+    if qntl_range == '20':
+        qp_i = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=8,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+        qp_i = xr.where(qp_i.notnull(),1,0)
+        qp_ii = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=9,birth_year=2020)
+        qp_ii = xr.where(qp_ii.notnull(),1,0)
+        qp = qp_i + qp_ii
+        qp = qp.where(qp!=0) # poor == 1
+    
+        qr_i = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=0,birth_year=2020) #"qr" for "quantile rich", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+        qr_i = xr.where(qr_i.notnull(),1,0)
+        qr_ii = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=1,birth_year=2020)
+        qr_ii = xr.where(qr_ii.notnull(),1,0).squeeze()
+        qr = qr_i + qr_ii    
+        qr = qr.where(qr!=0)*2 # rich == 2
+        
+        cmap = ['darkgoldenrod','forestgreen']  
+        
+        # should convert pixels to points via geodataframe
+        df_p = qp.to_dataframe().reset_index()
+        gdf_p = gpd.GeoDataFrame(
+            df_p.grdi_q_by_p, geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
+        )
+        gdf_p.set_crs(epsg = "4326",inplace=True)
+        # get bounds
+        robinson = ccrs.Robinson().proj4_init
+        gdf_robinson_bounds = gdf_p.to_crs(robinson).total_bounds # (minx,miny,maxx,maxy)
+        gdf_p = gdf_p.dropna()
+        # plot
+        f,ax = plt.subplots(
+            ncols=1,
+            nrows=1,
+            subplot_kw={'projection':ccrs.Robinson()},
+            transform=ccrs.PlateCarree()
+        )
+        ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+        gdf_p.to_crs(robinson).plot(
+            ax=ax,
+            column='grdi_q_by_p',
+            color='darkgoldenrod',
+            zorder=5,
+            markersize=0.5,
+        )    
+        ax.set_xlim(gdf_robinson_bounds[0],gdf_robinson_bounds[2])
+        ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])        
 # %%
