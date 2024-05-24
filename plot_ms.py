@@ -4628,6 +4628,84 @@ def pyramid_plot(
         )
         plt.show()
 
+
+# %%   
+# d_pyramid_plot_grdi needs cross-GMT p-values (to see if 1.5 vs 3.5 has significantly higher arithmetic mean)
+
+v='grdi_q_by_p'
+gmt_low=0
+gmt_high=20
+df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
+df_vulnerability_e = df_vulnerability.loc[:,['run','GMT','qntl','vulnerability_index','birth_year',e]]
+df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people 
+d_pyramid_plot_grdi[e]['0_20'] = {} # i.e. "0" is the integer for the 1.5 degree pathway, "20" is for 3.5
+
+ttest_20pc_pvals_poor_0_vs_20 = [] # significance tests on poor (or high deprivation) 
+ttest_20pc_pvals_rich_0_vs_20 = [] # significance tests on rich (or low deprivation) 
+
+for by in birth_years:
+    
+    # poorest 20 percent, low gmt
+    poor_unprec_gmt0_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==8)&\
+                (df_vulnerability_e['GMT']==gmt_low)][e]
+
+    poor_unprec_gmt0_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==9)&\
+                (df_vulnerability_e['GMT']==gmt_low)][e]   
+    
+    # poorest 20 percent, high gmt
+    poor_unprec_gmt20_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==8)&\
+                (df_vulnerability_e['GMT']==gmt_high)][e]
+
+    poor_unprec_gmt20_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==9)&\
+                (df_vulnerability_e['GMT']==gmt_high)][e]                       
+
+    # richest 20 percent, low gmt
+    rich_unprec_gmt0_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==0)&\
+                (df_vulnerability_e['GMT']==gmt_low)][e]
+
+    rich_unprec_gmt0_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==1)&\
+                (df_vulnerability_e['GMT']==gmt_low)][e]  
+    
+    # richest 20 percent, high gmt
+    rich_unprec_gmt20_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==0)&\
+                (df_vulnerability_e['GMT']==gmt_high)][e]
+
+    rich_unprec_gmt20_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+        (df_vulnerability_e['birth_year']==by)&\
+            (df_vulnerability_e['qntl']==1)&\
+                (df_vulnerability_e['GMT']==gmt_high)][e]                      
+
+    # t test for difference between low and high gmt pathways for poor/rich populations
+    ttest_20pc_poor = ttest_ind(
+        a=np.concatenate((poor_unprec_gmt20_20pci[poor_unprec_gmt20_20pci.notnull()].values,poor_unprec_gmt20_20pcii[poor_unprec_gmt20_20pcii.notnull()].values)),
+        b=np.concatenate((poor_unprec_gmt0_20pci[poor_unprec_gmt0_20pci.notnull()].values,poor_unprec_gmt0_20pcii[poor_unprec_gmt0_20pcii.notnull()].values)),
+        alternative='greater'
+    )  
+    ttest_20pc_pvals_poor_0_vs_20.append(ttest_20pc_poor.pvalue)
+    ttest_20pc_rich = ttest_rel(
+        a=np.concatenate((rich_unprec_20pci[rich_unprec_20pci.notnull()].values,rich_unprec_20pcii[rich_unprec_20pcii.notnull()].values)),
+        b=np.concatenate((poor_unprec_20pci[poor_unprec_20pci.notnull()].values,poor_unprec_20pcii[poor_unprec_20pcii.notnull()].values)),
+        alternative='greater'
+    )                      
+    ttest_20pc_pvals_rich_0_vs_20.append(ttest_20pc_rich.pvalue) 
+    
+d_pyramid_plot_gdp[e][GMT]['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor_0_vs_20
+d_pyramid_plot_gdp[e][GMT]['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_vs_20    
+
 # %%            
 # map testing for panel showing all the quantiles
 # in grdi, poor is high integers (8 & 9), in gdp, rich is low integers (0 & 1)
