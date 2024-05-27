@@ -3940,6 +3940,8 @@ def pyramid_setup(
     ]
     
     GMT_integers = [0,10,12,17,20]
+    gmt_low=0
+    gmt_high=20
     
     if not os.path.isfile('./data/{}/pyramid_data_gdp.pkl'.format(flags['version'])):
     
@@ -4117,6 +4119,76 @@ def pyramid_setup(
                 d_pyramid_plot_gdp[e][GMT]['population_quantiles_20richest'] = population_quantiles_20richest
                 d_pyramid_plot_gdp[e][GMT]['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor
                 d_pyramid_plot_gdp[e][GMT]['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich        
+                
+            # then run the pyramid data selection for the low vs high gmt panels (this is just to get the pvalues for these comparisons, the other data is already there)
+            # note that GMT integers as string "0_20" are used in the 2nd dictionary key level (instead of "GMT" integer above)
+            d_pyramid_plot_gdp[e]['0_20'] = {} # i.e. "0" is the integer for the 1.5 degree pathway, "20" is for 3.5
+
+            ttest_20pc_pvals_poor_0_vs_20 = [] # significance tests on poor (or high deprivation) across GMT pathways
+            ttest_20pc_pvals_rich_0_vs_20 = [] # significance tests on rich (or low deprivation) across GMT pathways
+
+            for by in birth_years:
+                
+                # poorest 20 percent, low gmt
+                poor_unprec_gmt0_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==0)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]
+
+                poor_unprec_gmt0_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==1)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]   
+                
+                # poorest 20 percent, high gmt
+                poor_unprec_gmt20_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==0)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]
+
+                poor_unprec_gmt20_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==1)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]                       
+
+                # richest 20 percent, low gmt
+                rich_unprec_gmt0_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==8)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]
+
+                rich_unprec_gmt0_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==9)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]  
+                
+                # richest 20 percent, high gmt
+                rich_unprec_gmt20_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==8)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]
+
+                rich_unprec_gmt20_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==9)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]                      
+
+                # t test for difference between low and high gmt pathways for poor/rich populations
+                ttest_20pc_poor = ttest_ind(
+                    a=np.concatenate((poor_unprec_gmt20_20pci[poor_unprec_gmt20_20pci.notnull()].values,poor_unprec_gmt20_20pcii[poor_unprec_gmt20_20pcii.notnull()].values)),
+                    b=np.concatenate((poor_unprec_gmt0_20pci[poor_unprec_gmt0_20pci.notnull()].values,poor_unprec_gmt0_20pcii[poor_unprec_gmt0_20pcii.notnull()].values)),
+                    alternative='greater'
+                )  
+                ttest_20pc_pvals_poor_0_vs_20.append(ttest_20pc_poor.pvalue)
+                ttest_20pc_rich = ttest_ind(
+                    a=np.concatenate((rich_unprec_gmt20_20pci[rich_unprec_gmt20_20pci.notnull()].values,rich_unprec_gmt20_20pcii[rich_unprec_gmt20_20pcii.notnull()].values)),
+                    b=np.concatenate((rich_unprec_gmt0_20pci[rich_unprec_gmt0_20pci.notnull()].values,rich_unprec_gmt0_20pcii[rich_unprec_gmt0_20pcii.notnull()].values)),
+                    alternative='greater'
+                )                      
+                ttest_20pc_pvals_rich_0_vs_20.append(ttest_20pc_rich.pvalue) 
+                
+            d_pyramid_plot_gdp[e]['0_20']['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor_0_vs_20
+            d_pyramid_plot_gdp[e]['0_20']['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_vs_20                    
                     
         with open('./data/{}/pyramid_data_gdp.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(d_pyramid_plot_gdp,f)   
@@ -4168,9 +4240,10 @@ def pyramid_setup(
             )
         
         d_pyramid_plot_grdi = {}
-            
+         
         for e in extremes:
             
+            # first run the pyramid data selection for the rich vs poor panel 
             v='grdi_q_by_p'
             df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
             df_vulnerability_e = df_vulnerability.loc[:,['run','GMT','qntl','vulnerability_index','birth_year',e]]
@@ -4302,6 +4375,77 @@ def pyramid_setup(
                 d_pyramid_plot_grdi[e][GMT]['population_quantiles_20richest'] = population_quantiles_20richest
                 d_pyramid_plot_grdi[e][GMT]['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor
                 d_pyramid_plot_grdi[e][GMT]['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich   
+        
+        
+            # then run the pyramid data selection for the low vs high gmt panels (this is just to get the pvalues for these comparisons, the other data is already there)
+            # note that GMT integers as string "0_20" are used in the 2nd dictionary key level (instead of "GMT" integer above)
+            d_pyramid_plot_grdi[e]['0_20'] = {} # i.e. "0" is the integer for the 1.5 degree pathway, "20" is for 3.5
+
+            ttest_20pc_pvals_poor_0_vs_20 = [] # significance tests on poor (or high deprivation) across GMT pathways
+            ttest_20pc_pvals_rich_0_vs_20 = [] # significance tests on rich (or low deprivation) across GMT pathways
+
+            for by in birth_years:
+                
+                # poorest 20 percent, low gmt
+                poor_unprec_gmt0_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==8)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]
+
+                poor_unprec_gmt0_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==9)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]   
+                
+                # poorest 20 percent, high gmt
+                poor_unprec_gmt20_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==8)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]
+
+                poor_unprec_gmt20_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==9)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]                       
+
+                # richest 20 percent, low gmt
+                rich_unprec_gmt0_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==0)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]
+
+                rich_unprec_gmt0_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==1)&\
+                            (df_vulnerability_e['GMT']==gmt_low)][e]  
+                
+                # richest 20 percent, high gmt
+                rich_unprec_gmt20_20pci = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==0)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]
+
+                rich_unprec_gmt20_20pcii = df_vulnerability_e[(df_vulnerability_e['vulnerability_index']==v)&\
+                    (df_vulnerability_e['birth_year']==by)&\
+                        (df_vulnerability_e['qntl']==1)&\
+                            (df_vulnerability_e['GMT']==gmt_high)][e]                      
+
+                # t test for difference between low and high gmt pathways for poor/rich populations
+                ttest_20pc_poor = ttest_ind(
+                    a=np.concatenate((poor_unprec_gmt20_20pci[poor_unprec_gmt20_20pci.notnull()].values,poor_unprec_gmt20_20pcii[poor_unprec_gmt20_20pcii.notnull()].values)),
+                    b=np.concatenate((poor_unprec_gmt0_20pci[poor_unprec_gmt0_20pci.notnull()].values,poor_unprec_gmt0_20pcii[poor_unprec_gmt0_20pcii.notnull()].values)),
+                    alternative='greater'
+                )  
+                ttest_20pc_pvals_poor_0_vs_20.append(ttest_20pc_poor.pvalue)
+                ttest_20pc_rich = ttest_ind(
+                    a=np.concatenate((rich_unprec_gmt20_20pci[rich_unprec_gmt20_20pci.notnull()].values,rich_unprec_gmt20_20pcii[rich_unprec_gmt20_20pcii.notnull()].values)),
+                    b=np.concatenate((rich_unprec_gmt0_20pci[rich_unprec_gmt0_20pci.notnull()].values,rich_unprec_gmt0_20pcii[rich_unprec_gmt0_20pcii.notnull()].values)),
+                    alternative='greater'
+                )                      
+                ttest_20pc_pvals_rich_0_vs_20.append(ttest_20pc_rich.pvalue) 
+                
+            d_pyramid_plot_grdi[e]['0_20']['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor_0_vs_20
+            d_pyramid_plot_grdi[e]['0_20']['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_vs_20        
                     
         with open('./data/{}/pyramid_data_grdi.pkl'.format(flags['version']), 'wb') as f:
             pk.dump(d_pyramid_plot_grdi,f)   
@@ -4310,13 +4454,11 @@ def pyramid_setup(
         
         print("grdi pickle already there, delete pyramid_data_grdi.pkl and rerun function if you want to renew this data")                         
             
-                    
+                        
 #%% ----------------------------------------------------------------
 # actual function for plotting pyramid stuff
 def pyramid_plot(
     flags,
-    ds_gdp_qntls,
-    ds_grdi_qntls,
     df_GMT_strj,
     vln_type,
 ):
@@ -4335,9 +4477,9 @@ def pyramid_plot(
     GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
     GMT_cp=12 # "cp" for "current pathway"; 12 or 17
     GMT_low=0
-    GMT_hi=20
+    GMT_high=20
     # plot type (will get removed and looped outside function)
-    vln_type='grdi'
+    # vln_type='grdi'
     fontcolor='gray'
     # bbox for legend
     x0 = 0.1
@@ -4373,25 +4515,7 @@ def pyramid_plot(
         rich_std = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
         rich_pop = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
         pvalues_poor = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
-        pvalues_rich = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])                  
-        
-        # poor_unprec_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
-        # poor_std_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}poorest'.format(qntl_range)])
-        # poor_pop_a = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
-        # rich_unprec_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
-        # rich_std_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
-        # rich_pop_a = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
-        # pvalues_poor_a = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
-        # pvalues_rich_a = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
-        
-        # poor_unprec_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_b" for panel "b"
-        # poor_std_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}poorest'.format(qntl_range)])
-        # poor_pop_b = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
-        # rich_unprec_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
-        # rich_std_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
-        # rich_pop_b = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
-        # pvalues_poor_b = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
-        # pvalues_rich_b = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
+        pvalues_rich = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
         
         # labels
         if qntl_range == '10':
@@ -4411,14 +4535,6 @@ def pyramid_plot(
             ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
             ax_xts['ax2_xticks_pple'] = [5,10,15,20,25]
             ax_xts['ax2_xticks_pct'] = [25,50,75,100]  
-    
-        # for unit in ('pple','pct'): 
-            
-            # if unit == 'pct':
-            #     poor_unprec = poor_unprec / poor_pop * 100
-            #     poor_std = poor_std / poor_pop * 100
-            #     rich_unprec = rich_unprec / rich_pop * 100
-            #     rich_std = rich_std / rich_pop * 100
                 
         print('{}-{}'.format(e,str(df_GMT_strj.loc[2100,GMT])))
         f,(ax1,ax2) = plt.subplots(
@@ -4621,11 +4737,11 @@ def pyramid_plot(
             )       
             # xerr=[i * -1 for i in rich_std[::-1*per_x]]      
         ax1.invert_yaxis() # only have to do this once because because y axis are shared
-        f.savefig(
-            './figures/pyramid/inverted/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit),
-            dpi=1000,
-            bbox_inches='tight',
-        )
+        # f.savefig(
+        #     './figures/pyramid/inverted/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit),
+        #     dpi=1000,
+        #     bbox_inches='tight',
+        # )
         plt.show()
 
 
@@ -4633,11 +4749,19 @@ def pyramid_plot(
 # d_pyramid_plot_grdi needs cross-GMT p-values (to see if 1.5 vs 3.5 has significantly higher arithmetic mean)
 
 v='grdi_q_by_p'
+e='heatwavedarea'
 gmt_low=0
 gmt_high=20
 df_vulnerability = ds_vulnerability.to_dataframe().reset_index()      
 df_vulnerability_e = df_vulnerability.loc[:,['run','GMT','qntl','vulnerability_index','birth_year',e]]
 df_vulnerability_e.loc[:,e] = df_vulnerability_e.loc[:,e] / 10**6 # convert to millions of people 
+
+# load pyramid plot data
+with open('./data/{}/pyramid_data_{}.pkl'.format(flags['version'],vln_type), 'rb') as f:
+    d_pyramid_plot = pk.load(f)    
+d_pyramid_plot_grdi = d_pyramid_plot
+
+   
 d_pyramid_plot_grdi[e]['0_20'] = {} # i.e. "0" is the integer for the 1.5 degree pathway, "20" is for 3.5
 
 ttest_20pc_pvals_poor_0_vs_20 = [] # significance tests on poor (or high deprivation) 
@@ -4697,14 +4821,14 @@ for by in birth_years:
     )  
     ttest_20pc_pvals_poor_0_vs_20.append(ttest_20pc_poor.pvalue)
     ttest_20pc_rich = ttest_rel(
-        a=np.concatenate((rich_unprec_20pci[rich_unprec_20pci.notnull()].values,rich_unprec_20pcii[rich_unprec_20pcii.notnull()].values)),
-        b=np.concatenate((poor_unprec_20pci[poor_unprec_20pci.notnull()].values,poor_unprec_20pcii[poor_unprec_20pcii.notnull()].values)),
+        a=np.concatenate((rich_unprec_gmt20_20pci[rich_unprec_gmt20_20pci.notnull()].values,rich_unprec_gmt20_20pcii[rich_unprec_gmt20_20pcii.notnull()].values)),
+        b=np.concatenate((rich_unprec_gmt0_20pci[rich_unprec_gmt0_20pci.notnull()].values,rich_unprec_gmt0_20pcii[rich_unprec_gmt0_20pcii.notnull()].values)),
         alternative='greater'
     )                      
     ttest_20pc_pvals_rich_0_vs_20.append(ttest_20pc_rich.pvalue) 
     
-d_pyramid_plot_gdp[e][GMT]['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor_0_vs_20
-d_pyramid_plot_gdp[e][GMT]['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_vs_20    
+d_pyramid_plot_grdi[e][GMT]['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor_0_vs_20
+d_pyramid_plot_grdi[e][GMT]['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_vs_20    
 
 # %%            
 # map testing for panel showing all the quantiles
@@ -4850,7 +4974,7 @@ extremes = [ # this array of extremes strings should be the same as the setup fu
 GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
 GMT_cp=12 # "cp" for "current pathway"; 12 or 17
 GMT_low=0
-GMT_hi=20
+GMT_high=20
 # plot type (will get removed and looped outside function)
 vln_type='grdi'
 fontcolor='gray'
@@ -4871,40 +4995,26 @@ legend_lw=3.5
 # pick GMT
 GMT = GMT_cp 
 unit='pple'
+qntl_range = '20'
 
 # start with GDP ====================================================================================
 with open('./data/{}/pyramid_data_{}.pkl'.format(flags['version'],vln_type), 'rb') as f:
     d_pyramid_plot = pk.load(f)    
 
 for e in extremes:    
-    # for qntl_range in ('10', '20'):
-    qntl_range = '20'
     
-    poor_unprec_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
+    poor_unprec_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_quantiles_{}poorest'.format(qntl_range)])
     poor_std_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_std_{}poorest'.format(qntl_range)])
-    poor_pop_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['population_quantiles_{}poorest'.format(qntl_range)])
+    poor_pop = np.asarray(d_pyramid_plot[e][GMT_low]['population_quantiles_{}poorest'.format(qntl_range)])
     
-    poor_unprec_higmt = np.asarray(d_pyramid_plot[e][GMT_hi]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
-    poor_std_higmt = np.asarray(d_pyramid_plot[e][GMT_hi]['unprec_pop_std_{}poorest'.format(qntl_range)])
-    poor_pop_higmt = np.asarray(d_pyramid_plot[e][GMT_hi]['population_quantiles_{}poorest'.format(qntl_range)])                    
+    poor_unprec_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_quantiles_{}poorest'.format(qntl_range)])
+    poor_std_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_std_{}poorest'.format(qntl_range)])       
     
-    # poor_unprec_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
-    # poor_std_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}poorest'.format(qntl_range)])
-    # poor_pop_a = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
-    # rich_unprec_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
-    # rich_std_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
-    # rich_pop_a = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
-    # pvalues_poor_a = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
-    # pvalues_rich_a = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
+    pvalues_poor = np.asarray(d_pyramid_plot[e]['0_20']['ttest_{}pc_pvals_poor'.format(qntl_range)]) # pvalues for whether high GMT shows higher unrpecedented numbers that low GMT for poor
+    # pvalues_rich = np.asarray(d_pyramid_plot[e]['0_20']['ttest_{}pc_pvals_rich'.format(qntl_range)]) # diddo for rich^      
     
-    # poor_unprec_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_b" for panel "b"
-    # poor_std_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}poorest'.format(qntl_range)])
-    # poor_pop_b = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
-    # rich_unprec_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
-    # rich_std_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
-    # rich_pop_b = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
-    # pvalues_poor_b = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
-    # pvalues_rich_b = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
+    # d_pyramid_plot_grdi[e]['0_20']['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor_0_vs_20
+    # d_pyramid_plot_grdi[e]['0_20']['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_vs_20        
     
     # labels
     if qntl_range == '10':
@@ -4925,14 +5035,6 @@ for e in extremes:
         ax_xts['ax2_xticks_pple'] = [5,10,15,20,25]
         ax_xts['ax2_xticks_pct'] = [25,50,75,100]  
 
-    # for unit in ('pple','pct'): 
-        
-    # if unit == 'pct':
-    #     poor_unprec = poor_unprec / poor_pop * 100
-    #     poor_std = poor_std / poor_pop * 100
-    #     rich_unprec = rich_unprec / rich_pop * 100
-    #     rich_std = rich_std / rich_pop * 100
-        
     f,(ax1,ax2) = plt.subplots(
         nrows=1,
         ncols=2,
@@ -4944,7 +5046,7 @@ for e in extremes:
     if unit == 'pple':
         ax1.barh(
             y=birth_years[::-1*per_x], # added to flip y axis
-            width=[i * -1 for i in poor_pop_lowgmt[::-1*per_x]],
+            width=[i * -1 for i in poor_pop[::-1*per_x]],
             height=height,
             color='steelblue',
             zorder=1,
@@ -4997,7 +5099,7 @@ for e in extremes:
     if unit == 'pple':
         ax2.barh(
             y=birth_years[::-1*per_x],
-            width=poor_pop_higmt[::-1*per_x],
+            width=poor_pop[::-1*per_x],
             height=height,
             color='darkred',
             zorder=1,
@@ -5069,32 +5171,62 @@ for e in extremes:
         ax.spines['left'].set_color('gray')
         ax.spines['bottom'].set_color('gray')
     
-    # # plot asterisk or star in middle of bar (0.5 * unprec number as position) if significant differenc and if given side is bigger
-    # for i,by in enumerate(birth_years[::-1*per_x]):
-    #     if pvalues_poor[::-1*per_x][i] < sl:
-    #         ax1.plot(
-    #             poor_unprec[::-1*per_x][i]/2 * -1,
-    #             by,
-    #             marker=(6,2,0),
-    #             zorder=5,
-    #             markersize=10,
-    #             color='k',
-    #         )
-    #     if pvalues_rich[::-1*per_x][i] < sl:
-    #         ax2.plot(
-    #             rich_unprec[::-1*per_x][i]/2,
-    #             by,
-    #             marker=(6,2,0),
-    #             zorder=5,
-    #             markersize=10,  
-    #             color='k',                  
-    #         )                
+    # plot asterisk or star 1/4 through the bar (0.25 * unprec number as position) if significant differenc and if given side is bigger
+    # also plot percentage numbers midway through the bars
+    poor_unprec_lowgmt_pct = poor_unprec_lowgmt / poor_pop * 100
+    poor_unprec_higmt_pct = poor_unprec_higmt / poor_pop * 100
+    
+    for i,by in enumerate(birth_years[::-1*per_x]):
+        
+        # asterisks for significance
+        if pvalues_poor[::-1*per_x][i] < sl:
+            ax2.plot(
+                poor_unprec_higmt[::-1*per_x][i]/4,
+                by,
+                marker=(6,2,0),
+                zorder=5,
+                markersize=5,  
+                color='k',                  
+            )          
+               
+        # percentages
+        # left side / low gmt
+        if poor_unprec_lowgmt_pct[::-1*per_x][i] > 50:
+            x_poor_lowgmt = poor_unprec_lowgmt[::-1*per_x][i] * -2/3
+        elif poor_unprec_lowgmt_pct[::-1*per_x][i] < 50:
+            x_poor_lowgmt = poor_pop[::-1*per_x][i] * -0.6
+        ax1.text(
+            x=x_poor_lowgmt,
+            y=by,
+            s='{}%'.format(str(int(np.round(poor_unprec_lowgmt_pct[::-1*per_x][i])))),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=ax1.transData,
+            fontsize=7,
+            color='k'
+        ) 
+        
+        # right side / high gmt
+        if poor_unprec_higmt_pct[::-1*per_x][i] > 50:
+            x_poor_higmt = poor_unprec_higmt[::-1*per_x][i] * 2/3
+        elif poor_unprec_higmt_pct[::-1*per_x][i] < 50:
+            x_poor_higmt = poor_pop[::-1*per_x][i] * 0.6
+        ax2.text(
+            x=x_poor_higmt,
+            y=by,
+            s='{}%'.format(str(int(np.round(poor_unprec_higmt_pct[::-1*per_x][i])))),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=ax2.transData,
+            fontsize=7,
+            color='k'
+        )                    
     ax1.invert_yaxis() # only have to do this once because because y axis are shared
-    f.savefig(
-        './figures/pyramid/inverted/vln_pyramid_poorlohi_{}_{}_{}_{}.png'.format(vln_type,e,qntl_range,unit),
-        dpi=1000,
-        bbox_inches='tight',
-    )
+    # f.savefig(
+    #     './figures/pyramid/inverted/vln_pyramid_poorlohi_{}_{}_{}_{}.png'.format(vln_type,e,qntl_range,unit),
+    #     dpi=1000,
+    #     bbox_inches='tight',
+    # )
     plt.show()
         
 # %%        
@@ -5113,7 +5245,7 @@ extremes = [ # this array of extremes strings should be the same as the setup fu
 GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
 GMT_cp=12 # "cp" for "current pathway"; 12 or 17
 GMT_low=0
-GMT_hi=20
+GMT_high=20
 # plot type (will get removed and looped outside function)
 vln_type='grdi'
 fontcolor='gray'
@@ -5147,27 +5279,9 @@ for e in extremes:
     poor_std_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_std_{}richest'.format(qntl_range)])
     poor_pop_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['population_quantiles_{}richest'.format(qntl_range)])
     
-    poor_unprec_higmt = np.asarray(d_pyramid_plot[e][GMT_hi]['unprec_pop_quantiles_{}richest'.format(qntl_range)]) # "_a" for panel "a"
-    poor_std_higmt = np.asarray(d_pyramid_plot[e][GMT_hi]['unprec_pop_std_{}richest'.format(qntl_range)])
-    poor_pop_higmt = np.asarray(d_pyramid_plot[e][GMT_hi]['population_quantiles_{}richest'.format(qntl_range)])                    
-    
-    # poor_unprec_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
-    # poor_std_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}poorest'.format(qntl_range)])
-    # poor_pop_a = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
-    # rich_unprec_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
-    # rich_std_a = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
-    # rich_pop_a = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
-    # pvalues_poor_a = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
-    # pvalues_rich_a = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
-    
-    # poor_unprec_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_b" for panel "b"
-    # poor_std_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}poorest'.format(qntl_range)])
-    # poor_pop_b = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
-    # rich_unprec_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
-    # rich_std_b = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
-    # rich_pop_b = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
-    # pvalues_poor_b = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
-    # pvalues_rich_b = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
+    poor_unprec_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_quantiles_{}richest'.format(qntl_range)]) # "_a" for panel "a"
+    poor_std_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_std_{}richest'.format(qntl_range)])
+    poor_pop_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['population_quantiles_{}richest'.format(qntl_range)])                    
     
     # labels
     if qntl_range == '10':
@@ -5285,7 +5399,7 @@ for e in extremes:
     
     # legend stuff
     ax1_title = '{} °C GMT warming by 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_low],1))
-    ax2_title = '{} °C GMT warming by 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_hi],1))
+    ax2_title = '{} °C GMT warming by 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_high],1))
 
     # ax2.text(
     #     x=0.5,y=1.1,
