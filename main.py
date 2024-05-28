@@ -467,6 +467,17 @@ if flags['vulnerability']:
     
 if flags['testing']:
 
+    # can't believe how spatially ubiquitous final quantile of gdp is
+    for q in ds_gdp_qntls.qntl.data:
+        print(q)
+        q_da = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=q,birth_year=2020)
+        q_da = xr.where(q_da.notnull(),1,0)
+        q_da.plot()
+        plt.show()
+        cohort_da = da_cohort_size_1960_2020.sel(birth_year=2020).where(q_da.notnull())
+        print(cohort_da.sum(dim=('lat','lon')))
+        print('')
+
     pass
     
 

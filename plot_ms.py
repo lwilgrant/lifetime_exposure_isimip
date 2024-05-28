@@ -4737,15 +4737,15 @@ def pyramid_plot(
             )       
             # xerr=[i * -1 for i in rich_std[::-1*per_x]]      
         ax1.invert_yaxis() # only have to do this once because because y axis are shared
-        # f.savefig(
-        #     './figures/pyramid/inverted/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit),
-        #     dpi=1000,
-        #     bbox_inches='tight',
-        # )
+        f.savefig(
+            './figures/pyramid/inverted/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit),
+            dpi=1000,
+            bbox_inches='tight',
+        )
         plt.show()
 
 
-# %%   
+# %% ==============================================================================================
 # d_pyramid_plot_grdi needs cross-GMT p-values (to see if 1.5 vs 3.5 has significantly higher arithmetic mean)
 
 v='grdi_q_by_p'
@@ -4834,7 +4834,7 @@ d_pyramid_plot_grdi[e][GMT]['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_v
 # map testing for panel showing all the quantiles
 # in grdi, poor is high integers (8 & 9), in gdp, rich is low integers (0 & 1)
 # ds_grdi_qntls
-vln_type = 'grdi'
+vln_type = 'gdp'
 fontcolor='gray'
 if vln_type == 'grdi':
     qp_i = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=8,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
@@ -4851,16 +4851,16 @@ if vln_type == 'grdi':
     qr = qr_i + qr_ii    
     qr = qr.where(qr!=0)*2 # rich == 2
 elif vln_type == 'gdp':
-    qp_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=8,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+    qp_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=0,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
     qp_i = xr.where(qp_i.notnull(),1,0)
-    qp_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=9,birth_year=2020)
+    qp_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=1,birth_year=2020)
     qp_ii = xr.where(qp_ii.notnull(),1,0)
     qp = qp_i + qp_ii
     qp = qp.where(qp!=0) # poor == 1
 
-    qr_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=0,birth_year=2020) #"qr" for "quantile rich", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+    qr_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=8,birth_year=2020) #"qr" for "quantile rich", "_i" for first 10 percentiles, "__i" for next 10 percentiles
     qr_i = xr.where(qr_i.notnull(),1,0)
-    qr_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=1,birth_year=2020)
+    qr_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=9,birth_year=2020)
     qr_ii = xr.where(qr_ii.notnull(),1,0).squeeze()
     qr = qr_i + qr_ii    
     qr = qr.where(qr!=0)*2 # rich == 2    
@@ -4868,14 +4868,20 @@ elif vln_type == 'gdp':
 # should convert pixels to points via geodataframe
 # first do for "poor"
 df_p = qp.to_dataframe().reset_index()
+# gdf_p = gpd.GeoDataFrame(
+#     df_p.grdi_q_by_p, geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
+# )
 gdf_p = gpd.GeoDataFrame(
-    df_p.grdi_q_by_p, geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
+    df_p['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
 )
 gdf_p.set_crs(epsg = "4326",inplace=True)
 # then do for "rich"
 df_r = qr.to_dataframe().reset_index()
+# gdf_r = gpd.GeoDataFrame(
+#     df_r.grdi_q_by_p, geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
+# )
 gdf_r = gpd.GeoDataFrame(
-    df_r.grdi_q_by_p, geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
+    df_r['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
 )
 gdf_r.set_crs(epsg = "4326",inplace=True)        
 # get bounds
@@ -4894,17 +4900,17 @@ f,ax = plt.subplots(
 ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
 gdf_p.to_crs(robinson).plot(
     ax=ax,
-    column='grdi_q_by_p',
+    column='{}_q_by_p'.format(vln_type),
     color='darkgoldenrod',
     zorder=5,
-    markersize=0.5,
+    markersize=0.1,
 )    
 gdf_r.to_crs(robinson).plot(
     ax=ax,
-    column='grdi_q_by_p',
+    column='{}_q_by_p'.format(vln_type),
     color='forestgreen',
-    zorder=5,
-    markersize=0.5,
+    zorder=4,
+    markersize=0.1,
 )            
 ax.set_xlim(gdf_robinson_bounds[0],gdf_robinson_bounds[2])
 ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])        
@@ -4926,10 +4932,17 @@ handles = [
     Rectangle((0,0),1,1,color=legendcols[1]),
 ]
 
-labels= [
-    '20% highest deprivation',
-    '20% lowest deprivation'
-]
+if vln_type == 'grdi':
+    labels= [
+        '20% highest deprivation',
+        '20% lowest deprivation'
+    ]
+elif vln_type == 'gdp':
+    labels= [
+        '20% lowest GDP',
+        '20% highest GDP'
+    ]
+        
 x0 = 0.
 y0 = 1.0
 xlen = 0.2
@@ -4976,7 +4989,7 @@ GMT_cp=12 # "cp" for "current pathway"; 12 or 17
 GMT_low=0
 GMT_high=20
 # plot type (will get removed and looped outside function)
-vln_type='grdi'
+vln_type='gdp'
 fontcolor='gray'
 # bbox for legend
 x0 = 0.1
@@ -5247,7 +5260,7 @@ GMT_cp=12 # "cp" for "current pathway"; 12 or 17
 GMT_low=0
 GMT_high=20
 # plot type (will get removed and looped outside function)
-vln_type='grdi'
+vln_type='gdp'
 fontcolor='gray'
 # bbox for legend
 x0 = 0.1
