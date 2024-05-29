@@ -28,7 +28,7 @@ import geopandas as gpd
 from scipy import interpolate
 import cartopy.crs as ccrs
 from settings import *
-ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, GMT_current_policies, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
 #%% ----------------------------------------------------------------
 # sample analytics for paper
@@ -672,7 +672,8 @@ def print_millions_excess(
         'tropicalcyclonedarea': 'Tropical cyclones',
     }  
 
-    gmts = np.arange(6,25).astype('int')
+    pic_qntl_str=str(pic_qntl*100)
+    gmts = GMT_labels
     gmts2100 = np.round(df_GMT_strj.loc[2100,gmts].values,1)   
     gmt_dict = dict(zip(gmts,gmts2100))
     sumlist=[]
@@ -691,13 +692,13 @@ def print_millions_excess(
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     sims_per_step[step].append(i)  
         # millions children unprecedented in 1.5 pathway
-        step=6
-        unprec_15 = ds_pf_gs['unprec'].sum(dim='country').loc[{'GMT':step,'run':sims_per_step[step],'birth_year':np.arange(2003,2021)}].sum(dim='birth_year').mean(dim='run') / 10**6
+        step=0
+        unprec_15 = ds_pf_gs['unprec_{}'.format(pic_qntl_str)].sum(dim='country').loc[{'GMT':step,'run':sims_per_step[step],'birth_year':np.arange(2003,2021)}].sum(dim='birth_year').mean(dim='run') / 10**6
         print('in 1.5 degree pathway, {} chidren live unprecedented exposure to {}'.format(np.around(unprec_15.item()),extr))
         
         # millions children unprecedented in 2.7 pathway
-        step=17
-        unprec_27 = ds_pf_gs['unprec'].sum(dim='country').loc[{'GMT':step,'run':sims_per_step[step],'birth_year':np.arange(2003,2021)}].sum(dim='birth_year').mean(dim='run') / 10**6
+        step=12
+        unprec_27 = ds_pf_gs['unprec_{}'.format(pic_qntl_str)].sum(dim='country').loc[{'GMT':step,'run':sims_per_step[step],'birth_year':np.arange(2003,2021)}].sum(dim='birth_year').mean(dim='run') / 10**6
         print('in 2.7 degree pathway, {} children live unprecedented exposure to {}'.format(np.around(unprec_27.item()),extr))    
             
         # difference between 1.5 and 2.7 deg pathways
@@ -738,7 +739,7 @@ def print_pf_ratios(
     }        
 
     # labels for GMT ticks
-    GMT_indices_ticks=[6,12,18,24]
+    GMT_indices_ticks=[6,12,18,24] # these are old
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
 
     # loop through extremes and concat pop and pop frac
@@ -746,7 +747,7 @@ def print_pf_ratios(
     for extr in extremes:
         with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
-        p = ds_pf_gs_extr['unprec'].loc[{
+        p = ds_pf_gs_extr['unprec_{}'.format(str(pic_qntl))].loc[{
             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
         }].sum(dim='country')       
         p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
@@ -1209,7 +1210,52 @@ def print_latex_table_unprecedented_sideways(
             print('\\end{longtable}')
             print('\\normalsize') 
             print('\\clearpage')             
-# %%
+#%% ----------------------------------------------------------------
+# pyramid info
+# ------------------------------------------------------------------
+
+def print_pyramid_info(
+    flags,
+):
+
+    sl=0.05 # significance testing level for asterisks
+    extremes = [ # this array of extremes strings should be the same as the setup function
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
+        # 'floodedarea', 
+        'heatwavedarea', 
+        # 'tropicalcyclonedarea',
+    ]
+    GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
+    qntl_range = '20'
+    vln_types=('grdi','gdp')
+    
+    # per vulnerability indicator
+    for vln_type in vln_types:
+        print('')
+        print(vln_type)
+        print('')
+        with open('./data/{}/pyramid_data_{}.pkl'.format(flags['version'],vln_type), 'rb') as f:
+            d_pyramid_plot = pk.load(f)    
+        for e in extremes:    
+            for GMT in GMT_integers:
+                poor_unprec = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
+                poor_pop = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
+                rich_unprec = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
+                rich_pop = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
+                pvalues_poor = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
+                pvalues_rich = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
+                
+                print('')
+                print('{} degree C pathway'.format(df_GMT_strj.loc[2100,GMT]))
+                print('')
+                
+                print('ULE population for poorest is: \n {}'.format(poor_unprec))
+                print('percentage of ULE for poorest is: \n {}'.format(poor_unprec / poor_pop * 100))
+                print('unprecedented population for richest is: \n {}'.format(rich_unprec))
+                print('percentage of ULE for richest is: \n {}'.format(rich_unprec / rich_pop * 100))
+                print('p values significant: \n {}'.format(pvalues_poor < sl))
 
 #%% ----------------------------------------------------------------
 # testing f1 vs f4 inconsistency for belgium

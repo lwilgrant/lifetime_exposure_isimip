@@ -522,15 +522,15 @@ if flags['plot_ms']:
     # )    
     
     # # f2 alternative with absolute pops below box plots and no pie charts
-    # plot_combined_population(
-    #     df_GMT_strj,
-    #     ds_pf_gs,
-    #     da_gs_popdenom,
-    #     gdf_country_borders,
-    #     sims_per_step,
-    #     flags,
-    #     df_countries,
-    # )        
+    plot_combined_population(
+        df_GMT_strj,
+        ds_pf_gs,
+        da_gs_popdenom,
+        gdf_country_borders,
+        sims_per_step,
+        flags,
+        df_countries,
+    )        
 
     # f3 of heatmaps across all hazards
     plot_heatmaps_allhazards(
@@ -708,7 +708,7 @@ if flags['reporting']:
         df_GMT_strj,
     )   
     
-    # children living unprec exposure between 1.5 and 2.7 degrees warming
+    # children (i.e. those born between 2003-2020) living unprec exposure between 1.5 and 2.7 degrees warming (for numbers in conclusion of paper)
     print_millions_excess(
         flags,
         df_GMT_strj,
@@ -745,3 +745,11 @@ if flags['reporting']:
         flags,
         da_gs_popdenom,
     )    
+    
+    # data for pyramid stuff
+    print_pyramid_info(
+        flags,
+    )
+    
+                
+                
