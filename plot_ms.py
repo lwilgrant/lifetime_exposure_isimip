@@ -1092,7 +1092,7 @@ def plot_heatmaps_allhazards(
                     fontsize=12,
                     rotation='vertical',
                     color='gray',
-                    fontweight='bold',        
+                    # fontweight='bold',        
                 )            
         if n <= 2:
             ax.tick_params(labelbottom=False)    
@@ -2548,12 +2548,6 @@ def plot_combined_population(
     ax1.spines['left'].set_color('gray')
     ax1.spines['bottom'].set_color('gray')    
 
-    colors_pop = {
-        'Low income': plt.cm.get_cmap('tab20b')(1),
-        'Lower middle income': plt.cm.get_cmap('tab20b')(5),
-        'Upper middle income': plt.cm.get_cmap('tab20b')(9),
-        'High income': plt.cm.get_cmap('tab20b')(13),
-    }
     incomegroups = df_countries['incomegroup'].unique()
     income_countries = {}
     for category in incomegroups:
@@ -2586,74 +2580,22 @@ def plot_combined_population(
         fontweight='bold',
         fontsize=10
     )  
-    for by in np.arange(1960,2021,10):
-        
-
-    # # bbox for legend
-    # x0 = 0.025
-    # y0 = 0.0
-    # xlen = 0.2
-    # ylen = 0.3
-
-    # # space between entries
-    # legend_entrypad = 0.5
-
-    # # length per entry
-    # legend_entrylen = 0.75
-    # legend_font = 10
-    # legend_lw=3.5   
-
-    # legendcols = list(colors_pop.values())
-    # handles = [
-    #     Rectangle((0,0),1,1,color=legendcols[0]),\
-    #     Rectangle((0,0),1,1,color=legendcols[1]),\
-    #     Rectangle((0,0),1,1,color=legendcols[2]),\
-    #     Rectangle((0,0),1,1,color=legendcols[3])
-    # ]
-
-    # labels= list(colors_pop.keys())
-
-    # ax1.legend(
-    #     handles, 
-    #     labels, 
-    #     bbox_to_anchor=(x0, y0, xlen, ylen), 
-    #     loc = 'upper left',
-    #     ncol=1,
-    #     fontsize=legend_font, 
-    #     labelcolor='gray',
-    #     mode="expand", 
-    #     borderaxespad=0.,\
-    #     frameon=False, 
-    #     columnspacing=0.05, 
-    #     handlelength=legend_entrylen, 
-    #     handletextpad=legend_entrypad
-    # )       
+    # plot cohort sizes as text inside bars
+    for i,by in enumerate(testdf.index.values):
+        ax1.text(
+            x=i,
+            y=np.round(testdf['total'].loc[by]) - 10,
+            s=str(int(np.round(testdf['total'].loc[by]))),
+            horizontalalignment='center',
+            verticalalignment='center',
+            # transform=ax1.transData,
+            fontsize=8,
+            color='white',
+        )
+    
+   
     
     l+=1
-
-    # --------------------------------------------------------------------
-    # pie charts
-
-    # gmt_indices_sample = [24,15,6]
-    # gmt_legend={
-    #     gmt_indices_sample[0]:'1.5',
-    #     gmt_indices_sample[1]:'2.5',
-    #     gmt_indices_sample[2]:'3.5',
-    # }
-    colors = dict(zip([0,10,20],['steelblue','darkgoldenrod','darkred']))
-
-    by_sample = [1960,1990,2020]
-    incomegroups = df_countries['incomegroup'].unique()
-    income_countries = {}
-    for category in incomegroups:
-        income_countries[category] = list(df_countries.index[df_countries['incomegroup']==category])
-    ig_dict = {
-        'Low income':'LI',
-        'Lower middle income': 'LMI',
-        'Upper middle income': 'UMI',
-        'High income': 'HI',
-    }        
-
     # --------------------------------------------------------------------
     # maps of pop frac emergence for countries at 1, 2 and 3 deg pathways
 
@@ -2709,26 +2651,7 @@ def plot_combined_population(
             fontweight='bold',
             fontsize=10
         )    
-        # l+=1          
-        
-        # # pointers connecting 2020, GMT step pixel in heatmap to map panels ------------------
-        # if step == gmt_indices_152535[0]:
-        #     x_h=1 
-        # elif step == gmt_indices_152535[1]:
-        #     x_h=0.95                      
-        # elif step == gmt_indices_152535[-1]:
-        #     x_h=0.9
-        # y_h= df_pf_gs_plot[(df_pf_gs_plot['birth_year']==by)&(df_pf_gs_plot['GMT']==step)]['pf'].median() / 100
-        # x_m=0
-        # y_m=0.5
-        # con = ConnectionPatch(
-        #     xyA=(x_h,y_h),
-        #     xyB=(x_m,y_m),
-        #     coordsA=ax0.transAxes,
-        #     coordsB=ax.transAxes,
-        #     color='gray'
-        # )
-        # ax0.add_artist(con)          
+
         # triangles showing connections between GMT step box plot to map panels ---------------
         from matplotlib.patches import Circle, Wedge, Polygon
         from matplotlib.collections import PatchCollection
@@ -2780,7 +2703,7 @@ def plot_combined_population(
             (con_low.get_path().vertices[0],con_low.get_path().vertices[-1],con_hi.get_path().vertices[-1]),
             axis=0,
         )
-        triangle = plt.Polygon(tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=5,clip_on=False)    
+        triangle = plt.Polygon(tri_coords,ec='lightgray',fc='lightgray',alpha=0.5,zorder=10,clip_on=False)    
         ax0.add_artist(triangle)           
         
         # triangles showing connections between GMT step box plot to map panels ---------------        
@@ -2812,7 +2735,7 @@ def plot_combined_population(
     cb.outline.set_linewidth(cb_edgthic)   
     cax00.xaxis.set_label_position('top')   
 
-    f.savefig('./ms_figures/combined_plot_popsizes.png',dpi=1000)
+    f.savefig('./ms_figures/f2_combined_plot_popsizes.png',dpi=1000)
 #%% ----------------------------------------------------------------
 # combined plot showing absolute cohort sizes and pie charts
 # ------------------------------------------------------------------

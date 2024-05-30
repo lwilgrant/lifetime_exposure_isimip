@@ -746,7 +746,21 @@ if flags['reporting']:
         da_gs_popdenom,
     )    
     
-    # data for pyramid stuff
+    # data for box plots of heatwaves (f2)
+    print_f2_info(
+        ds_pf_gs,
+        flags,
+        df_GMT_strj,
+        da_gs_popdenom,
+        gdf_country_borders,
+    )
+    
+    # data for f3
+    print_f3_info(
+        flags,
+    )
+    
+    # data for pyramid stuff (f4)
     print_pyramid_info(
         flags,
     )

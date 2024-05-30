@@ -995,6 +995,7 @@ def print_latex_table_unprecedented(
 ):
 
     # input
+    unprec_level="unprec_99.99"      
     bys=np.arange(1960,2021,10)
     # bys=np.arange(1960,2021,1)
     gmt_legend={
@@ -1256,6 +1257,119 @@ def print_pyramid_info(
                 print('unprecedented population for richest is: \n {}'.format(rich_unprec))
                 print('percentage of ULE for richest is: \n {}'.format(rich_unprec / rich_pop * 100))
                 print('p values significant: \n {}'.format(pvalues_poor < sl))
+                
+#%% ----------------------------------------------------------------
+# f2 numbers
+# ------------------------------------------------------------------                
+
+def print_f2_info(
+    ds_pf_gs,
+    flags,
+    df_GMT_strj,
+    da_gs_popdenom,
+    gdf_country_borders,
+):
+    plot_var='unprec_99.99'
+    gmt_indices_152535 = [20,10,0]
+    map_letters = {20:'g',10:'f',0:'e'}    
+    
+    # box plot stuff
+    df_list_gs = []
+    extr='heatwavedarea'
+    with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        d_isimip_meta = pk.load(file)              
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+        ds_pf_gs_plot = pk.load(file)
+    da_p_gs_plot = ds_pf_gs_plot[plot_var].loc[{
+        'GMT':GMT_indices_plot,
+        'birth_year':sample_birth_years,
+    }]
+    sims_per_step = {}
+    for step in GMT_labels:
+        sims_per_step[step] = []
+        for i in list(d_isimip_meta.keys()):
+            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                sims_per_step[step].append(i)  
+                
+    for step in GMT_indices_plot:
+        da_pf_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].fillna(0).sum(dim='country') / da_gs_popdenom.sum(dim='country') * 100
+        df_pf_gs_plot_step = da_pf_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_pf_gs_plot_step['GMT_label'] = df_pf_gs_plot_step['GMT'].map(gmt_legend)       
+        df_pf_gs_plot_step['hazard'] = extr
+        df_list_gs.append(df_pf_gs_plot_step)
+    df_pf_gs_plot = pd.concat(df_list_gs)
+    
+    print('panel a: box plot time series numbers')
+    for gmt in (0,10,20):
+        print('GMT is {}'.format(df_GMT_strj.loc[2100,gmt]))
+        df_reporting = df_pf_gs_plot[(df_pf_gs_plot['hazard']==extr)&(df_pf_gs_plot['GMT']==gmt)&(df_pf_gs_plot['birth_year']==2020)]
+        print('median absolute number of ULE (in millions) is {}'.format(da_p_gs_plot.loc[{'run':sims_per_step[gmt],'GMT':gmt,'birth_year':2020}].fillna(0).sum(dim='country').median(dim='run').item()/10**6))
+        print('median pf is {}'.format(df_reporting['pf'].median()))
+        print('mean absolute number of ULE is {}'.format(da_p_gs_plot.loc[{'run':sims_per_step[gmt],'GMT':gmt,'birth_year':2020}].fillna(0).sum(dim='country').mean(dim='run').item()/10**6))
+        print('mean pf is {}'.format(df_reporting['pf'].mean()))
+        
+        
+    # map stuff
+    by=2020
+    da_p_gs_plot = ds_pf_gs[plot_var].loc[{
+        'GMT':gmt_indices_152535,
+        'birth_year':by,
+    }]
+    df_list_gs = []
+    for step in gmt_indices_152535:
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].median(dim='run')
+        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
+        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list_gs.append(df_p_gs_plot_step)
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
+    gdf = cp(gdf_country_borders.reset_index())
+    gdf_p = cp(gdf_country_borders.reset_index())
+
+    print('panel e,f,g: country numbers')
+    for step in (0,10,20):
+        print('GMT is {}'.format(df_GMT_strj.loc[2100,step]))
+        gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values      
+        print('number of countries with pf > 50% is : {}'.format(len(gdf_p['pf'][gdf_p['pf']>50])))  
+        print('number of countries with pf > 90% is : {}'.format(len(gdf_p['pf'][gdf_p['pf']>90])))
+        print('number of countries with pf = 100% is : {}'.format(len(gdf_p['pf'][gdf_p['pf']==100])))  
+
+#%% ----------------------------------------------------------------
+# f3 numbers
+# ------------------------------------------------------------------
+        
+def print_f3_info(
+    flags,
+):
+    
+    extremes = [
+        'heatwavedarea',     
+        'cropfailedarea', 
+        'burntarea', 
+        'driedarea', 
+        'floodedarea', 
+        'tropicalcyclonedarea',
+    ]
+    unprec_level="unprec_99.99"
+
+    list_extrs_pf = []
+    for extr in extremes:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_new_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+            d_isimip_meta = pk.load(file)  
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+            ds_pf_gs_extr = pk.load(file)    
+        p = ds_pf_gs_extr[unprec_level].loc[{
+            'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+        }].sum(dim='country')       
+        p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
+        list_extrs_pf.append(p)
+        
+    ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
+
+    for extr in extremes:
+        print(extr)
+        print('pf for 2020 under 3.5 degree pathway is {}'.format(ds_pf_gs_extrs.loc[{'hazard':extr,'birth_year':2020,'GMT':20}].item()))            
 
 #%% ----------------------------------------------------------------
 # testing f1 vs f4 inconsistency for belgium
