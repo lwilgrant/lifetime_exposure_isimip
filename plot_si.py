@@ -44,6 +44,192 @@ import cartopy.feature as feature
 from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, GMT_current_policies, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
 
+# %% ---------------------------------------------------------------
+# heatmap alternative to main text f3 but when only using common simulations
+
+def plot_sf1_heatmaps_allhazards(
+    df_GMT_strj,
+    da_gs_popdenom,
+    flags,
+):
+    
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    extremes = [
+        'heatwavedarea',     
+        'cropfailedarea', 
+        'burntarea', 
+        'driedarea', 
+        'floodedarea', 
+        'tropicalcyclonedarea',
+    ]
+    # extremes_labels = {
+    #     'burntarea': '$\mathregular{PF_{Wildfires}}$',
+    #     'cropfailedarea': '$\mathregular{PF_{Crop failures}}$',
+    #     'driedarea': '$\mathregular{PF_{Droughts}}$',
+    #     'floodedarea': '$\mathregular{PF_{Floods}}$',
+    #     'heatwavedarea': '$\mathregular{PF_{Heatwaves}}$',
+    #     'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
+    # }    
+    extremes_labels = {    
+        'heatwavedarea': '$\mathregular{CF_{Heatwaves}}$ [%]',
+        'cropfailedarea': '$\mathregular{CF_{Crop failures}}$ [%]',
+        'burntarea': '$\mathregular{CF_{Wildfires}}$ [%]',
+        'driedarea': '$\mathregular{CF_{Droughts}}$ [%]',
+        'floodedarea': '$\mathregular{CF_{Floods}}$ [%]',
+        'tropicalcyclonedarea': '$\mathregular{CF_{Tropical cyclones}}$ [%]',
+    }      
+    unprec_level="unprec_99.99"      
+
+    # labels for GMT ticks
+    # GMT_indices_ticks=[6,12,18,24]
+    GMT_indices_ticks=[0,5,10,15,20]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    levels_hw=np.arange(0,101,10)
+    levels_cf=np.arange(0,31,5)
+    levels_other=np.arange(0,16,1)
+    
+    # --------------------------------------------------------------------
+    # population fractions with simulation limits to avoid dry jumps
+    
+    # loop through extremes and concat pop and pop frac
+    list_extrs_pf = []
+    for extr in extremes:
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+            ds_pf_gs_extr = pk.load(file)
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_new_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+            d_isimip_meta = pk.load(file)        
+        sims_per_step = {}
+        for step in GMT_labels:
+            sims_per_step[step] = []
+            print('step {}'.format(step))
+            for i in list(d_isimip_meta.keys()):
+                if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                    sims_per_step[step].append(i)  
+        if extr != 'cropfailedarea':
+            p = ds_pf_gs_extr[unprec_level].loc[{
+                'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+                'run':sims_per_step[GMT_labels[-1]]
+            }].sum(dim='country')
+        else: # for some reason, cropfailedarea doesn't have 3.5th in earlier v1 pickle run?
+            p = ds_pf_gs_extr[unprec_level].loc[{
+                'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+                'run':sims_per_step[GMT_labels[-1]]
+            }].sum(dim='country')            
+        p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
+        list_extrs_pf.append(p)
+        
+    ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
+    
+    # plot
+    mpl.rcParams['xtick.labelcolor'] = 'gray'
+    mpl.rcParams['ytick.labelcolor'] = 'gray'
+    x=14
+    y=7
+    f,axes = plt.subplots(
+        nrows=2,
+        ncols=3,
+        figsize=(x,y),
+    )
+
+    for ax,extr in zip(axes.flatten(),extremes):
+        if extr == 'heatwavedarea':
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_hw,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,101,20)}
+            ) 
+        elif extr == 'cropfailedarea':
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_cf,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,31,5)}
+            )         
+        else:
+            p = ds_pf_gs_extrs.loc[{
+                'hazard':extr,
+                'birth_year':np.arange(1960,2021),
+            }].plot.contourf(
+                x='birth_year',
+                y='GMT',
+                ax=ax,
+                add_labels=False,
+                # levels=10,
+                levels=levels_other,
+                cmap='Reds',
+                cbar_kwargs={'ticks':np.arange(0,16,3)}
+            )  
+            
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100,
+            color='gray',
+        )
+        ax.set_xticks(
+            ticks=np.arange(1960,2025,10),
+            color='gray',
+        )                  
+        
+    # ax stuff
+    l=0
+    for n,ax in enumerate(axes.flatten()):
+        ax.set_title(
+            extremes_labels[extremes[n]],
+            loc='center',
+            fontweight='bold',
+            color='gray',
+            fontsize=12,
+        )
+        ax.set_title(
+            letters[l],
+            loc='left',
+            fontweight='bold',
+            fontsize=10,
+        )  
+        l+=1                  
+        ax.spines['right'].set_color('gray')
+        ax.spines['top'].set_color('gray')
+        ax.spines['left'].set_color('gray')
+        ax.spines['bottom'].set_color('gray')
+
+        if not np.isin(n,[0,3]):
+            ax.yaxis.set_ticklabels([])
+        if n == 0:
+            ax.annotate(
+                    'GMT warming by 2100 [°C]',
+                    (-.3,-0.6),
+                    xycoords=ax.transAxes,
+                    fontsize=12,
+                    rotation='vertical',
+                    color='gray',
+                    # fontweight='bold',        
+                )            
+        if n <= 2:
+            ax.tick_params(labelbottom=False)    
+        if n >= 3:
+            ax.set_xlabel('Birth year',fontsize=12,color='gray')         
+ 
+    f.savefig('./si_figures/final/sf1.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
+    # f.savefig('./si_figures/pf_heatmap_combined_simlim_{}.eps'.format(flags['version']),format='eps',bbox_inches='tight')
+    plt.show()   
 
 # %% ---------------------------------------------------------------
 # population fractions tseries for all hazards for 2020 birth cohort
@@ -203,7 +389,7 @@ def plot_pf_gmt_tseries_allhazards(
 # %% ---------------------------------------------------------------
 # population fractions tseries for all hazards for 2020 birth cohort
 
-def plot_pf_by_tseries_allhazards(
+def plot_sf3_pf_by_tseries_allhazards(
     flags,
     df_GMT_strj,
     da_gs_popdenom,
@@ -228,11 +414,12 @@ def plot_pf_by_tseries_allhazards(
     }  
 
     # labels for GMT ticks
-    GMT_indices_ticks=[6,12,18,24]
+    GMT_indices_ticks=[0,5,10,15,20]
+    unprec_level="unprec_99.99"   
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)        
 
     # GMT step representing CAT policy pledges for 2.7 degree warming
-    gmtlevel=17
+    gmtlevel=12
     # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
@@ -251,7 +438,7 @@ def plot_pf_by_tseries_allhazards(
         with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
         
-        da_plt = ds_pf_gs_extr['unprec'].loc[{
+        da_plt = ds_pf_gs_extr[unprec_level].loc[{
             'birth_year':birth_years,
             'GMT':gmtlevel,
             'run':sims_per_step[gmtlevel]
@@ -367,12 +554,12 @@ def plot_pf_by_tseries_allhazards(
         l+=1  
         
         # f.savefig('./si_figures/pf_2.7_tseries_allhazards.png',dpi=1000)
-        f.savefig('./si_figures/pf_2.7_tseries_allhazards.pdf',dpi=500)
+        f.savefig('./si_figures/final/sf3.png',dpi=500)
 
 # %% ---------------------------------------------------------------
 # population fractions box plot tseries for all hazards
 
-def plot_boxplots_allhazards(
+def plot_sf2_boxplots_allhazards(
     da_gs_popdenom,
     df_GMT_strj,
     flags,
@@ -397,7 +584,8 @@ def plot_boxplots_allhazards(
     }  
 
     # labels for GMT ticks
-    GMT_indices_ticks=[6,12,18,24]
+    GMT_indices_ticks=[0,5,10,15,20]
+    unprec_level="unprec_99.99"
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)        
     gmt_legend={
         GMT_indices_plot[0]:'1.5',
@@ -414,7 +602,7 @@ def plot_boxplots_allhazards(
         with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             ds_pf_gs_plot = pk.load(file)
             
-        da_p_gs_plot = ds_pf_gs_plot['unprec'].loc[{
+        da_p_gs_plot = ds_pf_gs_plot[unprec_level].loc[{
             'GMT':GMT_indices_plot,
             'birth_year':sample_birth_years,
         }]
@@ -551,7 +739,7 @@ def plot_boxplots_allhazards(
         l+=1
           
         # f.savefig('./si_figures/pf_boxplots_allhazards.png',dpi=1000)
-        f.savefig('./si_figures/pf_boxplots_allhazards.pdf',dpi=500)
+        f.savefig('./si_figures/final/sf2.png',dpi=500)
 
 # %% ---------------------------------------------------------------
 # population fractions maps for all hazards for 2020 birth cohort

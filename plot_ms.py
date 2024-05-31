@@ -968,7 +968,7 @@ def plot_heatmaps_allhazards(
                     fontsize=12,
                     rotation='vertical',
                     color='gray',
-                    fontweight='bold',        
+                    # fontweight='bold',        
                 )            
         if n <= 2:
             ax.tick_params(labelbottom=False)    
@@ -2425,6 +2425,33 @@ def plot_combined_population(
     ax01 = f.add_subplot(gs01[0],projection=ccrs.Robinson())
     ax11 = f.add_subplot(gs01[1],projection=ccrs.Robinson())
     ax21 = f.add_subplot(gs01[2],projection=ccrs.Robinson()) 
+    
+    # this is copied from my pyramid plot maps. comparison meant to get nicer version of robinson seen in the other
+    # seems that when robinson is called from subplot instantiation, the panels look different
+    # f,ax = plt.subplots(
+    #     ncols=1,
+    #     nrows=1,
+    #     subplot_kw={'projection':ccrs.Robinson()},
+    #     transform=ccrs.PlateCarree()
+    # )
+    # ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+    # gdf_p.to_crs(robinson).plot(
+    #     ax=ax,
+    #     column='grdi_q_by_p',
+    #     color='darkgoldenrod',
+    #     zorder=5,
+    #     markersize=0.5,
+    # )    
+    # gdf_r.to_crs(robinson).plot(
+    #     ax=ax,
+    #     column='grdi_q_by_p',
+    #     color='forestgreen',
+    #     zorder=5,
+    #     markersize=0.5,
+    # )            
+    # ax.set_xlim(gdf_robinson_bounds[0],gdf_robinson_bounds[2])
+    # ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])      
+    
     pos00 = ax21.get_position()
     cax00 = f.add_axes([
         pos00.x0-0.05,
@@ -2637,6 +2664,10 @@ def plot_combined_population(
             zorder=3,
         )
         
+        gdf_robinson_bounds = gdf_p.to_crs(robinson).total_bounds # (minx,miny,maxx,maxy)
+        
+        # ax.set_global() # checking to see if this makes projections fully showing antarctica
+        
         ax.set_title(
             '{} °C'.format(gmt_legend[step]),
             loc='center',
@@ -2735,7 +2766,9 @@ def plot_combined_population(
     cb.outline.set_linewidth(cb_edgthic)   
     cax00.xaxis.set_label_position('top')   
 
-    f.savefig('./ms_figures/f2_combined_plot_popsizes.png',dpi=1000)
+    # f.savefig('./ms_figures/f2_combined_plot_popsizes.png',dpi=1000)
+    return gdf_robinson_bounds
+    
 #%% ----------------------------------------------------------------
 # combined plot showing absolute cohort sizes and pie charts
 # ------------------------------------------------------------------
@@ -4872,7 +4905,8 @@ gdf_r = gpd.GeoDataFrame(
 gdf_r.set_crs(epsg = "4326",inplace=True)        
 # get bounds
 robinson = ccrs.Robinson().proj4_init
-gdf_robinson_bounds = gdf_p.to_crs(robinson).total_bounds # (minx,miny,maxx,maxy)
+gdf_robinson_bounds_v1 = gdf_p.to_crs(robinson).total_bounds # (minx,miny,maxx,maxy) will use this for xlim
+gdf_robinson_bounds  # wil be read into function (take out of f2 function); use for y lim for antarctica consistency with other plots
 # get rid of nans so the dataframe is more plottable
 gdf_p = gdf_p.dropna()
 gdf_r = gdf_r.dropna()
@@ -4898,8 +4932,10 @@ gdf_r.to_crs(robinson).plot(
     zorder=4,
     markersize=0.1,
 )            
-ax.set_xlim(gdf_robinson_bounds[0],gdf_robinson_bounds[2])
-ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])        
+ax.set_xlim(gdf_robinson_bounds_v1[0],gdf_robinson_bounds_v1[2])
+ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])      
+
+# gdf_robinson_bounds  
 
 # legend stuff
 cmap = ['darkgoldenrod','forestgreen']  

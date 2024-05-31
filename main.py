@@ -521,8 +521,9 @@ if flags['plot_ms']:
     #     df_countries,
     # )    
     
-    # # f2 alternative with absolute pops below box plots and no pie charts
-    plot_combined_population(
+    # f2 alternative with absolute pops below box plots and no pie charts
+    # further, returning robinson boundaries for use in pyramid plot maps for consistent map extents (that exclude antarctica)
+    gdf_robinson_bounds = plot_combined_population(
         df_GMT_strj,
         ds_pf_gs,
         da_gs_popdenom,
@@ -574,6 +575,34 @@ if flags['plot_ms']:
 if flags['plot_si']:
 
     from plot_si import *
+    
+    # heatmaps but with simulations limited to common sims (to avoid dry GCM jumps)
+    plot_sf1_heatmaps_allhazards(
+        df_GMT_strj,
+        da_gs_popdenom,
+        flags,
+    )    
+    
+    # pf box plots for 1.5, 2.5 and 3.5 degree world across birth years
+    plot_sf2_boxplots_allhazards(
+        da_gs_popdenom,
+        df_GMT_strj,
+        flags,
+    )      
+    
+    # pf time series for 2.7 degree world across birth years
+    plot_sf3_pf_by_tseries_allhazards(
+        flags,
+        df_GMT_strj,
+        da_gs_popdenom,
+    )          
+    
+    # pf maps for 1..5, 2.5, 3.5 for all hazards
+    plot_sf4_pf_maps_allhazards(
+        da_gs_popdenom,
+        gdf_country_borders,
+        flags,
+    )        
 
     # pf time series for 2020 birth year across GMTs
     plot_pf_gmt_tseries_allhazards(
@@ -581,27 +610,6 @@ if flags['plot_si']:
         da_gs_popdenom,
         flags,
     )
-    
-    # pf time series for 2.7 degree world across birth years
-    plot_pf_by_tseries_allhazards(
-        flags,
-        df_GMT_strj,
-        da_gs_popdenom,
-    )   
-    
-    # pf box plots for 1.5, 2.5 and 3.5 degree world across birth years
-    plot_boxplots_allhazards(
-        da_gs_popdenom,
-        df_GMT_strj,
-        flags,
-    )     
-    
-    # pf maps for 1..5, 2.5, 3.5 for all hazards
-    plot_pf_maps_allhazards(
-        da_gs_popdenom,
-        gdf_country_borders,
-        flags,
-    )    
     
     # emergence fraction plot for hazards between 1960 and 2020 in a 2.7 degree world
     plot_emergence_fracs(
