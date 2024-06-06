@@ -49,7 +49,7 @@
 import xarray as xr
 import pickle as pk
 import time
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+# from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib as mpl
 import mapclassify as mc
 from copy import deepcopy as cp
@@ -105,15 +105,17 @@ flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birt
                                     # 1: run calc_birthyear_align with birth years from 1960-2100                             
 flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
+flags['gridscale_le_test'] = 0      # 0: do not process the grid scale analysis testing diff versions of constant life expectancy
+                                    # 1: process grid scale analysis testing diff versions of constant life expectancy                             
 flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all countries
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
                                     # 1: process/load those^ pickles    
 flags['global_emergence_recollect'] = 0       # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                                                                               
-flags['gdp_deprivation'] = 1        # 0: do not process/load lifetime GDP/GRDI average
+flags['gdp_deprivation'] = 0        # 0: do not process/load lifetime GDP/GRDI average
                                     # 1: load lifetime GDP average analysis        
-flags['vulnerability'] = 1          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
+flags['vulnerability'] = 0          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
                                     # 1: process/load d_collect_emergence vs gdp & deprivation quantiles for vulnerability analysis
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
@@ -379,7 +381,7 @@ if flags['gridscale']:
         countries_mask,
         df_life_expectancy_5,
         da_population,
-    )
+    )    
     
 else:
     
@@ -388,21 +390,41 @@ else:
         ds_le_gs = pk.load(f)
     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_pf_gs = pk.load(f)
-            
-# estimate union of all hazard emergences
-if flags['gridscale_union']:
+        
+if flags['gridscale_le_test']:
     
-    da_emergence_mean, da_emergence_union = get_gridscale_union(
-        da_population,
+    ds_pf_gs_le_test = gridscale_emergence_life_expectancy_constant(
+        d_isimip_meta,
+        d_pic_meta,
         flags,
         gridscale_countries,
-        countries_mask,
+        da_cohort_size,
         countries_regions,
-    )
-
-# read in global emergence masks
-if flags['global_emergence_recollect']:
+        countries_mask,
+        df_life_expectancy_5,
+        da_population,
+    )        
     
+else:
+    
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
+        ds_pf_gs = pk.load(f)    
+            
+# estimate union of all hazard emergences (probably removing this because I don't focus on it in the paper anymore)
+# if flags['gridscale_union']:
+    
+#     da_emergence_mean, da_emergence_union = get_gridscale_union(
+#         da_population,
+#         flags,
+#         gridscale_countries,
+#         countries_mask,
+#         countries_regions,
+#     )
+
+# read in all global emergence masks (d_global_emergence is then used for vulnerability assessment, but only possible on hpc because it is large for some hazards)
+if flags['global_emergence_recollect']:
+
+    # temporarily commented out extremes in this function outside heatwaved area to test new means extraction below
     d_global_emergence = collect_global_emergence(
         grid_area,
         flags,
@@ -411,6 +433,68 @@ if flags['global_emergence_recollect']:
         gridscale_countries,
         df_GMT_strj,
     )
+    
+    # additionally retrieve emergence fracs for 2.7 and 3.2 degrees (for figure SF5; this function substitutes earlier get_gridscale_union())
+    if not os.path.isfile('./data/{}/emergence_means.pkl'.format(flags['version'])):
+        
+        GMTs_cp = [12,17] # "12" is for 2.7 degree pathway, "17" is for 3.2 degree pathway
+        by_subset = [1960,2020]
+        pthresholds=['99.99', '99.9'] # can only use pthresh's already available in d_global_emergence proc, which are 99.99 (og) and 99.9 (alternative)
+        extremes = [
+            'burntarea', 
+            'cropfailedarea', 
+            'driedarea', 
+            'floodedarea', 
+            'heatwavedarea', 
+            'tropicalcyclonedarea',
+        ]
+
+        ds_emergence_mean = xr.Dataset(
+            data_vars={
+                'emergence_mean': (
+                    ['hazard','qntl','GMT','birth_year','lat','lon'],
+                    np.full(
+                        (len(extremes),len(pthresholds),len(GMTs_cp),len(by_subset),len(da_population.lat.data),len(da_population.lon.data)),
+                        fill_value=np.nan,
+                    ),
+                ),                           
+            },
+            coords={
+                'lat': ('lat', da_population.lat.data),
+                'lon': ('lon', da_population.lon.data),
+                'birth_year': ('birth_year', by_subset),
+                'hazard': ('hazard', extremes),
+                'qntl': ('qntl', pthresholds),
+                'GMT': ('GMT', GMTs_cp),
+            }
+        )
+
+        # loop through extremes "d_emergence_masks[extr][str(df_GMT_strj.loc[2100,step])] = ds_global_emergence.copy()
+        for extr in extremes:
+            for step in GMTs_cp:
+                for pthresh in pthresholds:
+                    for by in by_subset:
+                        ds_emergence_mean['emergence_mean'].loc[{
+                            'hazard':extr,
+                            'GMT':step,
+                            'qntl':pthresh,
+                            'birth_year':by,
+                            'lat':da_population.lat.data,
+                            'lon':da_population.lon.data,
+                        }] = d_global_emergence[extr][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(extr)].loc[{
+                                'qntl':pthresh,
+                                'birth_year':by,
+                                'lat':da_population.lat.data,
+                                'lon':da_population.lon.data,
+                            }].mean(dim='run')
+                        
+        with open('./data/{}/emergence_means.pkl'.format(flags['version']), 'wb') as f:
+                pk.dump(ds_emergence_mean,f) 
+                
+    else:
+        
+        with open('./data/{}/emergence_means.pkl'.format(flags['version']), 'rb') as f:
+                ds_emergence_mean = pk.load(f)         
     
 # load/proc GDP and deprivation data
 if flags['gdp_deprivation']:
@@ -603,6 +687,32 @@ if flags['plot_si']:
         gdf_country_borders,
         flags,
     )        
+    
+    # emergence fraction plot for hazards between 1960 and 2020 in a 2.7 degree world
+    plot_sf5_emergence_fracs(
+        grid_area,
+        ds_emergence_mean,
+    )        
+    
+    # plot locations where exposure occurs at all in our dataset
+    plot_sf6_exposure_locations(
+        grid_area,
+        countries_mask,
+        flags,
+    )        
+    
+    # plot heatmaps of pf for country level emergence
+    plot_sf7_heatmaps_allhazards_countryemergence(
+        df_GMT_strj,
+        flags,
+    )     
+    
+    # plot gmt time series for projections (rcp) and for which we map projections onto (ar6)
+    plot_sf8_gmt_pathways(
+        df_GMT_strj,
+        d_isimip_meta,
+    )    
+        
 
     # pf time series for 2020 birth year across GMTs
     plot_pf_gmt_tseries_allhazards(
@@ -611,35 +721,10 @@ if flags['plot_si']:
         flags,
     )
     
-    # emergence fraction plot for hazards between 1960 and 2020 in a 2.7 degree world
-    plot_emergence_fracs(
-        grid_area,
-        da_emergence_mean,
-    )    
-    
-    # plot locations where exposure occurs at all in our dataset
-    plot_exposure_locations(
-        grid_area,
-        countries_mask,
-        flags,
-    )    
-    
     # plot tseries box plots for 1.5, 2.5 and 3.5 when denominator contrained by exposure extent
     plot_geoconstrained_boxplots(
         flags,
     )    
-
-    # plot gmt pathways of rcps and ar6
-    plot_gmt_pathways(
-        df_GMT_strj,
-        d_isimip_meta,
-    )
-    
-    # plot heatmaps of pf for country level emergence
-    plot_heatmaps_allhazards_countryemergence(
-        df_GMT_strj,
-        flags,
-    )     
     
     # plot pie charts of all hazards
     plot_allhazards_piecharts(
@@ -723,7 +808,7 @@ if flags['reporting']:
     )     
 
     # print pf info    
-    print_pf_ratios(
+    print_pf_ratios_and_abstract_numbers(
         df_GMT_strj,
         da_gs_popdenom,
     )    

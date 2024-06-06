@@ -234,7 +234,7 @@ def emergence_locs_perrun(
     countries_regions,
 ):
 
-    gmt_indices_sample = [24,17,15,6]
+    gmt_indices_sample = [0,10,12,17,20]
     lat = grid_area.lat.values
     lon = grid_area.lon.values
     da_mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
@@ -365,8 +365,8 @@ def pf_geoconstrained(
     countries_mask,
 ):
 
-    gmt_indices_sample = [6,15,17,24]
-
+    gmt_indices_sample = [0,10,12,17,20]
+    unprec_level="unprec_99.99"
     extremes = [
         'burntarea', 
         'cropfailedarea', 
@@ -475,6 +475,7 @@ def print_pf_geoconstrained(
 ):
 
     gmt_indices_sample = [6,15,17,24]
+    unprec_level="unprec_99.99"
     extremes = [
         'burntarea', 
         'cropfailedarea', 
@@ -507,7 +508,7 @@ def print_pf_geoconstrained(
         for step in gmt_indices_sample:
             
             pf_geo = ds_pf_geoconstrained['pf_perrun'].loc[{'GMT':step,'run':sims_per_step[step]}].mean(dim='run') * 100
-            pf = ds_pf_gs['unprec'].loc[{'GMT':step,'run':sims_per_step[step]}].fillna(0).sum(dim='country').mean(dim='run') / da_gs_popdenom.sum(dim='country') * 100
+            pf = ds_pf_gs[unprec_level].loc[{'GMT':step,'run':sims_per_step[step]}].fillna(0).sum(dim='country').mean(dim='run') / da_gs_popdenom.sum(dim='country') * 100
             
             print('{} under GMT step {} has geoconstrained pf of {} for 1960 and {} for 2020'.format(extr,step,pf_geo.loc[{'birth_year':1960}].item(),pf_geo.loc[{'birth_year':2020}].item()))
             print('{} under GMT step {} has regular pf of {} for 1960 and {} for 2020'.format(extr,step,pf.loc[{'birth_year':1960}].item(),pf.loc[{'birth_year':2020}].item()))
@@ -610,7 +611,7 @@ def print_latex_table_ensemble_sizes(
         'tropicalcyclonedarea': 'Tropical cyclones',
     }  
 
-    gmts = np.arange(6,25).astype('int')
+    gmts = np.arange(0,21).astype('int')
     gmts2100 = np.round(df_GMT_strj.loc[2100,gmts].values,1)   
     gmt_dict = dict(zip(gmts,gmts2100))
 
@@ -712,7 +713,7 @@ def print_millions_excess(
 #%% ----------------------------------------------------------------
 # ratio of pfs reporting
 # ------------------------------------------------------------------  
-def print_pf_ratios(
+def print_pf_ratios_and_abstract_numbers(
     df_GMT_strj,
     da_gs_popdenom,
 ):
@@ -738,16 +739,18 @@ def print_pf_ratios(
         'tropicalcyclonedarea': '$\mathregular{PF_{Tropical cyclones}}$',
     }        
 
-    # labels for GMT ticks
-    GMT_indices_ticks=[6,12,18,24] # these are old
-    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    # gmt choice
+    GMT_low = 0 # 1.5 degrees
+    GMT_high = 20 # 3.5 degrees
+    GMT_cp = 12 # 2.7 degrees, whereas 17 is 3.2 in new scheme
+    unprec_level="unprec_99.99"
 
     # loop through extremes and concat pop and pop frac
     list_extrs_pf = []
     for extr in extremes:
         with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as file:
             ds_pf_gs_extr = pk.load(file)    
-        p = ds_pf_gs_extr['unprec_{}'.format(str(pic_qntl))].loc[{
+        p = ds_pf_gs_extr[unprec_level].loc[{
             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
         }].sum(dim='country')       
         p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
@@ -760,13 +763,13 @@ def print_pf_ratios(
         # looking across birth years (1960 to 2020 for current policies)
         pf_1960 = ds_pf_gs_extrs.loc[{
             'birth_year':1960,
-            'GMT':17,
+            'GMT':GMT_cp,
             'hazard':extr
         }].item()
         
         pf_2020 = ds_pf_gs_extrs.loc[{
             'birth_year':2020,
-            'GMT':17,
+            'GMT':GMT_cp,
             'hazard':extr
         }].item()    
         
@@ -777,19 +780,28 @@ def print_pf_ratios(
         # looking across GMTs for 2020
         pf15 = ds_pf_gs_extrs.loc[{
             'birth_year':2020,
-            'GMT':6,
+            'GMT':GMT_low,
             'hazard':extr
         }].item()
         
         pf27 = ds_pf_gs_extrs.loc[{
             'birth_year':2020,
-            'GMT':17,
+            'GMT':GMT_cp,
             'hazard':extr
         }].item()    
+        
+        pf35 = ds_pf_gs_extrs.loc[{
+            'birth_year':2020,
+            'GMT':GMT_high,
+            'hazard':extr
+        }].item()
         
         pf_27_15_ratio = np.around(pf27 / pf15,1)    
         
         print('change in pf for {} and 2020 cohort \n between 1.5 and 2.7 pathways is {}'.format(extr,pf_27_15_ratio))
+        
+        print('1.5 degree scenario pf for {} is {}'.format(extr,pf15))
+        print('3.5 degree scenario pf for {} is {}'.format(extr,pf35))
         
         print('')  
         
@@ -1037,7 +1049,7 @@ def print_latex_table_unprecedented(
                 if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     sims_per_step[extr][step].append(i)      
         
-        da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        da_p_gs_plot = ds_pf_gs[unprec_level].loc[{
             'GMT':GMT_indices_plot,
         }]
         df_list_gs = []

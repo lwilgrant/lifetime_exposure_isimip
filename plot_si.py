@@ -744,7 +744,7 @@ def plot_sf2_boxplots_allhazards(
 # %% ---------------------------------------------------------------
 # population fractions maps for all hazards for 2020 birth cohort
 
-def plot_pf_maps_allhazards(
+def plot_sf4_pf_maps_allhazards(
     da_gs_popdenom,
     gdf_country_borders,
     flags,
@@ -778,6 +778,7 @@ def plot_pf_maps_allhazards(
         'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
+    unprec_level="unprec_99.99"      
 
     # colorbar stuff ------------------------------------------------------------
     cmap_whole = plt.cm.get_cmap('Reds')
@@ -794,7 +795,7 @@ def plot_pf_maps_allhazards(
     }     
 
     by=2020
-    gmt_indices_152535 = [6,15,24]
+    gmt_indices_152535 = [0,10,20]
     
     fig,axes = plt.subplots(
         nrows=6,
@@ -815,11 +816,11 @@ def plot_pf_maps_allhazards(
     # so we only take sims or runs valid per GMT level and make sure nans are 0
     df_list_gs = []
     for extr in extremes:
-        with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_new_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)         
         with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)  
-        da_p_gs_plot = ds_pf_gs['unprec'].loc[{
+        da_p_gs_plot = ds_pf_gs[unprec_level].loc[{
             'GMT':gmt_indices_152535,
             'birth_year':by,
         }]          
@@ -923,7 +924,7 @@ def plot_pf_maps_allhazards(
     cb.outline.set_linewidth(cb_edgthic)
     cax.yaxis.set_label_position('right')
 
-    fig.savefig('./si_figures/maps_pf_allhazards_vertical.png',dpi=1000,bbox_inches='tight')    
+    fig.savefig('./si_figures/final/sf4.png',dpi=1000,bbox_inches='tight')    
     
 # %% ---------------------------------------------------------------
 # population fractions box plot tseries for all hazards when computed with geoconstraints
@@ -1110,12 +1111,15 @@ def plot_geoconstrained_boxplots(
 #%% ----------------------------------------------------------------
 # plot of locations of emergence
 
-def plot_emergence_fracs(
+def plot_sf5_emergence_fracs(
     grid_area,
-    da_emergence_mean,
+    ds_emergence_mean,
 ):
     x=12
     y=6
+    gmt_cp = 12 # for 2.7 degree pathway, "17" for 3.2 version
+    pthresh = '99.99' # could be '99.9' too
+    da_emergence_mean = da_emergence_mean['emergence_mean']
     markersize=10
     lat = grid_area.lat.values
     lon = grid_area.lon.values
@@ -1229,7 +1233,8 @@ def plot_emergence_fracs(
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
         p1960 = da_emergence_mean.loc[{
             'hazard':extr,
-            'GMT':17,
+            'GMT':gmt_cp,
+            'qntl':pthresh,
             'birth_year':1960,
         }]
         p1960 = xr.where( # applying correction since 1st are missing in plot for some reason
@@ -1289,7 +1294,8 @@ def plot_emergence_fracs(
         ax.add_feature(feature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='k', facecolor='white',linewidth=0.25))
         p2020 = da_emergence_mean.loc[{
             'hazard':extr,
-            'GMT':17,
+            'GMT':gmt_cp,
+            'qntl':pthresh,
             'birth_year':2020,
         }]
         p2020 = xr.where( # applying correction since 1st are missing in plot for some reason
@@ -1367,12 +1373,12 @@ def plot_emergence_fracs(
     # la_frac_eu_gteq3 = xr.where(eu>=3,grid_area,0).sum(dim=('lat','lon')) / grid_area.where(mask==0).sum(dim=('lat','lon'))
     # print(la_frac_eu_gteq3)    
         
-    f.savefig('./si_figures/emergence_fracs.png',dpi=1000,bbox_inches='tight')    
+    f.savefig('./si_figures/final/sf5.png',dpi=1000,bbox_inches='tight')    
     
 #%% ----------------------------------------------------------------
 # plot of locations of exposure for showing geograpical constraints
 
-def plot_exposure_locations(
+def plot_sf6_exposure_locations(
     grid_area,
     countries_mask,
     flags,
@@ -1475,7 +1481,7 @@ def plot_exposure_locations(
 #%% ----------------------------------------------------------------
 # plot gmt pathways in rcps and ar6
 
-def plot_gmt_pathways(
+def plot_sf8_gmt_pathways(
     df_GMT_strj,
     d_isimip_meta,
 ):
@@ -1616,6 +1622,7 @@ def plot_gmt_pathways(
         rotation='vertical', 
         fontsize=axis_font, 
         labelpad=10,
+        color='gray'
     )
 
     axar6.set_ylabel(
@@ -1628,6 +1635,7 @@ def plot_gmt_pathways(
         rotation='horizontal', 
         fontsize=axis_font, 
         labelpad=10,
+        color='gray'
     )    
 
     axar6.set_xlabel(
@@ -1636,6 +1644,7 @@ def plot_gmt_pathways(
         rotation='horizontal', 
         fontsize=axis_font, 
         labelpad=10,
+        color='gray'
     )    
     
     axrcp.get_legend().remove()
@@ -1649,6 +1658,9 @@ def plot_gmt_pathways(
         ax.tick_params(labelsize=tick_font,axis="y",direction="in")
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
+        ax.spines['left'].set_color('gray')
+        ax.spines['bottom'].set_color('gray')         
+        ax.tick_params(colors='gray')      
         ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
         ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
         ax.set_xticks(
@@ -1712,12 +1724,12 @@ def plot_gmt_pathways(
     )               
             
     # f.savefig('./si_figures/GMT_trajectories.png',bbox_inches='tight',dpi=1000)    
-    f.savefig('./si_figures/GMT_trajectories_v2.pdf',bbox_inches='tight',dpi=500)    
+    f.savefig('./si_figures/final/sf8.png',bbox_inches='tight',dpi=500)    
     
 #%% ----------------------------------------------------------------
 # plot heatmaps for countrylevel emergence
 
-def plot_heatmaps_allhazards_countryemergence(
+def plot_sf7_heatmaps_allhazards_countryemergence(
     df_GMT_strj,
     flags,
 ):
@@ -1752,7 +1764,7 @@ def plot_heatmaps_allhazards_countryemergence(
     }            
 
     # labels for GMT ticks
-    GMT_indices_ticks=[6,12,18,24]
+    GMT_indices_ticks=[0,5,10,15,20]
     gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
     levels_hw=np.arange(0,101,10)
     levels_cf=np.arange(0,70,10)
@@ -1766,7 +1778,7 @@ def plot_heatmaps_allhazards_countryemergence(
             da_pf = pk.load(f)['mean_frac_unprec_all_b_y0'].loc[{
                 'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
             }] *100    
-        with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_new_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)        
         list_extrs_pf.append(da_pf)
         
@@ -1914,14 +1926,14 @@ def plot_heatmaps_allhazards_countryemergence(
                     fontsize=12,
                     rotation='vertical',
                     color='gray',
-                    fontweight='bold',        
+                    # fontweight='bold',        
                 )            
         if n <= 2:
             ax.tick_params(labelbottom=False)    
         if n >= 3:
             ax.set_xlabel('Birth year',fontsize=12,color='gray')    
 
-    f.savefig('./si_figures/pf_heatmap_combined_allsims_countryemergence.png',dpi=1000,bbox_inches='tight')
+    f.savefig('./si_figures/final/sf7.png',dpi=1000,bbox_inches='tight')
     # f.savefig('./ms_figures/pf_heatmap_combined_allsims.eps',format='eps',bbox_inches='tight')
     plt.show()         
 

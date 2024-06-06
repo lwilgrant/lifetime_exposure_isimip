@@ -839,145 +839,145 @@ def plot_heatmaps_allhazards(
     levels_cf=np.arange(0,31,5)
     levels_other=np.arange(0,16,1)
     
-    # --------------------------------------------------------------------
-    # population fractions with simulation limits to avoid dry jumps
+    # # --------------------------------------------------------------------
+    # # population fractions with simulation limits to avoid dry jumps
     
-    # loop through extremes and concat pop and pop frac
-    list_extrs_pf = []
-    for extr in extremes:
-        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
-            ds_pf_gs_extr = pk.load(file)
-        with open('./data/{}/{}/isimip_metadata_{}_ar6_new_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
-            d_isimip_meta = pk.load(file)        
-        sims_per_step = {}
-        for step in GMT_labels:
-            sims_per_step[step] = []
-            print('step {}'.format(step))
-            for i in list(d_isimip_meta.keys()):
-                if d_isimip_meta[i]['GMT_strj_valid'][step]:
-                    sims_per_step[step].append(i)  
-        if extr != 'cropfailedarea':
-            p = ds_pf_gs_extr[unprec_level].loc[{
-                'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
-                'run':sims_per_step[GMT_labels[-1]]
-            }].sum(dim='country')
-        else: # for some reason, cropfailedarea doesn't have 3.5th in earlier v1 pickle run?
-            p = ds_pf_gs_extr[unprec_level].loc[{
-                'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
-                'run':sims_per_step[GMT_labels[-1]]
-            }].sum(dim='country')            
-        p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
-        list_extrs_pf.append(p)
+    # # loop through extremes and concat pop and pop frac
+    # list_extrs_pf = []
+    # for extr in extremes:
+    #     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+    #         ds_pf_gs_extr = pk.load(file)
+    #     with open('./data/{}/{}/isimip_metadata_{}_ar6_new_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+    #         d_isimip_meta = pk.load(file)        
+    #     sims_per_step = {}
+    #     for step in GMT_labels:
+    #         sims_per_step[step] = []
+    #         print('step {}'.format(step))
+    #         for i in list(d_isimip_meta.keys()):
+    #             if d_isimip_meta[i]['GMT_strj_valid'][step]:
+    #                 sims_per_step[step].append(i)  
+    #     if extr != 'cropfailedarea':
+    #         p = ds_pf_gs_extr[unprec_level].loc[{
+    #             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+    #             'run':sims_per_step[GMT_labels[-1]]
+    #         }].sum(dim='country')
+    #     else: # for some reason, cropfailedarea doesn't have 3.5th in earlier v1 pickle run?
+    #         p = ds_pf_gs_extr[unprec_level].loc[{
+    #             'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+    #             'run':sims_per_step[GMT_labels[-1]]
+    #         }].sum(dim='country')            
+    #     p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100
+    #     list_extrs_pf.append(p)
         
-    ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
+    # ds_pf_gs_extrs = xr.concat(list_extrs_pf,dim='hazard').assign_coords({'hazard':extremes})
     
-    # plot
-    mpl.rcParams['xtick.labelcolor'] = 'gray'
-    mpl.rcParams['ytick.labelcolor'] = 'gray'
-    x=14
-    y=7
-    f,axes = plt.subplots(
-        nrows=2,
-        ncols=3,
-        figsize=(x,y),
-    )
+    # # plot
+    # mpl.rcParams['xtick.labelcolor'] = 'gray'
+    # mpl.rcParams['ytick.labelcolor'] = 'gray'
+    # x=14
+    # y=7
+    # f,axes = plt.subplots(
+    #     nrows=2,
+    #     ncols=3,
+    #     figsize=(x,y),
+    # )
 
-    for ax,extr in zip(axes.flatten(),extremes):
-        if extr == 'heatwavedarea':
-            p = ds_pf_gs_extrs.loc[{
-                'hazard':extr,
-                'birth_year':np.arange(1960,2021),
-            }].plot.contourf(
-                x='birth_year',
-                y='GMT',
-                ax=ax,
-                add_labels=False,
-                # levels=10,
-                levels=levels_hw,
-                cmap='Reds',
-                cbar_kwargs={'ticks':np.arange(0,101,20)}
-            ) 
-        elif extr == 'cropfailedarea':
-            p = ds_pf_gs_extrs.loc[{
-                'hazard':extr,
-                'birth_year':np.arange(1960,2021),
-            }].plot.contourf(
-                x='birth_year',
-                y='GMT',
-                ax=ax,
-                add_labels=False,
-                # levels=10,
-                levels=levels_cf,
-                cmap='Reds',
-                cbar_kwargs={'ticks':np.arange(0,31,5)}
-            )         
-        else:
-            p = ds_pf_gs_extrs.loc[{
-                'hazard':extr,
-                'birth_year':np.arange(1960,2021),
-            }].plot.contourf(
-                x='birth_year',
-                y='GMT',
-                ax=ax,
-                add_labels=False,
-                # levels=10,
-                levels=levels_other,
-                cmap='Reds',
-                cbar_kwargs={'ticks':np.arange(0,16,3)}
-            )  
+    # for ax,extr in zip(axes.flatten(),extremes):
+    #     if extr == 'heatwavedarea':
+    #         p = ds_pf_gs_extrs.loc[{
+    #             'hazard':extr,
+    #             'birth_year':np.arange(1960,2021),
+    #         }].plot.contourf(
+    #             x='birth_year',
+    #             y='GMT',
+    #             ax=ax,
+    #             add_labels=False,
+    #             # levels=10,
+    #             levels=levels_hw,
+    #             cmap='Reds',
+    #             cbar_kwargs={'ticks':np.arange(0,101,20)}
+    #         ) 
+    #     elif extr == 'cropfailedarea':
+    #         p = ds_pf_gs_extrs.loc[{
+    #             'hazard':extr,
+    #             'birth_year':np.arange(1960,2021),
+    #         }].plot.contourf(
+    #             x='birth_year',
+    #             y='GMT',
+    #             ax=ax,
+    #             add_labels=False,
+    #             # levels=10,
+    #             levels=levels_cf,
+    #             cmap='Reds',
+    #             cbar_kwargs={'ticks':np.arange(0,31,5)}
+    #         )         
+    #     else:
+    #         p = ds_pf_gs_extrs.loc[{
+    #             'hazard':extr,
+    #             'birth_year':np.arange(1960,2021),
+    #         }].plot.contourf(
+    #             x='birth_year',
+    #             y='GMT',
+    #             ax=ax,
+    #             add_labels=False,
+    #             # levels=10,
+    #             levels=levels_other,
+    #             cmap='Reds',
+    #             cbar_kwargs={'ticks':np.arange(0,16,3)}
+    #         )  
             
-        ax.set_yticks(
-            ticks=GMT_indices_ticks,
-            labels=gmts2100,
-            color='gray',
-        )
-        ax.set_xticks(
-            ticks=np.arange(1960,2025,10),
-            color='gray',
-        )                  
+    #     ax.set_yticks(
+    #         ticks=GMT_indices_ticks,
+    #         labels=gmts2100,
+    #         color='gray',
+    #     )
+    #     ax.set_xticks(
+    #         ticks=np.arange(1960,2025,10),
+    #         color='gray',
+    #     )                  
         
-    # ax stuff
-    l=0
-    for n,ax in enumerate(axes.flatten()):
-        ax.set_title(
-            extremes_labels[extremes[n]],
-            loc='center',
-            fontweight='bold',
-            color='gray',
-            fontsize=12,
-        )
-        ax.set_title(
-            letters[l],
-            loc='left',
-            fontweight='bold',
-            fontsize=10,
-        )  
-        l+=1                  
-        ax.spines['right'].set_color('gray')
-        ax.spines['top'].set_color('gray')
-        ax.spines['left'].set_color('gray')
-        ax.spines['bottom'].set_color('gray')
+    # # ax stuff
+    # l=0
+    # for n,ax in enumerate(axes.flatten()):
+    #     ax.set_title(
+    #         extremes_labels[extremes[n]],
+    #         loc='center',
+    #         fontweight='bold',
+    #         color='gray',
+    #         fontsize=12,
+    #     )
+    #     ax.set_title(
+    #         letters[l],
+    #         loc='left',
+    #         fontweight='bold',
+    #         fontsize=10,
+    #     )  
+    #     l+=1                  
+    #     ax.spines['right'].set_color('gray')
+    #     ax.spines['top'].set_color('gray')
+    #     ax.spines['left'].set_color('gray')
+    #     ax.spines['bottom'].set_color('gray')
 
-        if not np.isin(n,[0,3]):
-            ax.yaxis.set_ticklabels([])
-        if n == 0:
-            ax.annotate(
-                    'GMT warming by 2100 [°C]',
-                    (-.3,-0.6),
-                    xycoords=ax.transAxes,
-                    fontsize=12,
-                    rotation='vertical',
-                    color='gray',
-                    # fontweight='bold',        
-                )            
-        if n <= 2:
-            ax.tick_params(labelbottom=False)    
-        if n >= 3:
-            ax.set_xlabel('Birth year',fontsize=12,color='gray')         
+    #     if not np.isin(n,[0,3]):
+    #         ax.yaxis.set_ticklabels([])
+    #     if n == 0:
+    #         ax.annotate(
+    #                 'GMT warming by 2100 [°C]',
+    #                 (-.3,-0.6),
+    #                 xycoords=ax.transAxes,
+    #                 fontsize=12,
+    #                 rotation='vertical',
+    #                 color='gray',
+    #                 # fontweight='bold',        
+    #             )            
+    #     if n <= 2:
+    #         ax.tick_params(labelbottom=False)    
+    #     if n >= 3:
+    #         ax.set_xlabel('Birth year',fontsize=12,color='gray')         
  
-    f.savefig('./ms_figures/pf_heatmap_combined_simlim_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
-    f.savefig('./ms_figures/pf_heatmap_combined_simlim_{}.eps'.format(flags['version']),format='eps',bbox_inches='tight')
-    plt.show()     
+    # f.savefig('./ms_figures/pf_heatmap_combined_simlim_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/pf_heatmap_combined_simlim_{}.eps'.format(flags['version']),format='eps',bbox_inches='tight')
+    # plt.show()     
     
     # --------------------------------------------------------------------
     # population fractions with all simulations
@@ -1099,9 +1099,9 @@ def plot_heatmaps_allhazards(
         if n >= 3:
             ax.set_xlabel('Birth year',fontsize=12,color='gray')
     
-    f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
-    f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.pdf'.format(flags['version']),dpi=500,bbox_inches='tight')    
-    f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.eps'.format(flags['version']),format='eps',bbox_inches='tight')
+    # f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.png'.format(flags['version']),dpi=1000,bbox_inches='tight')
+    # f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.pdf'.format(flags['version']),dpi=500,bbox_inches='tight')    
+    # f.savefig('./ms_figures/pf_heatmap_combined_allsims_{}.eps'.format(flags['version']),format='eps',bbox_inches='tight')
     plt.show()         
 
 #%% ----------------------------------------------------------------
