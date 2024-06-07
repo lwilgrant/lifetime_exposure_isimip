@@ -83,17 +83,18 @@ flags['gmt'] = 'ar6_new'    # original: use Wim's stylized trajectory approach w
                             # ar6_new: works off ar6, but ensures only 1.5-3.5 with perfect intervals of 0.1 degrees (less proc time and data volume)
 flags['rm'] = 'rm'       # no_rm: no smoothing of RCP GMTs before mapping
                          # rm: 21-year rolling mean on RCP GMTs 
-flags['version'] = 'pickles_v2'     # pickles: original version, submitted to Nature
+flags['version'] = 'pickles_v3'     # pickles: original version, submitted to Nature
                                         # inconsistent GMT steps (not perfect 0.1 degree intervals)
                                         # GMT steps ranging 1-4 (although study only shows ~1.5-3.5, so runs are inefficient)
                                         # only 99.99% percentile for PIC threshold
                                     # pickles_v2: version generated after submission to Nature in preparation for criticism/review
                                         # steps fixed in load_manip to be only 1.5-3.5, with clean 0.1 degree intervals
                                         # 5 percentiles for PIC threshold and emergence for each
+                                    # pickles_v3: version generated after the 2021 toolchains were taken away from hydra. could not longer use old pickles effectively
                          # rm: 21-year rolling mean on RCP GMTs                          
-flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['run'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['lifetime_exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                             # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
@@ -103,19 +104,18 @@ flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort em
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birth years from 1960-2020
                                     # 1: run calc_birthyear_align with birth years from 1960-2100                             
-flags['gridscale'] = 0      # 0: do not process grid scale analysis, load pickles
+flags['gridscale'] = 1     # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
-flags['gridscale_le_test'] = 0      # 0: do not process the grid scale analysis testing diff versions of constant life expectancy
+flags['gridscale_le_test'] = 1      # 0: do not process the grid scale analysis testing diff versions of constant life expectancy
                                     # 1: process grid scale analysis testing diff versions of constant life expectancy                             
 flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all countries
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
-flags['gridscale_union'] = 0        # 0: do not process/load pickles for mean emergence and union of emergence across hazards
-                                    # 1: process/load those^ pickles    
-flags['global_emergence_recollect'] = 0       # 0: do not load pickles of global emergence masks
-                                    # 1: load pickles                                                                               
-flags['gdp_deprivation'] = 0        # 0: do not process/load lifetime GDP/GRDI average
+flags['global_emergence_recollect'] = 1       # 0: do not load pickles of global emergence masks
+                                    # 1: load pickles                  
+flags['global_avg_emergence'] = 1                                                                                                
+flags['gdp_deprivation'] = 1        # 0: do not process/load lifetime GDP/GRDI average
                                     # 1: load lifetime GDP average analysis        
-flags['vulnerability'] = 0          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
+flags['vulnerability'] = 1          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
                                     # 1: process/load d_collect_emergence vs gdp & deprivation quantiles for vulnerability analysis
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
@@ -202,61 +202,61 @@ for step in GMT_labels:
 # compute exposure per lifetime at country-scale
 # ------------------------------------------------------------------
 
-from exposure import *
+# from exposure import *
 
-# --------------------------------------------------------------------
-# process lifetime exposure across cohorts
+# # --------------------------------------------------------------------
+# # process lifetime exposure across cohorts
 
-if flags['lifetime_exposure_cohort']:
+# if flags['lifetime_exposure_cohort']:
     
-    start_time = time.time()
+#     start_time = time.time()
     
-    # calculate exposure per country and per cohort
-    calc_cohort_lifetime_exposure(
-        d_isimip_meta,
-        df_countries,
-        countries_regions,
-        countries_mask,
-        da_population,
-        da_cohort_size,
-        flags,
-    )
+#     # calculate exposure per country and per cohort
+#     calc_cohort_lifetime_exposure(
+#         d_isimip_meta,
+#         df_countries,
+#         countries_regions,
+#         countries_mask,
+#         da_population,
+#         da_cohort_size,
+#         flags,
+#     )
     
-    print("--- {} minutes to compute cohort exposure ---".format(
-        np.floor((time.time() - start_time) / 60),
-        )
-          )
+#     print("--- {} minutes to compute cohort exposure ---".format(
+#         np.floor((time.time() - start_time) / 60),
+#         )
+#           )
     
-else:  # load processed cohort exposure data
+# else:  # load processed cohort exposure data
     
-    print('Processed exposures will be loaded in emergence calculation')
+#     print('Processed exposures will be loaded in emergence calculation')
 
 # --------------------------------------------------------------------
 # process picontrol lifetime exposure
 
-if flags['lifetime_exposure_pic']:
+# if flags['lifetime_exposure_pic']:
     
-    start_time = time.time()
+#     start_time = time.time()
     
-    # takes 38 mins crop failure
-    d_exposure_perrun_pic = calc_lifetime_exposure_pic(
-        d_pic_meta, 
-        df_countries, 
-        countries_regions, 
-        countries_mask, 
-        da_population, 
-        df_life_expectancy_5, 
-        flags,
-    )
+#     # takes 38 mins crop failure
+#     d_exposure_perrun_pic = calc_lifetime_exposure_pic(
+#         d_pic_meta, 
+#         df_countries, 
+#         countries_regions, 
+#         countries_mask, 
+#         da_population, 
+#         df_life_expectancy_5, 
+#         flags,
+#     )
     
-    print("--- {} minutes for PIC exposure ---".format(
-        np.floor((time.time() - start_time) / 60),
-        )
-          )    
+#     print("--- {} minutes for PIC exposure ---".format(
+#         np.floor((time.time() - start_time) / 60),
+#         )
+#           )    
     
-else: # load processed pic data
+# else: # load processed pic data
     
-    print('Loading processed pic exposures')
+#     print('Loading processed pic exposures')
 
 #     with open('./data/{}/{}/exposure_pic_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
 #         d_exposure_perrun_pic = pk.load(f)
@@ -271,66 +271,66 @@ else: # load processed pic data
 # compute lifetime emergence
 # ------------------------------------------------------------------
 
-from emergence import *
+# from emergence import *
 
-# --------------------------------------------------------------------
-# process emergence of cumulative exposures, mask cohort exposures for time steps of emergence
+# # --------------------------------------------------------------------
+# # process emergence of cumulative exposures, mask cohort exposures for time steps of emergence
 
-if flags['emergence']:
+# if flags['emergence']:
     
-    if flags['birthyear_emergence']:
+#     if flags['birthyear_emergence']:
         
-        by_emergence = np.arange(1960,2101)
+#         by_emergence = np.arange(1960,2101)
         
-    else:
+#     else:
         
-        by_emergence = birth_years        
+#         by_emergence = birth_years        
     
-    if not os.path.isfile('./data/{}/cohort_sizes.pkl'.format(flags['version'])):
+#     if not os.path.isfile('./data/{}/cohort_sizes.pkl'.format(flags['version'])):
         
-        # need new cohort dataset that has total population per birth year (using life expectancy info; each country has a different end point)
-        da_cohort_aligned = calc_birthyear_align(
-            da_cohort_size,
-            df_life_expectancy_5,
-            by_emergence,
-        )
+#         # need new cohort dataset that has total population per birth year (using life expectancy info; each country has a different end point)
+#         da_cohort_aligned = calc_birthyear_align(
+#             da_cohort_size,
+#             df_life_expectancy_5,
+#             by_emergence,
+#         )
         
-        # convert to dataset and add weights
-        ds_cohorts = ds_cohort_align(
-            da_cohort_size,
-            da_cohort_aligned,
-        )
+#         # convert to dataset and add weights
+#         ds_cohorts = ds_cohort_align(
+#             da_cohort_size,
+#             da_cohort_aligned,
+#         )
         
-        # pickle birth year aligned cohort sizes and global mean life expectancy
-        with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
-            pk.dump(ds_cohorts,f)  
+#         # pickle birth year aligned cohort sizes and global mean life expectancy
+#         with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'wb') as f:
+#             pk.dump(ds_cohorts,f)  
 
-    else:
+#     else:
         
-        # load pickled birth year aligned cohort sizes and global mean life expectancy
-        with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
-            ds_cohorts = pk.load(f)                             
+#         # load pickled birth year aligned cohort sizes and global mean life expectancy
+#         with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
+#             ds_cohorts = pk.load(f)                             
     
-    ds_ae_strj, ds_pf_strj = strj_emergence(
-        d_isimip_meta,
-        df_life_expectancy_5,
-        ds_exposure_pic,
-        ds_cohorts,
-        by_emergence,
-        flags,
-    )
+#     ds_ae_strj, ds_pf_strj = strj_emergence(
+#         d_isimip_meta,
+#         df_life_expectancy_5,
+#         ds_exposure_pic,
+#         ds_cohorts,
+#         by_emergence,
+#         flags,
+#     )
         
-else: # load pickles
+# else: # load pickles
     
-    pass
+#     pass
     
-    # # birth year aligned population
-    # with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
-    #     ds_cohorts = pk.load(f)
+#     # # birth year aligned population
+#     # with open('./data/{}/cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
+#     #     ds_cohorts = pk.load(f)
     
-    # # pop frac
-    # with open('./data/{}/{}/pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
-    #     ds_pf_strj = pk.load(f)                
+#     # # pop frac
+#     # with open('./data/{}/{}/pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
+#     #     ds_pf_strj = pk.load(f)                
     
                  
 #%% ----------------------------------------------------------------
@@ -371,7 +371,7 @@ else:
 # run gridscale emergence analysis
 if flags['gridscale']:
     
-    ds_le_gs, ds_pf_gs = gridscale_emergence(
+    ds_pf_gs = gridscale_emergence(
         d_isimip_meta,
         d_pic_meta,
         flags,
@@ -385,9 +385,9 @@ if flags['gridscale']:
     
 else:
     
-    # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
-    with open('./data/{}/{}/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
-        ds_le_gs = pk.load(f)
+    # # load pickled aggregated lifetime exposure, age emergence and pop frac datasets
+    # with open('./data/{}/{}/gridscale_aggregated_lifetime_exposure_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
+    #     ds_le_gs = pk.load(f)
     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_pf_gs = pk.load(f)
         
@@ -407,8 +407,8 @@ if flags['gridscale_le_test']:
     
 else:
     
-    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
-        ds_pf_gs = pk.load(f)    
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_le_test_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',flags['extr']), 'rb') as f:
+        ds_pf_gs_le_test = pk.load(f)    
             
 # estimate union of all hazard emergences (probably removing this because I don't focus on it in the paper anymore)
 # if flags['gridscale_union']:
@@ -434,67 +434,25 @@ if flags['global_emergence_recollect']:
         df_GMT_strj,
     )
     
-    # additionally retrieve emergence fracs for 2.7 and 3.2 degrees (for figure SF5; this function substitutes earlier get_gridscale_union())
-    if not os.path.isfile('./data/{}/emergence_means.pkl'.format(flags['version'])):
-        
-        GMTs_cp = [12,17] # "12" is for 2.7 degree pathway, "17" is for 3.2 degree pathway
-        by_subset = [1960,2020]
-        pthresholds=['99.99', '99.9'] # can only use pthresh's already available in d_global_emergence proc, which are 99.99 (og) and 99.9 (alternative)
-        extremes = [
-            'burntarea', 
-            'cropfailedarea', 
-            'driedarea', 
-            'floodedarea', 
-            'heatwavedarea', 
-            'tropicalcyclonedarea',
-        ]
+    # temporarily commented out extremes in this function outside heatwaved area to test new means extraction below
+    d_global_pic_qntls = collect_pic_qntls(
+        grid_area,
+        flags,
+        gridscale_countries,
+        countries_mask,
+        countries_regions,
+    )  
+    
 
-        ds_emergence_mean = xr.Dataset(
-            data_vars={
-                'emergence_mean': (
-                    ['hazard','qntl','GMT','birth_year','lat','lon'],
-                    np.full(
-                        (len(extremes),len(pthresholds),len(GMTs_cp),len(by_subset),len(da_population.lat.data),len(da_population.lon.data)),
-                        fill_value=np.nan,
-                    ),
-                ),                           
-            },
-            coords={
-                'lat': ('lat', da_population.lat.data),
-                'lon': ('lon', da_population.lon.data),
-                'birth_year': ('birth_year', by_subset),
-                'hazard': ('hazard', extremes),
-                'qntl': ('qntl', pthresholds),
-                'GMT': ('GMT', GMTs_cp),
-            }
-        )
-
-        # loop through extremes "d_emergence_masks[extr][str(df_GMT_strj.loc[2100,step])] = ds_global_emergence.copy()
-        for extr in extremes:
-            for step in GMTs_cp:
-                for pthresh in pthresholds:
-                    for by in by_subset:
-                        ds_emergence_mean['emergence_mean'].loc[{
-                            'hazard':extr,
-                            'GMT':step,
-                            'qntl':pthresh,
-                            'birth_year':by,
-                            'lat':da_population.lat.data,
-                            'lon':da_population.lon.data,
-                        }] = d_global_emergence[extr][str(df_GMT_strj.loc[2100,step])]['emergence_per_run_{}'.format(extr)].loc[{
-                                'qntl':pthresh,
-                                'birth_year':by,
-                                'lat':da_population.lat.data,
-                                'lon':da_population.lon.data,
-                            }].mean(dim='run')
-                        
-        with open('./data/{}/emergence_means.pkl'.format(flags['version']), 'wb') as f:
-                pk.dump(ds_emergence_mean,f) 
-                
-    else:
-        
-        with open('./data/{}/emergence_means.pkl'.format(flags['version']), 'rb') as f:
-                ds_emergence_mean = pk.load(f)         
+if flags['global_avg_emergence']:
+      
+    # run averaging on d_global_emergence to produce SI figure of emergence fractions
+    ds_emergence_mean = get_mean_emergence(
+        df_GMT_strj,
+        flags,
+        da_population,
+        d_global_emergence,
+    )    
     
 # load/proc GDP and deprivation data
 if flags['gdp_deprivation']:
@@ -519,6 +477,7 @@ if flags['vulnerability']:
         countries_mask,
         countries_regions,
         da_cohort_size,
+        da_population,
     )
     
     # adds data arrays to ds_gdp and ds_grdi with ranked vulnerability binned by population (i.e. ranges of ranked vulnerability, physically distributed, grouped/binned by population size)            
@@ -531,13 +490,13 @@ if flags['vulnerability']:
     )
         
     # just a dummy d_global_emergence to run emergence_by_vulnerability
-    try:
-        d_global_emergence
-    except NameError:
-        print('to save memory on my laptop, d_global_emergence is not unpickled. defining a dummy var for emergence_by_vulnerability')
-        d_global_emergence={}
-    else:
-        pass
+    # try:
+    #     d_global_emergence
+    # except NameError:
+    #     print('to save memory on my laptop, d_global_emergence is not unpickled. defining a dummy var for emergence_by_vulnerability')
+    #     d_global_emergence={}
+    # else:
+    #     pass
 
     # dataset of emergence numbers selected by quantiles of vulnerability, both with grdi and gdp
     ds_vulnerability = emergence_by_vulnerability(
@@ -549,20 +508,20 @@ if flags['vulnerability']:
         d_global_emergence,
     )
     
-if flags['testing']:
+# if flags['testing']:
 
-    # can't believe how spatially ubiquitous final quantile of gdp is
-    for q in ds_gdp_qntls.qntl.data:
-        print(q)
-        q_da = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=q,birth_year=2020)
-        q_da = xr.where(q_da.notnull(),1,0)
-        q_da.plot()
-        plt.show()
-        cohort_da = da_cohort_size_1960_2020.sel(birth_year=2020).where(q_da.notnull())
-        print(cohort_da.sum(dim=('lat','lon')))
-        print('')
+    # # can't believe how spatially ubiquitous final quantile of gdp is
+    # for q in ds_gdp_qntls.qntl.data:
+    #     print(q)
+    #     q_da = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=q,birth_year=2020)
+    #     q_da = xr.where(q_da.notnull(),1,0)
+    #     q_da.plot()
+    #     plt.show()
+    #     cohort_da = da_cohort_size_1960_2020.sel(birth_year=2020).where(q_da.notnull())
+    #     print(cohort_da.sum(dim=('lat','lon')))
+    #     print('')
 
-    pass
+    # pass
     
 
 #%% ----------------------------------------------------------------
