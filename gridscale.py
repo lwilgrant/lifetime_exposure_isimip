@@ -333,6 +333,7 @@ def gridscale_emergence(
                 if not cntry in ['Russian Federation','Canada','United States','China']:
 
                     # resample 10000 lifetimes and then sum 
+                    # pic life extent is just max 1960 across all countries, such that this covers enough time space for selection in the lifetime summing below
                     da_exposure_pic = xr.concat(
                         [resample(da_AFA_pic,resample_dim,pic_life_extent) for i in range(nboots)],
                         dim='lifetimes'    
@@ -654,6 +655,7 @@ def gridscale_emergence_life_expectancy_constant(
 ):
 
     # this is basically a copy of the function above, but runs the analysis on a single life expectancy 
+    # but uses same pic lifetime exposure and quantiles as above
     life_expectancy_global = np.round(df_life_expectancy_5.mean().mean()) # one value for all birth years, all countries
     life_expectancy_country = np.round(df_life_expectancy_5.mean()) # one value per country
 
@@ -686,8 +688,8 @@ def gridscale_emergence_life_expectancy_constant(
 
     for cntry in list_countries:
         
-        if not os.path.exists('./data/{}/{}/{}/{}'.format(flags['version'],flags['extr']+'_le_test',cntry)):
-            os.makedirs('./data/{}/{}/{}/{}'.format(flags['version'],flags['extr']+'_le_test',cntry)) # testing makedirs
+        if not os.path.exists('./data/{}/{}/{}'.format(flags['version'],flags['extr']+'_le_test',cntry)):
+            os.makedirs('./data/{}/{}/{}'.format(flags['version'],flags['extr']+'_le_test',cntry)) # testing makedirs
 
         print(cntry)
         da_smple_cht = da_cohort_size.sel(country=cntry) # cohort absolute sizes in sample country
@@ -778,10 +780,13 @@ def gridscale_emergence_life_expectancy_constant(
                 ds_dmg = pk.load(f)                      
         
         # check for PIC lifetime exposure pickle file (for ds_pic); process and dump pickle if not already existing
-        if not os.path.isfile('./data/{}/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry)):
+        # 1) version of pic lifetime exposure and quantiles that is using countries' birth_year average life expectancy (i.e. mean life expectancy in belgium across 1960-2020)
+        # after the pic quantiles are calculated and pickled ("ds_pic_qntl_le_country"), will delete these variables from memory but read them in when necessary below
+            # this is because it will take too much memory to have both types of pic bootstrapped samples available (country le and global le)
+        if not os.path.isfile('./data/{}/{}/{}/gridscale_le_country_constant_pic_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry)):
             
             # pic dataset for bootstrapped lifetimes
-            ds_pic = xr.Dataset(
+            ds_pic_le_country = xr.Dataset(
                 data_vars={
                     'lifetime_exposure': (
                         ['lifetimes','lat','lon'],
@@ -815,18 +820,18 @@ def gridscale_emergence_life_expectancy_constant(
 
                     # resample 10000 lifetimes and then sum 
                     da_exposure_pic = xr.concat(
-                        [resample(da_AFA_pic,resample_dim,pic_life_extent) for i in range(nboots)],
+                        [resample(da_AFA_pic,resample_dim,int(life_expectancy_country[cntry])) for i in range(nboots)],
                         dim='lifetimes'    
                     ).assign_coords({'lifetimes':np.arange(c*nboots,c*nboots+nboots)})
                     
                     # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
+                    # super confused about whether this line does anything productive; I think I was just copying a single lifetime expsoure across all the different bootstraps in the ds_pic['lifetime_exposure'] assignment?
+                    # must test
                     da_pic_le = da_exposure_pic.loc[
-                        {'time':np.arange(pic_by,ds_dmg['death_year'].sel(birth_year=pic_by).item()+1)}
-                    ].sum(dim='time') +\
-                        da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()}].drop('time') *\
-                            (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
+                        {'time':np.arange(pic_by,pic_by+life_expectancy_country[cntry])}
+                    ].sum(dim='time')
                             
-                    ds_pic['lifetime_exposure'].loc[
+                    ds_pic_le_country['lifetime_exposure'].loc[
                         {
                             'lat': da_pic_le.lat.data,
                             'lon': da_pic_le.lon.data,
@@ -842,18 +847,16 @@ def gridscale_emergence_life_expectancy_constant(
                         
                         # resample 1000 lifetimes and then sum 
                         da_exposure_pic = xr.concat(
-                            [resample(da_AFA_pic,resample_dim,pic_life_extent) for i in range(int(nboots/10))],
+                            [resample(da_AFA_pic,resample_dim,int(life_expectancy_country[cntry])) for i in range(int(nboots/10))],
                             dim='lifetimes'    
                         ).assign_coords({'lifetimes':np.arange(c*nboots + bstep*nboots/10,c*nboots + bstep*nboots/10 + nboots/10)})       
                         
                         # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
                         da_pic_le = da_exposure_pic.loc[
-                            {'time':np.arange(pic_by,ds_dmg['death_year'].sel(birth_year=pic_by).item()+1)}
-                        ].sum(dim='time') +\
-                            da_exposure_pic.loc[{'time':ds_dmg['death_year'].sel(birth_year=pic_by).item()}].drop('time') *\
-                                (ds_dmg['life_expectancy'].sel(birth_year=pic_by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=pic_by).item()))
+                            {'time':np.arange(pic_by,pic_by+life_expectancy_country[cntry])}
+                        ].sum(dim='time')
                                 
-                        ds_pic['lifetime_exposure'].loc[
+                        ds_pic_le_country['lifetime_exposure'].loc[
                             {
                                 'lat': da_pic_le.lat.data,
                                 'lon': da_pic_le.lon.data,
@@ -864,20 +867,20 @@ def gridscale_emergence_life_expectancy_constant(
                     c += 1
                     
             # pickle PIC lifetime exposure for var, country
-            with open('./data/{}/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'wb') as f:
-                pk.dump(ds_pic,f)                
+            with open('./data/{}/{}/{}/gridscale_le_country_constant_pic_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'wb') as f:
+                pk.dump(ds_pic_le_country,f)                
                 
         else:
             
             # load PIC pickle
-            with open('./data/{}/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'rb') as f:
-                ds_pic = pk.load(f)     
+            with open('./data/{}/{}/{}/gridscale_le_country_constant_pic_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'rb') as f:
+                ds_pic_le_country = pk.load(f)     
                 
         # check for PIC quantiles calc'd from bootstrapped lifetime exposures (for ds_pic_qntl); process and dump pickle if not already existing
-        if not os.path.isfile('./data/{}/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry)):                
+        if not os.path.isfile('./data/{}/{}/{}/gridscale_le_country_constant_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry)):                
                          
             # pic dataset for quantiles
-            ds_pic_qntl = xr.Dataset(
+            ds_pic_qntl_le_country = xr.Dataset(
                 data_vars={
                     '99.99': (
                         ['lat','lon'],
@@ -929,46 +932,244 @@ def gridscale_emergence_life_expectancy_constant(
             )                              
                                 
             # pic extreme lifetime exposure definition (added more quantiles for v2)
-            ds_pic_qntl['99.99'] = ds_pic['lifetime_exposure'].quantile(
+            ds_pic_qntl_le_country['99.99'] = ds_pic_le_country['lifetime_exposure'].quantile(
                     q=pic_qntl,
                     dim='lifetimes',
                     method='closest_observation',
                 )
-            ds_pic_qntl['99.9'] = ds_pic['lifetime_exposure'].quantile(
+            ds_pic_qntl_le_country['99.9'] = ds_pic_le_country['lifetime_exposure'].quantile(
                     q=0.999,
                     dim='lifetimes',
                     method='closest_observation',
                 )            
-            ds_pic_qntl['99.0'] = ds_pic['lifetime_exposure'].quantile(
+            ds_pic_qntl_le_country['99.0'] = ds_pic_le_country['lifetime_exposure'].quantile(
                     q=0.99,
                     dim='lifetimes',
                     method='closest_observation',
                 )           
-            ds_pic_qntl['97.5'] = ds_pic['lifetime_exposure'].quantile(
+            ds_pic_qntl_le_country['97.5'] = ds_pic_le_country['lifetime_exposure'].quantile(
                     q=0.975,
                     dim='lifetimes',
                     method='closest_observation',
                 )                
-            ds_pic_qntl['95.0'] = ds_pic['lifetime_exposure'].quantile(
+            ds_pic_qntl_le_country['95.0'] = ds_pic_le_country['lifetime_exposure'].quantile(
                     q=0.95,
                     dim='lifetimes',
                     method='closest_observation',
                 )     
-            ds_pic_qntl['90.0'] = ds_pic['lifetime_exposure'].quantile(
+            ds_pic_qntl_le_country['90.0'] = ds_pic_le_country['lifetime_exposure'].quantile(
                     q=0.9,
                     dim='lifetimes',
                     method='closest_observation',
                 )     
                                              
             # pickle PIC lifetime exposure for var, country
-            with open('./data/{}/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'wb') as f:
-                pk.dump(ds_pic_qntl,f)                
+            with open('./data/{}/{}/{}/gridscale_le_country_constant_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'wb') as f:
+                pk.dump(ds_pic_qntl_le_country,f)   
+                
                 
         else:
             
             # load PIC pickle
-            with open('./data/{}/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'rb') as f:
-                ds_pic_qntl = pk.load(f)          
+            with open('./data/{}/{}/{}/gridscale_le_country_constant_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'rb') as f:
+                ds_pic_qntl_le_country = pk.load(f)          
+           
+        del ds_pic_le_country
+                
+        # 2) version of pic lifetime exposure and quantiles that is using global birth_year average life expectancy (i.e. mean life expectancy across all countries and 1960-2020)
+        # after the pic quantiles are calculated and pickled ("ds_pic_qntl_le_country"), will delete these variables from memory but read them in when necessary below
+            # this is because it will take too much memory to have both types of pic bootstrapped samples available (country le and global le)
+        if not os.path.isfile('./data/{}/{}/{}/gridscale_le_global_constant_pic_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry)):
+            
+            # pic dataset for bootstrapped lifetimes
+            ds_pic_le_global = xr.Dataset(
+                data_vars={
+                    'lifetime_exposure': (
+                        ['lifetimes','lat','lon'],
+                        np.full(
+                            (len(list(d_pic_meta.keys())*nboots),len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    )
+                },
+                coords={
+                    'lat': ('lat', da_cntry.lat.data),
+                    'lon': ('lon', da_cntry.lon.data),
+                    'lifetimes': ('lifetimes', np.arange(len(list(d_pic_meta.keys())*nboots))),
+                }
+            )                
+            
+            # loop over PIC simulations
+            c = 0
+            for i in list(d_pic_meta.keys()):
+                
+                print('simulation {} of {}'.format(i,len(d_pic_meta)))
+                
+                # load AFA data of that run
+                with open('./data/{}/{}/isimip_AFA_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],flags['extr'],str(i)), 'rb') as f:
+                    da_AFA_pic = pk.load(f)
+                    
+                da_AFA_pic = da_AFA_pic.where(ds_dmg['country_extent']==1,drop=True)
+                
+                # regular boot strapping for all reasonably sized countries (currently only exception is for Russia, might expand this for hazards with more sims)
+                if not cntry in ['Russian Federation','Canada','United States','China']:
+
+                    # resample 10000 lifetimes and then sum 
+                    da_exposure_pic = xr.concat(
+                        [resample(da_AFA_pic,resample_dim,int(life_expectancy_global)) for i in range(nboots)],
+                        dim='lifetimes'    
+                    ).assign_coords({'lifetimes':np.arange(c*nboots,c*nboots+nboots)})
+                    
+                    # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
+                    # super confused about whether this line does anything productive; I think I was just copying a single lifetime expsoure across all the different bootstraps in the ds_pic['lifetime_exposure'] assignment?
+                    # must test
+                    da_pic_le = da_exposure_pic.loc[
+                        {'time':np.arange(pic_by,pic_by+life_expectancy_global)}
+                    ].sum(dim='time')
+                            
+                    ds_pic_le_global['lifetime_exposure'].loc[
+                        {
+                            'lat': da_pic_le.lat.data,
+                            'lon': da_pic_le.lon.data,
+                            'lifetimes': np.arange(c*nboots,c*nboots+nboots),
+                        }
+                    ] = da_pic_le
+                    c += 1
+                   
+                # for exceptionally sized countries, do piecewise boot strapping (nboots in 10 steps)
+                else:
+                    
+                    for bstep in range(10):
+                        
+                        # resample 1000 lifetimes and then sum 
+                        da_exposure_pic = xr.concat(
+                            [resample(da_AFA_pic,resample_dim,int(life_expectancy_global)) for i in range(int(nboots/10))],
+                            dim='lifetimes'    
+                        ).assign_coords({'lifetimes':np.arange(c*nboots + bstep*nboots/10,c*nboots + bstep*nboots/10 + nboots/10)})       
+                        
+                        # like regular exposure, sum lifespan from birth to death year and add fracitonal exposure of death year
+                        da_pic_le = da_exposure_pic.loc[
+                            {'time':np.arange(pic_by,pic_by+life_expectancy_global)}
+                        ].sum(dim='time')
+                                
+                        ds_pic_le_global['lifetime_exposure'].loc[
+                            {
+                                'lat': da_pic_le.lat.data,
+                                'lon': da_pic_le.lon.data,
+                                'lifetimes': np.arange(c*nboots + bstep*nboots/10,c*nboots + bstep*nboots/10 + nboots/10),
+                            }
+                        ] = da_pic_le
+                        
+                    c += 1
+                    
+            # pickle PIC lifetime exposure for var, country
+            with open('./data/{}/{}/{}/gridscale_le_global_constant_pic_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'wb') as f:
+                pk.dump(ds_pic_le_global,f)                
+                
+        else:
+            
+            # load PIC pickle
+            with open('./data/{}/{}/{}/gridscale_le_global_constant_pic_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'rb') as f:
+                ds_pic_le_global = pk.load(f)     
+                
+        # check for PIC quantiles calc'd from bootstrapped lifetime exposures (for ds_pic_qntl); process and dump pickle if not already existing
+        if not os.path.isfile('./data/{}/{}/{}/gridscale_le_global_constant_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry)):                
+                         
+            # pic dataset for quantiles
+            ds_pic_qntl_le_global = xr.Dataset(
+                data_vars={
+                    '99.99': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),
+                    '99.9': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),
+                    '99.0': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),            
+                    '97.5': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),                     
+                    '95.0': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),                      
+                    '90.0': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),                                                                                          
+                },
+                coords={
+                    'lat': ('lat', da_cntry.lat.data),
+                    'lon': ('lon', da_cntry.lon.data),
+                }
+            )                              
+                                
+            # pic extreme lifetime exposure definition (added more quantiles for v2)
+            ds_pic_qntl_le_global['99.99'] = ds_pic_le_global['lifetime_exposure'].quantile(
+                    q=pic_qntl,
+                    dim='lifetimes',
+                    method='closest_observation',
+                )
+            ds_pic_qntl_le_global['99.9'] = ds_pic_le_global['lifetime_exposure'].quantile(
+                    q=0.999,
+                    dim='lifetimes',
+                    method='closest_observation',
+                )            
+            ds_pic_qntl_le_global['99.0'] = ds_pic_le_global['lifetime_exposure'].quantile(
+                    q=0.99,
+                    dim='lifetimes',
+                    method='closest_observation',
+                )           
+            ds_pic_qntl_le_global['97.5'] = ds_pic_le_global['lifetime_exposure'].quantile(
+                    q=0.975,
+                    dim='lifetimes',
+                    method='closest_observation',
+                )                
+            ds_pic_qntl_le_global['95.0'] = ds_pic_le_global['lifetime_exposure'].quantile(
+                    q=0.95,
+                    dim='lifetimes',
+                    method='closest_observation',
+                )     
+            ds_pic_qntl_le_global['90.0'] = ds_pic_le_global['lifetime_exposure'].quantile(
+                    q=0.9,
+                    dim='lifetimes',
+                    method='closest_observation',
+                )     
+                                             
+            # pickle PIC lifetime exposure for var, country
+            with open('./data/{}/{}/{}/gridscale_le_global_constant_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'wb') as f:
+                pk.dump(ds_pic_qntl_le_global,f)                
+                
+        else:
+            
+            # load PIC pickle
+            with open('./data/{}/{}/{}/gridscale_le_global_constant_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr']+'_le_test',cntry,flags['extr'],cntry), 'rb') as f:
+                ds_pic_qntl_le_global = pk.load(f)     
+                
+        del ds_pic_le_global
 
         # loop over simulations
         for i in list(d_isimip_meta.keys()): 
@@ -1040,7 +1241,7 @@ def gridscale_emergence_life_expectancy_constant(
                         
                         # generate exposure mask for timesteps after reaching pic extreme to find emergence
                         da_emergence_mask = xr.where(
-                            da_exp_py_pa_cumsum > ds_pic_qntl[pthresh],
+                            da_exp_py_pa_cumsum > ds_pic_qntl_le_country[pthresh],
                             1,
                             0,
                         )
@@ -1108,7 +1309,7 @@ def gridscale_emergence_life_expectancy_constant(
                         
                         # generate exposure mask for timesteps after reaching pic extreme to find emergence
                         da_emergence_mask = xr.where(
-                            da_exp_py_pa_cumsum > ds_pic_qntl[pthresh],
+                            da_exp_py_pa_cumsum > ds_pic_qntl_le_global[pthresh],
                             1,
                             0,
                         )

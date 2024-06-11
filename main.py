@@ -92,9 +92,9 @@ flags['version'] = 'pickles_v3'     # pickles: original version, submitted to Na
                                         # 5 percentiles for PIC threshold and emergence for each
                                     # pickles_v3: version generated after the 2021 toolchains were taken away from hydra. could not longer use old pickles effectively
                          # rm: 21-year rolling mean on RCP GMTs                          
-flags['run'] = 1          # 0: do not process ISIMIP runs (i.e. load runs pickle)
+flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
-flags['mask'] = 1           # 0: do not process country data (i.e. load masks pickle)
+flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
                             # 1: process country data (i.e. produce and save masks as pickle)
 flags['lifetime_exposure_cohort'] = 0       # 0: do not process ISIMIP runs to compute exposure across cohorts (i.e. load exposure pickle)
                                             # 1: process ISIMIP runs to compute exposure across cohorts (i.e. produce and save exposure as pickle)                            
@@ -104,7 +104,7 @@ flags['emergence'] = 0      # 0: do not process ISIMIP runs to compute cohort em
                             # 1: process ISIMIP runs to compute cohort emergence (i.e. produce and save exposure as pickle)
 flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birth years from 1960-2020
                                     # 1: run calc_birthyear_align with birth years from 1960-2100                             
-flags['gridscale'] = 1     # 0: do not process grid scale analysis, load pickles
+flags['gridscale'] = 0     # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
 flags['gridscale_le_test'] = 1      # 0: do not process the grid scale analysis testing diff versions of constant life expectancy
                                     # 1: process grid scale analysis testing diff versions of constant life expectancy                             
