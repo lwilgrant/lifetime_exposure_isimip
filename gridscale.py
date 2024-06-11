@@ -1202,7 +1202,7 @@ def gridscale_emergence_life_expectancy_constant(
                     # if not os.path.isfile('./data/{}/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry,i,step,pthresh)):                                 
                         
                     # area affected ('AFA') per year per age (in 'population')
-                    da_exp_py_pa = da_AFA_step * xr.full_like(ds_dmg['population'],1)
+                    da_exp_py_pa_cntry = da_AFA_step * xr.full_like(ds_dmg['population'],1)
                     bys_cc = [] # "cc" for country-constant
                     bys_gc = [] # "gc" for global-constant
             
@@ -1212,7 +1212,7 @@ def gridscale_emergence_life_expectancy_constant(
                             
                         time = xr.DataArray(np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1),dims='cohort')
                         ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-                        data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
+                        data = da_exp_py_pa_cntry.sel(time=time,age=ages) # paired selections
                         data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['death_year'].sel(birth_year=by).item()+1,dtype='int')})
                         data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
                         # when I reindex time, the len=1 lat coord for cyprus, a small country, disappears
@@ -1231,17 +1231,17 @@ def gridscale_emergence_life_expectancy_constant(
                         #     (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
                         bys_cc.append(data)
             
-                    da_exp_py_pa = xr.concat(bys_cc,dim='birth_year')
+                    da_exp_py_pa_cntry = xr.concat(bys_cc,dim='birth_year')
                             
                     # cumulative sum per birthyear (in emergence.py, this cumsum then has .where(==0), should I add this here too?)
-                    da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
+                    da_exp_py_pa_cntry_cumsum = da_exp_py_pa_cntry.cumsum(dim='time')
                     
                     # loop through pic thresholds for emergence (separate file per threshold or dataset? separate file)
                     for pthresh in pic_qntl_labels:
                         
                         # generate exposure mask for timesteps after reaching pic extreme to find emergence
                         da_emergence_mask = xr.where(
-                            da_exp_py_pa_cumsum > ds_pic_qntl_le_country[pthresh],
+                            da_exp_py_pa_cntry_cumsum > ds_pic_qntl_le_country[pthresh],
                             1,
                             0,
                         )
@@ -1276,11 +1276,13 @@ def gridscale_emergence_life_expectancy_constant(
                         
                     # 2) global-constant life expectancy; use 'global_death_year' evolving with birth year and global_life_expectancy attribute from ds_dmg
                     # per birth year, make (year,age) paired selections
+                    # redefine area affected ('AFA') per year per age (in 'population')
+                    da_exp_py_pa_glbl = da_AFA_step * xr.full_like(ds_dmg['population'],1)                    
                     for by in birth_years:
                             
                         time = xr.DataArray(np.arange(by,ds_dmg['global_death_year'].sel(birth_year=by).item()+1),dims='cohort')
                         ages = xr.DataArray(np.arange(0,len(time)),dims='cohort')
-                        data = da_exp_py_pa.sel(time=time,age=ages) # paired selections
+                        data = da_exp_py_pa_glbl.sel(time=time,age=ages) # paired selections
                         data = data.rename({'cohort':'time'}).assign_coords({'time':np.arange(by,ds_dmg['global_death_year'].sel(birth_year=by).item()+1,dtype='int')})
                         data = data.reindex({'time':np.arange(year_start,year_end+1,dtype='int')}).squeeze() # reindex so that birth year cohort span exists between 1960-2213 (e.g. 1970 birth year has 10 years of nans before data starts, and nans after death year)
                         # when I reindex time, the len=1 lat coord for cyprus, a small country, disappears
@@ -1299,17 +1301,17 @@ def gridscale_emergence_life_expectancy_constant(
                         #     (ds_dmg['life_expectancy'].sel(birth_year=by).item() - np.floor(ds_dmg['life_expectancy'].sel(birth_year=by)).item())
                         bys_gc.append(data)
             
-                    da_exp_py_pa = xr.concat(bys_gc,dim='birth_year')
+                    da_exp_py_pa_glbl = xr.concat(bys_gc,dim='birth_year')
                             
                     # cumulative sum per birthyear (in emergence.py, this cumsum then has .where(==0), should I add this here too?)
-                    da_exp_py_pa_cumsum = da_exp_py_pa.cumsum(dim='time')
+                    da_exp_py_pa_glbl_cumsum = da_exp_py_pa_glbl.cumsum(dim='time')
                     
                     # loop through pic thresholds for emergence (separate file per threshold or dataset? separate file)
                     for pthresh in pic_qntl_labels:
                         
                         # generate exposure mask for timesteps after reaching pic extreme to find emergence
                         da_emergence_mask = xr.where(
-                            da_exp_py_pa_cumsum > ds_pic_qntl_le_global[pthresh],
+                            da_exp_py_pa_glbl_cumsum > ds_pic_qntl_le_global[pthresh],
                             1,
                             0,
                         )
