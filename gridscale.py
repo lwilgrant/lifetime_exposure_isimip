@@ -1878,6 +1878,173 @@ def collect_pic_qntls(
     return d_pic_qntls
 
 #%% ----------------------------------------------------------------
+# proc pic quantiles into global array for sensitivity analysis; extra extreme pic quantiles
+# ------------------------------------------------------------------
+
+def collect_pic_qntls_extra(
+    grid_area,
+    flags,
+    gridscale_countries,
+    countries_mask,
+    countries_regions,
+):    
+    
+    lat = grid_area.lat.values
+    lon = grid_area.lon.values
+
+    extremes = [
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
+        # 'floodedarea', 
+        'heatwavedarea', 
+        # 'tropicalcyclonedarea',
+    ]
+
+    d_pic_qntls = {}    
+    
+    # this loop section is purely for emergence masks, expanding them to all birth years (1960-2020)                
+    if not os.path.isfile('./data/{}/pic_qntls_collected_extra.pkl'.format(flags['version'])):    
+    
+        for cntry in gridscale_countries:
+        
+            # load PIC pickle
+            with open('./data/{}/{}/{}/gridscale_le_pic_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'rb') as f:
+                ds_pic = pk.load(f)     
+                
+            # load demography pickle
+            with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
+                ds_dmg = pk.load(f)               
+                    
+            # check for PIC quantiles calc'd from bootstrapped lifetime exposures (for ds_pic_qntl); process and dump pickle if not already existing
+            if not os.path.isfile('./data/{}/{}/{}/gridscale_pic_qntls_extra_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry)):
+                                
+                # pic dataset for quantiles
+                ds_pic_qntl = xr.Dataset(
+                    data_vars={
+                        '99.999': (
+                            ['lat','lon'],
+                            np.full(
+                                (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                                fill_value=np.nan,
+                            ),
+                        ),
+                        '99.9999': (
+                            ['lat','lon'],
+                            np.full(
+                                (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                                fill_value=np.nan,
+                            ),
+                        ),
+                        '99.99999': (
+                            ['lat','lon'],
+                            np.full(
+                                (len(ds_dmg.lat.data),len(ds_dmg.lon.data)),
+                                fill_value=np.nan,
+                            ),
+                        ),            
+                                                                                        
+                    },
+                    coords={
+                        'lat': ('lat', ds_dmg.lat.data),
+                        'lon': ('lon', ds_dmg.lon.data),
+                    }
+                )                              
+                                    
+                # pic extreme lifetime exposure definition (added more quantiles for v2)
+                ds_pic_qntl['99.999'] = ds_pic['lifetime_exposure'].quantile(
+                        q=0.99999,
+                        dim='lifetimes',
+                        method='closest_observation',
+                    )
+                ds_pic_qntl['99.9999'] = ds_pic['lifetime_exposure'].quantile(
+                        q=0.999999,
+                        dim='lifetimes',
+                        method='closest_observation',
+                    )            
+                ds_pic_qntl['99.99999'] = ds_pic['lifetime_exposure'].quantile(
+                        q=0.9999999,
+                        dim='lifetimes',
+                        method='closest_observation',
+                    )           
+                                                    
+                # pickle PIC lifetime exposure for var, country
+                with open('./data/{}/{}/{}/gridscale_pic_qntls_extra_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'wb') as f:
+                    pk.dump(ds_pic_qntl,f)      
+
+        for extr in extremes:
+            
+            d_pic_qntls[extr] = xr.Dataset(
+                data_vars={
+                    '99.999': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(lat.data),len(lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),
+                    '99.9999': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(lat.data),len(lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),
+                    '99.99999': (
+                        ['lat','lon'],
+                        np.full(
+                            (len(lat.data),len(lon.data)),
+                            fill_value=np.nan,
+                        ),
+                    ),                                     
+                },
+                coords={
+                    'lat': ('lat', lat),
+                    'lon': ('lon', lon),
+                }
+            )
+            
+            # loop through countries
+            for i,cntry in enumerate(gridscale_countries):
+                
+                # cape verde
+                if cntry == 'Cape Verde':
+                    pass
+                else:                
+                
+                    da_cntry = xr.DataArray(
+                        np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+                        dims=countries_mask.dims,
+                        coords=countries_mask.coords,
+                    )
+                    da_cntry = da_cntry.where(da_cntry,drop=True)     
+                    
+                    # loop through countries and get pic qntls     
+                    with open('./data/{}/{}/{}/gridscale_pic_qntls_extra_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'rb') as f:
+                        ds_pic_qntl = pk.load(f) 
+                    
+                    # make assignment of emergence mask to global emergence 
+                    d_pic_qntls[extr].loc[{
+                        'lat':da_cntry.lat.data,
+                        'lon':da_cntry.lon.data,                
+                    }] = xr.where(
+                            da_cntry.notnull(),
+                            ds_pic_qntl.loc[{'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                            d_pic_qntls[extr].loc[{'lat':da_cntry.lat.data,'lon':da_cntry.lon.data}],
+                        ).transpose('lat','lon')
+
+            
+        with open('./data/{}/pic_qntls_collected_extra.pkl'.format(flags['version']), 'wb') as f:
+            pk.dump(d_pic_qntls,f) 
+        
+    else:
+            
+        with open('./data/{}/pic_qntls_collected_extra.pkl'.format(flags['version']), 'rb') as f:
+            d_pic_qntls = pk.load(f)        
+                
+    return d_pic_qntls
+
+#%% ----------------------------------------------------------------
 # proc emergences into averages across simulations for emergence fractions in ensemble
 # ------------------------------------------------------------------
 

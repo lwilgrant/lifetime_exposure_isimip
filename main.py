@@ -106,16 +106,16 @@ flags['birthyear_emergence'] = 0    # 0: only run calc_birthyear_align with birt
                                     # 1: run calc_birthyear_align with birth years from 1960-2100                             
 flags['gridscale'] = 0     # 0: do not process grid scale analysis, load pickles
                             # 1: process grid scale analysis
-flags['gridscale_le_test'] = 1      # 0: do not process the grid scale analysis testing diff versions of constant life expectancy
+flags['gridscale_le_test'] = 0      # 0: do not process the grid scale analysis testing diff versions of constant life expectancy
                                     # 1: process grid scale analysis testing diff versions of constant life expectancy                             
 flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all countries
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
-flags['global_emergence_recollect'] = 1       # 0: do not load pickles of global emergence masks
+flags['global_emergence_recollect'] =1        # 0: do not load pickles of global emergence masks
                                     # 1: load pickles                  
-flags['global_avg_emergence'] = 1                                                                                                
-flags['gdp_deprivation'] = 1        # 0: do not process/load lifetime GDP/GRDI average
+flags['global_avg_emergence'] = 0                                                                                                
+flags['gdp_deprivation'] = 0        # 0: do not process/load lifetime GDP/GRDI average
                                     # 1: load lifetime GDP average analysis        
-flags['vulnerability'] = 1          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
+flags['vulnerability'] = 0          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
                                     # 1: process/load d_collect_emergence vs gdp & deprivation quantiles for vulnerability analysis
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
@@ -443,6 +443,14 @@ if flags['global_emergence_recollect']:
         countries_regions,
     )  
     
+    d_global_pic_qntls_extra = collect_pic_qntls_extra(
+        grid_area,
+        flags,
+        gridscale_countries,
+        countries_mask,
+        countries_regions,
+    )    
+    
 
 if flags['global_avg_emergence']:
       
@@ -508,20 +516,9 @@ if flags['vulnerability']:
         d_global_emergence,
     )
     
-# if flags['testing']:
-
-    # # can't believe how spatially ubiquitous final quantile of gdp is
-    # for q in ds_gdp_qntls.qntl.data:
-    #     print(q)
-    #     q_da = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=q,birth_year=2020)
-    #     q_da = xr.where(q_da.notnull(),1,0)
-    #     q_da.plot()
-    #     plt.show()
-    #     cohort_da = da_cohort_size_1960_2020.sel(birth_year=2020).where(q_da.notnull())
-    #     print(cohort_da.sum(dim=('lat','lon')))
-    #     print('')
-
-    # pass
+if flags['testing']:
+    
+    pass    
     
 
 #%% ----------------------------------------------------------------
@@ -701,6 +698,14 @@ if flags['plot_si']:
     # plot hexagon landfracs (will change to only show landfracs for SI)
     plot_hexagon_landfrac(
         d_global_emergence,
+    )    
+    
+    # plot heatmaps of delta CF between main text f3 (heatwavedarea panel) and 
+    plot_life_expectancy_testing(
+        df_GMT_strj,
+        GMT_indices_plot,
+        da_gs_popdenom,
+        flags,
     )    
     
 

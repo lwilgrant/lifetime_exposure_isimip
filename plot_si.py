@@ -2986,3 +2986,113 @@ def plot_hexagon_landfrac_union(
     )   
 
     f.savefig('./ms_figures/emergence_landfrac_union_hexagons_{}.png'.format(landfrac_threshold),dpi=1000,bbox_inches='tight')
+
+#%% ----------------------------------------------------------------
+# plot heatmap deltas for heatwavedareas to test effect of constant life expectancy
+
+def plot_life_expectancy_testing(
+    df_GMT_strj,
+    GMT_indices_plot,
+    da_gs_popdenom,
+    flags,
+):
+    params = {'mathtext.default': 'regular' }          
+    plt.rcParams.update(params)    
+    # first read in life expectancy test version
+    with open('./data/pickles_v3/{}/gridscale_aggregated_pop_frac_le_test_heatwavedarea.pkl'.format(flags['extr']), 'rb') as f:
+        ds_pf_gs_le_test = pk.load(f)
+        
+    qntl='99.99'
+    country_global='country'
+    unprec_level="unprec_{}_{}_le".format(qntl,country_global)      
+    GMT_indices_ticks=[0,5,10,15,20]
+    gmts2100 = np.round(df_GMT_strj.loc[2100,GMT_indices_ticks].values,1)    
+    levels_hw=np.arange(0,101,10)      
+    p_le_c = ds_pf_gs_le_test[unprec_level].loc[{
+        'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+    }].sum(dim='country')       
+    p_le_c = p_le_c.where(p_le_c!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100  
+    
+    p_le_g = ds_pf_gs_le_test["unprec_99.99_global_le"].loc[{
+        'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+    }].sum(dim='country')       
+    p_le_g = p_le_g.where(p_le_g!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100      
+    
+    # read in original, with varying life expectancy
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
+        ds_pf_gs = pk.load(f)
+    p = ds_pf_gs['unprec_{}'.format(qntl)].loc[{
+        'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
+    }].sum(dim='country')       
+    p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100  
+    
+    # plot difference in absolute percents
+    f,(ax1,ax2) = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=(10,4)
+    )
+    p_diff_c = p - p_le_c
+    p_diff_c.plot.contourf(
+        x='birth_year',
+        y='GMT',
+        add_labels=False,
+        # add_colorbar=False,
+        cbar_kwargs={'label':'CF - $CF_{country}$ [%]'},
+        ax=ax1
+    ) 
+    ax1.set_yticks(
+        ticks=GMT_indices_ticks,
+        labels=gmts2100,
+    )        
+    p_diff_g = p - p_le_g
+    p_diff_g.plot.contourf(
+        x='birth_year',
+        y='GMT',
+        add_labels=False,
+        ax=ax2,
+        cbar_kwargs={'label':'CF - $CF_{global}$ [%]'}
+    ) 
+    ax2.set_yticks(
+        ticks=GMT_indices_ticks,
+        labels=None,
+    )
+    ax2.yaxis.set_ticklabels([])            
+    
+    ax1.annotate(
+        'GMT warming by 2100 [°C]',
+        (-.25,0.15),
+        xycoords=ax1.transAxes,
+        fontsize=12,
+        rotation='vertical',
+        # color='gray',
+        # fontweight='bold',        
+    )   
+    
+    ax1.annotate(
+        'Birth year',
+        (1,-.2),
+        xycoords=ax1.transAxes,
+        fontsize=12,
+        rotation='horizontal',
+        # color='gray',
+        # fontweight='bold',        
+    )   
+    ax1.set_title(
+        'Constant life expectancy \n per country',
+    )            
+    ax1.set_title(
+        'a',
+        loc='left',
+        fontweight='bold'
+    )              
+    ax2.set_title(
+        'Global constant \n life expectancy'
+    )            
+    ax2.set_title(
+        'b',
+        loc='left',
+        fontweight='bold'
+    )                      
+    f.savefig('./rl_figures/life_expectancy_test.png',bbox_inches='tight',dpi=500)
+# %%
