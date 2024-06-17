@@ -3019,7 +3019,7 @@ def plot_life_expectancy_testing(
     p_le_g = p_le_g.where(p_le_g!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100      
     
     # read in original, with varying life expectancy
-    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
+    with open('./data/pickles_v3/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['extr'],flags['extr']), 'rb') as f:
         ds_pf_gs = pk.load(f)
     p = ds_pf_gs['unprec_{}'.format(qntl)].loc[{
         'GMT':np.arange(GMT_indices_plot[0],GMT_indices_plot[-1]+1).astype('int'),
@@ -3027,11 +3027,37 @@ def plot_life_expectancy_testing(
     p = p.where(p!=0).mean(dim='run') / da_gs_popdenom.sum(dim='country') *100  
     
     # plot difference in absolute percents
-    f,(ax1,ax2) = plt.subplots(
-        nrows=1,
+    f,((ax1,ax2),(ax3,ax4)) = plt.subplots(
+        nrows=2,
         ncols=2,
-        figsize=(10,4)
+        figsize=(10,8)
     )
+    
+    # ax1
+    p_le_c.plot.contourf(
+        x='birth_year',
+        y='GMT',
+        cmap='Reds',        
+        levels=np.arange(0,101,10),
+        add_labels=False,
+        # add_colorbar=False,
+        cbar_kwargs={'label':'CF [%]'},
+        ax=ax1
+    ) 
+
+    # ax2
+    p_le_g.plot.contourf(
+        x='birth_year',
+        y='GMT',
+        cmap='Reds',
+        levels=np.arange(0,101,10),
+        add_labels=False,
+        # add_colorbar=False,
+        cbar_kwargs={'label':'CF [%]'},
+        ax=ax2
+    ) 
+    
+    # ax3
     p_diff_c = p - p_le_c
     p_diff_c.plot.contourf(
         x='birth_year',
@@ -3039,29 +3065,35 @@ def plot_life_expectancy_testing(
         add_labels=False,
         # add_colorbar=False,
         cbar_kwargs={'label':'CF - $CF_{country}$ [%]'},
-        ax=ax1
+        ax=ax3
     ) 
-    ax1.set_yticks(
-        ticks=GMT_indices_ticks,
-        labels=gmts2100,
-    )        
+    
+    # ax4
     p_diff_g = p - p_le_g
     p_diff_g.plot.contourf(
         x='birth_year',
         y='GMT',
         add_labels=False,
-        ax=ax2,
+        ax=ax4,
         cbar_kwargs={'label':'CF - $CF_{global}$ [%]'}
-    ) 
-    ax2.set_yticks(
-        ticks=GMT_indices_ticks,
-        labels=None,
-    )
+    )           
+    
+    # label game baby
+    for ax in (ax1,ax2,ax3,ax4):
+        ax.set_yticks(
+            ticks=GMT_indices_ticks,
+            labels=gmts2100,
+        )    
+
     ax2.yaxis.set_ticklabels([])            
+    ax4.yaxis.set_ticklabels([])               
+    
+    ax1.xaxis.set_ticklabels([])            
+    ax2.xaxis.set_ticklabels([])                   
     
     ax1.annotate(
         'GMT warming by 2100 [°C]',
-        (-.25,0.15),
+        (-.25,-0.65),
         xycoords=ax1.transAxes,
         fontsize=12,
         rotation='vertical',
@@ -3069,10 +3101,10 @@ def plot_life_expectancy_testing(
         # fontweight='bold',        
     )   
     
-    ax1.annotate(
+    ax3.annotate(
         'Birth year',
-        (1,-.2),
-        xycoords=ax1.transAxes,
+        (1.25,-.2),
+        xycoords=ax3.transAxes,
         fontsize=12,
         rotation='horizontal',
         # color='gray',
@@ -3094,5 +3126,16 @@ def plot_life_expectancy_testing(
         loc='left',
         fontweight='bold'
     )                      
+
+    ax3.set_title(
+        'c',
+        loc='left',
+        fontweight='bold'
+    )       
+    ax4.set_title(
+        'd',
+        loc='left',
+        fontweight='bold'
+    )                   
     f.savefig('./rl_figures/life_expectancy_test.png',bbox_inches='tight',dpi=500)
 # %%

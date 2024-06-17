@@ -498,13 +498,13 @@ if flags['vulnerability']:
     )
         
     # just a dummy d_global_emergence to run emergence_by_vulnerability
-    # try:
-    #     d_global_emergence
-    # except NameError:
-    #     print('to save memory on my laptop, d_global_emergence is not unpickled. defining a dummy var for emergence_by_vulnerability')
-    #     d_global_emergence={}
-    # else:
-    #     pass
+    try:
+        d_global_emergence
+    except NameError:
+        print('to save memory on my laptop, d_global_emergence is not unpickled. defining a dummy var for emergence_by_vulnerability')
+        d_global_emergence={}
+    else:
+        pass
 
     # dataset of emergence numbers selected by quantiles of vulnerability, both with grdi and gdp
     ds_vulnerability = emergence_by_vulnerability(
@@ -517,6 +517,79 @@ if flags['vulnerability']:
     )
     
 if flags['testing']:
+    
+    for v in ds_pic_qntls.data_vars:
+        print(v)
+        ds_pic_qntls[v].plot()
+        plt.show()
+        print(ds_pic_qntls[v].mean(dim=('lat','lon')))    
+    
+    d_global_pic_qntls
+    d_global_pic_qntls_extra
+    ds_pic_qntls = xr.merge([d_global_pic_qntls[flags['extr']],d_global_pic_qntls_extra[flags['extr']]]).drop_vars(['90.0','95.0','97.5'])
+    ds_pic_qntls['all_qntls'] = xr.concat(
+        [ds_pic_qntls['99.0'],ds_pic_qntls['99.9'],ds_pic_qntls['99.99'],ds_pic_qntls['99.999'],ds_pic_qntls['99.9999'],ds_pic_qntls['99.99999']],
+        dim='qntls'
+    ).assign_coords({'qntls':['99.0','99.9','99.99','99.999','99.9999','99.99999']})
+    ds_pic_qntls = ds_pic_qntls.rename({'all_qntls':'Bootstrapped pre-industrial \n lifetime exposure','qntls':'Percentiles'})
+    da_all_qntls = ds_pic_qntls['Bootstrapped pre-industrial \n lifetime exposure']
+    df_all_qntls = da_all_qntls.to_dataframe().reset_index()
+    # df_all_qntls = df_all_qntls.rename(columns={'qntls':'Percentiles'})
+    
+    # box plots of global means
+    import seaborn as sns
+    sns.boxplot(
+        data=df_all_qntls,
+        x='Percentiles',
+        y='Bootstrapped pre-industrial \n lifetime exposure',
+        # showcaps=False,
+        # showfliers=False,
+        color='steelblue',
+    )
+    
+    # maps
+    # da_all_qntls = da_all_qntls.rename({'qntls':'Percentiles','all_qntls':'Bootstrapped pre-industrial \n lifetime exposure'})
+    da_all_qntls.plot(
+        x='lon',
+        y='lat',
+        col='Percentiles',
+        col_wrap=3,
+    )
+    
+        #     p = sns.boxplot(
+        #     data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+        #     x='birth_year',
+        #     y='pf',
+        #     hue='GMT_label',
+        #     palette=colors,
+        #     showcaps=False,
+        #     showfliers=False,
+        #     boxprops={
+        #         'linewidth':0,
+        #         'alpha':0.5
+        #     },        
+        #     ax=ax,
+        # )
+    
+    # testing the quantile calculation in Belgium; indeed, we hit the last observation when we choose these higher precision levels
+    with open('./data/pickles_v3/heatwavedarea/gridscale_le_pic_heatwavedarea_Belgium.pkl', 'rb') as f:
+        ds_pic_le_belgium = pk.load(f)    
+        # pic extreme lifetime exposure definition (added more quantiles for v2)
+    test1 = ds_pic_le_belgium['lifetime_exposure'].quantile(
+            q=0.99999,
+            dim='lifetimes',
+            method='closest_observation',
+        )
+    test2 = ds_pic_le_belgium['lifetime_exposure'].quantile(
+            q=0.999999,
+            dim='lifetimes',
+            method='closest_observation',
+        )            
+    test3 = ds_pic_le_belgium['lifetime_exposure'].quantile(
+            q=0.9999999,
+            dim='lifetimes',
+            method='closest_observation',
+        )  
     
     pass    
     
