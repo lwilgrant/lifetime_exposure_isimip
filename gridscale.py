@@ -8,6 +8,7 @@
 # ----------------------------------------------------------------
 
 import os
+import glob
 import requests
 from zipfile import ZipFile
 import io
@@ -30,6 +31,28 @@ from scipy.stats import ttest_rel
 import cartopy.crs as ccrs
 from settings import *
 ages, age_young, age_ref, age_range, year_ref, year_start, birth_years, year_end, year_range, GMT_max, GMT_min, GMT_inc, RCP2GMT_maxdiff_threshold, year_start_GMT_ref, year_end_GMT_ref, scen_thresholds, GMT_labels, GMT_window, GMT_current_policies, pic_life_extent, nboots, resample_dim, pic_by, pic_qntl, pic_qntl_list, pic_qntl_labels, sample_birth_years, sample_countries, GMT_indices_plot, birth_years_plot, letters, basins = init()
+
+#%% ----------------------------------------------------------------   
+# Function to open isimip data array and read years from filename
+# (the isimip calendar "days since 1661-1-1 00:00:00" cannot be read by xarray datetime )
+# this implies that years in file need to correspond to years in filename
+def open_dataarray_isimip(file_name): 
+    
+    begin_year = int(file_name.split('_')[-2])
+    end_year = int(file_name.split('_')[-1].split('.')[0])
+    
+    # some files contain extra var 'time_bnds', first try reading for single var
+    try:
+        
+        da = xr.open_dataarray(file_name, decode_times=False)
+        
+    except:
+        
+        da = xr.open_dataset(file_name, decode_times=False).exposure
+    
+    da['time'] = np.arange(begin_year,end_year+1)
+    
+    return da
 
 #%% ----------------------------------------------------------------
 # bootstrapping function 
