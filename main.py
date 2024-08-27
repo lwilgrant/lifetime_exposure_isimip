@@ -92,6 +92,8 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['global_emergence_recollect'] = 0        # 0: do not process or load pickles of global emergence masks
                                     # 1: process or load pickles if they're present (note that pickles are huge on hydra)
+flags['pic_quantiles'] = 1          # 0: do not load sensitivity tests of pic lifetime exposure for a range of percentiles as thresholds for ULE (only ran for heatwaves)
+                                    # 1: load that^ (not a lot of memory)                                    
 flags['global_avg_emergence'] = 0                                                                                                
 flags['gdp_deprivation'] = 1        # 0: do not process/load lifetime GDP/GRDI average
                                     # 1: load lifetime GDP average analysis        
@@ -414,6 +416,8 @@ if flags['global_emergence_recollect']:
         df_GMT_strj,
     )
     
+if flags['pic_quantiles']:
+    
     # temporarily commented out extremes in this function outside heatwaved area to test new means extraction below
     d_global_pic_qntls = collect_pic_qntls(
         grid_area,
@@ -495,286 +499,10 @@ if flags['vulnerability']:
         da_cohort_size_1960_2020,
         d_global_emergence,
     )
-    
-if flags['testing']:
-    
-    # here we quickly plot quantiles by qth value
-    for q in range(10):
-        if q == 0:
-            da = xr.where(
-                ds_gdp_qntls['gdp_q_by_p'].loc[{'qntl':q,'birth_year':2020}].notnull(),
-                q+1,
-                0
-            ).squeeze()
-        else:
-            da = da + xr.where(
-                ds_gdp_qntls['gdp_q_by_p'].loc[{'qntl':q,'birth_year':2020}].notnull(),
-                q+1,
-                0
-            ).squeeze()
-    da = da.where(countries_mask.notnull())
-    da = da.where(da!=0)
-    da.plot(
-        levels=np.arange(0.5,10.6),
-        cmap='viridis',
-        cbar_kwargs={
-            'ticks':np.arange(1,11).astype(int)
-        }
-    )
-    # da.plot(levels=range(10))
-        # da_cohort_size_1960_2020_q = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(
-        #     ds_gdp_qntls['gdp_q_by_p'].loc[{'qntl':q,'birth_year':2020}].notnull()
-        # )        
-        
-    for q in range(10):
-        print('population of {}th quantile:'.format(q))
-        # ds_gdp_qntls['gdp_q_by_p'].loc[{'qntl':q,'birth_year':2020}].plot()
-        # plt.show()
-        da_cohort_size_1960_2020_q = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(
-            ds_gdp_qntls['gdp_q_by_p'].loc[{'qntl':q,'birth_year':2020}].notnull()
-        )
-        # print('population')
-        da_cohort_size_1960_2020_q.plot()
-        print(da_cohort_size_1960_2020_q.sum(dim=('lat','lon')))
-        plt.show()
-        print("")
-        print("scatter plot of {}th quantile with circles scaled by pop size:".format(q))
-        
-        da_cohort_size_1960_2020_q.plot.hist(
-            bins=20,
-        )
-        plt.show()
-        
-        scatter_test_data = da_cohort_size_1960_2020_q.values.flatten()
-        lon = da_cohort_size_1960_2020_q.lon.values
-        lat = da_cohort_size_1960_2020_q.lat.values
-        lat_grid, lon_grid = np.meshgrid(lat,lon,indexing='ij')
-        lat_flat = lat_grid.flatten()
-        lon_flat = lon_grid.flatten()
-        plt.scatter(
-            x=lon_flat,
-            y=lat_flat,
-            # s=np.log10(scatter_test_data),
-            s=np.sqrt(scatter_test_data),
-            c=scatter_test_data,
-        )
-        plt.show()
-    
-    # below is copy of pyramid map code without saving
-    vln_type = 'gdp'
-    fontcolor='gray'
-    if vln_type == 'grdi':
-        qp_i = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=8,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
-        qp_i = xr.where(qp_i.notnull(),1,0)
-        qp_ii = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=9,birth_year=2020)
-        qp_ii = xr.where(qp_ii.notnull(),1,0)
-        qp = qp_i + qp_ii
-        qp = qp.where(qp!=0) # poor == 1
+#%% ----------------------------------------------------------------
+# testing space
+# ------------------------------------------------------------------
 
-        qr_i = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=0,birth_year=2020) #"qr" for "quantile rich", "_i" for first 10 percentiles, "__i" for next 10 percentiles
-        qr_i = xr.where(qr_i.notnull(),1,0)
-        qr_ii = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=1,birth_year=2020)
-        qr_ii = xr.where(qr_ii.notnull(),1,0).squeeze()
-        qr = qr_i + qr_ii    
-        qr = qr.where(qr!=0)*2 # rich == 2
-    elif vln_type == 'gdp':
-        qp_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=0,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
-        qp_i = xr.where(qp_i.notnull(),1,0)
-        qp_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=1,birth_year=2020)
-        qp_ii = xr.where(qp_ii.notnull(),1,0)
-        qp = qp_i + qp_ii
-        qp = qp.where(qp!=0) # poor == 1
-
-        qr_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=8,birth_year=2020) #"qr" for "quantile rich", "_i" for first 10 percentiles, "__i" for next 10 percentiles
-        qr_i = xr.where(qr_i.notnull(),1,0)
-        qr_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=9,birth_year=2020)
-        qr_ii = xr.where(qr_ii.notnull(),1,0).squeeze()
-        qr = qr_i + qr_ii    
-        qr = qr.where(qr!=0)*2 # rich == 2    
-
-    # should convert pixels to points via geodataframe
-    # first do for "poor"
-    df_p = qp.to_dataframe().reset_index()
-    # gdf_p = gpd.GeoDataFrame(
-    #     df_p.grdi_q_by_p, geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
-    # )
-    gdf_p = gpd.GeoDataFrame(
-        df_p['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
-    )
-    gdf_p.set_crs(epsg = "4326",inplace=True)
-    # then do for "rich"
-    df_r = qr.to_dataframe().reset_index()
-    # gdf_r = gpd.GeoDataFrame(
-    #     df_r.grdi_q_by_p, geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
-    # )
-    gdf_r = gpd.GeoDataFrame(
-        df_r['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
-    )
-    gdf_r.set_crs(epsg = "4326",inplace=True)        
-    # get bounds
-    robinson = ccrs.Robinson().proj4_init
-    gdf_robinson_bounds_v1 = gdf_p.to_crs(robinson).total_bounds # (minx,miny,maxx,maxy) will use this for xlim
-    # gdf_robinson_bounds  # wil be read into function (take out of f2 function); use for y lim for antarctica consistency with other plots
-    # get rid of nans so the dataframe is more plottable
-    gdf_p = gdf_p.dropna()
-    gdf_r = gdf_r.dropna()
-    # plot
-    f,ax = plt.subplots(
-        ncols=1,
-        nrows=1,
-        subplot_kw={'projection':ccrs.Robinson()},
-        transform=ccrs.PlateCarree()
-    )
-    ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
-    gdf_p.to_crs(robinson).plot(
-        ax=ax,
-        column='{}_q_by_p'.format(vln_type),
-        color='darkgoldenrod',
-        zorder=5,
-        markersize=0.1,
-    )    
-    gdf_r.to_crs(robinson).plot(
-        ax=ax,
-        column='{}_q_by_p'.format(vln_type),
-        color='forestgreen',
-        zorder=4,
-        markersize=0.1,
-    )            
-    ax.set_xlim(gdf_robinson_bounds_v1[0],gdf_robinson_bounds_v1[2])
-    ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])      
-
-    # gdf_robinson_bounds  
-
-    # legend stuff
-    cmap = ['darkgoldenrod','forestgreen']  
-
-    # space between entries
-    legend_entrypad = 0.5
-
-    # length per entry
-    legend_entrylen = 0.75
-    legend_font = 10
-    legend_lw=3.5   
-
-    legendcols = cmap
-    handles = [
-        Rectangle((0,0),1,1,color=legendcols[0]),
-        Rectangle((0,0),1,1,color=legendcols[1]),
-    ]
-
-    if vln_type == 'grdi':
-        labels= [
-            '20% highest deprivation',
-            '20% lowest deprivation'
-        ]
-    elif vln_type == 'gdp':
-        labels= [
-            '20% lowest GDP',
-            '20% highest GDP'
-        ]
-            
-    x0 = 0.
-    y0 = 1.0
-    xlen = 0.2
-    ylen = 0.3
-
-    ax.legend(
-        handles, 
-        labels, 
-        bbox_to_anchor=(x0, y0, xlen, ylen), 
-        loc = 'upper left',
-        ncol=1,
-        fontsize=legend_font, 
-        labelcolor=fontcolor,
-        mode="expand", 
-        borderaxespad=0.,\
-        frameon=False, 
-        columnspacing=0.05, 
-        handlelength=legend_entrylen, 
-        handletextpad=legend_entrypad
-    )        
-
-    # f.savefig(
-    #     './figures/pyramid/inverted/vln_map_{}.png'.format(vln_type),
-    #     dpi=1000,
-    #     bbox_inches='tight',
-    # )
-    plt.show()      
-    
-    # for v in ds_pic_qntls.data_vars:
-    #     print(v)
-    #     ds_pic_qntls[v].plot()
-    #     plt.show()
-    #     print(ds_pic_qntls[v].mean(dim=('lat','lon')))    
-    
-    # d_global_pic_qntls
-    # d_global_pic_qntls_extra
-    # ds_pic_qntls = xr.merge([d_global_pic_qntls[flags['extr']],d_global_pic_qntls_extra[flags['extr']]]).drop_vars(['90.0','95.0','97.5'])
-    # ds_pic_qntls['all_qntls'] = xr.concat(
-    #     [ds_pic_qntls['99.0'],ds_pic_qntls['99.9'],ds_pic_qntls['99.99'],ds_pic_qntls['99.999'],ds_pic_qntls['99.9999'],ds_pic_qntls['99.99999']],
-    #     dim='qntls'
-    # ).assign_coords({'qntls':['99.0','99.9','99.99','99.999','99.9999','99.99999']})
-    # ds_pic_qntls = ds_pic_qntls.rename({'all_qntls':'Bootstrapped pre-industrial \n lifetime exposure','qntls':'Percentiles'})
-    # da_all_qntls = ds_pic_qntls['Bootstrapped pre-industrial \n lifetime exposure']
-    # df_all_qntls = da_all_qntls.to_dataframe().reset_index()
-
-    
-    # box plots of global means
-    # import seaborn as sns
-    # sns.boxplot(
-    #     data=df_all_qntls,
-    #     x='Percentiles',
-    #     y='Bootstrapped pre-industrial \n lifetime exposure',
-    #     # showcaps=False,
-    #     # showfliers=False,
-    #     color='steelblue',
-    # )
-    
-    # maps
-    # da_all_qntls.plot(
-    #     x='lon',
-    #     y='lat',
-    #     col='Percentiles',
-    #     col_wrap=3,
-    # )
-    
-        #     p = sns.boxplot(
-        #     data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
-        #     x='birth_year',
-        #     y='pf',
-        #     hue='GMT_label',
-        #     palette=colors,
-        #     showcaps=False,
-        #     showfliers=False,
-        #     boxprops={
-        #         'linewidth':0,
-        #         'alpha':0.5
-        #     },        
-        #     ax=ax,
-        # )
-    
-    # # testing the quantile calculation in Belgium; indeed, we hit the last observation when we choose these higher precision levels
-    # with open('./data/pickles_v3/heatwavedarea/gridscale_le_pic_heatwavedarea_Belgium.pkl', 'rb') as f:
-    #     ds_pic_le_belgium = pk.load(f)    
-        # pic extreme lifetime exposure definition (added more quantiles for v2)
-    # test1 = ds_pic_le_belgium['lifetime_exposure'].quantile(
-    #         q=0.99999,
-    #         dim='lifetimes',
-    #         method='closest_observation',
-    #     )
-    # test2 = ds_pic_le_belgium['lifetime_exposure'].quantile(
-    #         q=0.999999,
-    #         dim='lifetimes',
-    #         method='closest_observation',
-    #     )            
-    # test3 = ds_pic_le_belgium['lifetime_exposure'].quantile(
-    #         q=0.9999999,
-    #         dim='lifetimes',
-    #         method='closest_observation',
-    #     )  
-    
-    pass    
-    
 
 #%% ----------------------------------------------------------------
 # main text plots
@@ -927,7 +655,12 @@ if flags['plot_si']:
         df_GMT_strj,
         d_isimip_meta,
     )    
-        
+    
+    # plot gmt time series for projections (rcp) and for which we map projections onto (ar6) for powerpoint
+    plot_sfX_gmt_mapping(
+        df_GMT_strj,
+        d_isimip_meta,
+    )    
 
     # pf time series for 2020 birth year across GMTs
     plot_pf_gmt_tseries_allhazards(
@@ -967,6 +700,25 @@ if flags['plot_si']:
         flags,
     )    
     
+    # plot pic threshold sensitivity analysis results for heatwavedarea as box plots (only in response letter as of August 26)
+    plot_pic_sensitivity_test(
+        flags,
+        d_global_pic_qntls,
+        d_global_pic_qntls_extra,
+    )
+    
+    # plot maps of population distribution per gdp quantile  (only in response letter as of August 26)
+    population_per_gdp_quantile(
+        da_cohort_size_1960_2020,
+        ds_gdp_qntls,
+        gdf_robinson_bounds
+    )    
+    
+    population_per_grdi_quantile(
+        da_cohort_size_1960_2020,
+        ds_grdi_qntls,
+        gdf_robinson_bounds
+    )        
 
 #%% ----------------------------------------------------------------
 # sample analytics for paper

@@ -3138,4 +3138,464 @@ def plot_life_expectancy_testing(
         fontweight='bold'
     )                   
     f.savefig('./rl_figures/life_expectancy_test.png',bbox_inches='tight',dpi=500)
+#%% ----------------------------------------------------------------
+# plot global average heatwavedarea pic threshold values
+
+def plot_pic_sensitivity_test(
+    flags,
+    d_global_pic_qntls,
+    d_global_pic_qntls_extra,
+):
+    ds_pic_qntls = xr.merge([d_global_pic_qntls[flags['extr']],d_global_pic_qntls_extra[flags['extr']]]).drop_vars(['90.0','95.0','97.5'])
+    ds_pic_qntls['all_qntls'] = xr.concat(
+        [ds_pic_qntls['99.0'],ds_pic_qntls['99.9'],ds_pic_qntls['99.99'],ds_pic_qntls['99.999'],ds_pic_qntls['99.9999'],ds_pic_qntls['99.99999']],
+        dim='qntls'
+    ).assign_coords({'qntls':['99.0','99.9','99.99','99.999','99.9999','99.99999']})
+    ds_pic_qntls = ds_pic_qntls.rename({'all_qntls':'Bootstrapped pre-industrial \n lifetime exposure','qntls':'Percentiles'})
+    da_all_qntls = ds_pic_qntls['Bootstrapped pre-industrial \n lifetime exposure']
+    df_all_qntls = da_all_qntls.to_dataframe().reset_index()
+
+    
+    # box plots of global means
+    import seaborn as sns
+    f = sns.boxplot(
+        data=df_all_qntls,
+        x='Percentiles',
+        y='Bootstrapped pre-industrial \n lifetime exposure',
+        # showcaps=False,
+        # showfliers=False,
+        color='steelblue',
+        whis=(0, 100),
+        medianprops={"color": "k"},
+        flierprops={"markersize": 1}
+    )
+    f.get_figure().savefig('./figures/pic_threshold_sensitivity.png',dpi=500)
+    
+#%% ----------------------------------------------------------------
+# plot gmt pathways in rcps and ar6
+
+def plot_sfX_gmt_mapping(
+    df_GMT_strj,
+    d_isimip_meta,
+):
+
+    # --------------------------------------------------------------------
+    # plotting utils
+    letters = ['a', 'b', 'c',\
+                'd', 'e', 'f',\
+                'g', 'h', 'i',\
+                'j', 'k', 'l']
+    x=10
+    y=5
+    lw_mean=1
+    lw_fill=0.1
+    ub_alpha = 0.5
+    title_font = 14
+    tick_font = 12
+    axis_font = 11
+    legend_font = 10
+    impactyr_font =  11
+    col_grid = '0.8'     # color background grid
+    style_grid = 'dashed'     # style background grid
+    lw_grid = 0.5     # lineweight background grid
+    col_hi = 'darkred'       # mean color for GMT trajectories above 2.5 at 2100
+    col_med = 'darkgoldenrod'   # mean color for GMT trajectories above 1.5 to 2.5 at 2100     
+    col_low = 'steelblue'       # mean color for GMT trajectories from min to 1.5 at 2100
+    colors_rcp = {
+        'rcp26': col_low,
+        'rcp60': col_med,
+        'rcp85': col_hi,
+    }
+    colors = dict(zip(GMT_indices_plot,['steelblue','darkgoldenrod','darkred']))
+    gmt_legend={
+        GMT_indices_plot[0]:'1.5',
+        GMT_indices_plot[1]:'2.5',
+        GMT_indices_plot[2]:'3.5',
+    } 
+    legend_lw=3.5 # legend line width
+    x0 = 0.15 # bbox for legend
+    y0 = 0.85
+    xlen = 0.4
+    ylen = 0.2    
+    legend_entrypad = 0.5 # space between entries
+    legend_entrylen = 0.75 # length per entry
+    col_bis = 'black'     # color bisector
+    style_bis = '--'     # style bisector
+    lw_bis = 1     # lineweight bisector
+    time = year_range
+    # xmin = np.min(time)
+    # xmax = np.max(time)
+    xmin = 1960
+    xmax = 2100
+
+    ymin=0
+    ymax=4
+
+    axar6_ylab = 'GMT [°C]'
+    axar6_xlab = 'Time'
+
+    gcms = ['gfdl-esm2m','hadgem2-es','ipsl-cm5a-lr','miroc5']
+    rcps = ['rcp26','rcp60','rcp85']
+    GMTs = {}
+    for gcm in gcms:
+        GMTs[gcm] = {}
+        for rcp in rcps:
+            i=0
+            while i < 1:
+                for k,v in list(d_isimip_meta.items()):
+                    if v['gcm'] == gcm and v['rcp'] == rcp:
+                        GMTs[gcm][rcp] = v['GMT']
+                        i+=1
+                    if i == 1:
+                        break
+            
+                
+
+    f,(axrcp,axar6) = plt.subplots(
+        nrows=1,
+        ncols=2,
+        figsize=(x,y),
+    )
+
+    # --------------------------------------------------------------------
+    # plot GMTs
+
+    # plot all new scenarios in grey, then overlay marker scens
+    # df_GMT_strj.loc[:2101,:].plot(
+    #     ax=axar6,
+    #     color='grey',
+    #     zorder=1,
+    #     lw=lw_mean,
+    # )
+
+    # plot smooth gmts from RCPs
+    for gcm in gcms:
+        for rcp in rcps:  
+            if gcm == 'gfdl-esm2m' and rcp == 'rcp85':
+                GMTs[gcm][rcp].loc[:2101].plot(
+                    ax=axrcp,
+                    color=colors_rcp[rcp],
+                    zorder=2,
+                    lw=lw_mean,
+                    style='-',
+                )  
+            
+    # plot new ar6 marker scenarios in color
+    # df_GMT_15 = df_GMT_strj.loc[:,GMT_indices_plot[0]]
+    # df_GMT_15.plot(
+    #     ax=axar6,
+    #     color=colors[0],
+    #     zorder=1,
+    #     lw=lw_mean,
+    # )
+    df_GMT_25 = df_GMT_strj.loc[:,GMT_indices_plot[1]]
+    df_GMT_25.plot(
+        ax=axar6,
+        color=colors[10],
+        zorder=1,
+        lw=lw_mean,
+    )
+
+    # df_GMT_35 = df_GMT_strj.loc[:,GMT_indices_plot[2]]
+    # df_GMT_35.plot(
+    #     ax=axar6,
+    #     color=colors[20],
+    #     zorder=1,
+    #     lw=lw_mean,
+    # )
+    # df_GMT_35.loc[1960:2009].plot(
+    #     ax=axar6,
+    #     color='grey',
+    #     zorder=3,
+    #     lw=2,
+    # )                
+
+    axrcp.set_ylabel(
+        axar6_ylab, 
+        va='center', 
+        rotation='vertical', 
+        fontsize=axis_font, 
+        labelpad=10,
+        color='gray'
+    )
+
+    axar6.set_ylabel(
+        None, 
+    )
+
+    axrcp.set_xlabel(
+        axar6_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+        color='gray'
+    )    
+
+    axar6.set_xlabel(
+        axar6_xlab, 
+        va='center', 
+        rotation='horizontal', 
+        fontsize=axis_font, 
+        labelpad=10,
+        color='gray'
+    )    
+    
+    axrcp.get_legend().remove()
+
+
+    for i,ax in enumerate([axrcp,axar6]):
+        ax.set_title(letters[i],loc='left',fontweight='bold')
+        ax.set_xlim(xmin,xmax)
+        ax.set_ylim(ymin,ymax)
+        ax.tick_params(labelsize=tick_font,axis="x",direction="in", left="off",labelleft="on")
+        ax.tick_params(labelsize=tick_font,axis="y",direction="in")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['left'].set_color('gray')
+        ax.spines['bottom'].set_color('gray')         
+        ax.tick_params(colors='gray')      
+        ax.yaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.xaxis.grid(color=col_grid, linestyle=style_grid, linewidth=lw_grid)
+        ax.set_xticks(
+            ticks=np.arange(1960,2101,20),
+            labels=[None,1980,None,2020,None,2060,None,2100],
+        )    
+        ax.set_axisbelow(True) 
+
+    handles_ar6 = [
+        # Line2D([0],[0],linestyle='-',lw=legend_lw,color='grey'),
+        # Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors[0]),
+        Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors[10]),
+        # Line2D([0],[0],linestyle='-',lw=legend_lw,color=colors[20]),
+    ]    
+
+    handles_rcp = [
+        Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp85']),
+        # Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp60']),
+        # Line2D([0],[0],linestyle='--',lw=legend_lw,color=colors_rcp['rcp26']),
+    ]
+
+    labels_ar6= [
+        # 'All trajectories',
+        # '1.5 °C',
+        '2.5 °C pathway \nfor GMT mapping',
+        # '3.5 °C',
+    ]
+    labels_rcp = [
+        'RCP 8.5 scenario underlying \nexposure projections',
+        # 'RCP 6.0',
+        # 'RCP 2.6',        
+    ]    
+        
+    axar6.legend(
+        handles_ar6, 
+        labels_ar6, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )  
+    axrcp.legend(
+        handles_rcp, 
+        labels_rcp, 
+        bbox_to_anchor=(x0, y0, xlen, ylen), # bbox: (x, y, width, height)
+        loc=3,
+        ncol=1,
+        fontsize=legend_font, 
+        mode="expand", 
+        borderaxespad=0.,
+        frameon=False, 
+        columnspacing=0.05, 
+        handlelength=legend_entrylen, 
+        handletextpad=legend_entrypad,
+    )               
+            
+    # f.savefig('./si_figures/GMT_trajectories.png',bbox_inches='tight',dpi=1000)    
+    f.savefig('./si_figures/sf8_gmt_mapping.png',bbox_inches='tight',dpi=500)    
+        
+#%% ----------------------------------------------------------------
+# plot maps of population distribution per gdp quantile
+
+def population_per_gdp_quantile(
+    da_cohort_size_1960_2020,
+    ds_gdp_qntls,
+    gdf_robinson_bounds
+):
+    
+    # for q in range(10):
+    f,axes=plt.subplots(
+        nrows=5,
+        subplot_kw={'projection':ccrs.Robinson()},
+        figsize=(9,16)
+    )
+    pos0 = axes[-1].get_position()
+    cax = f.add_axes([
+        pos0.x0-0.1125,
+        pos0.y0-0.075,
+        pos0.width*2,
+        pos0.height*0.2
+    ])    
+    f.subplots_adjust(hspace=0.25)
+    all_data = da_cohort_size_1960_2020.loc[{'birth_year':2020}]
+    vmin = 1
+    vmax = all_data.max()
+    lognorm = mpl.colors.LogNorm(vmin=vmin,vmax=vmax)
+
+    ax_labels = [
+        '0-20%',
+        '20-40%',
+        '40-60%',
+        '60-80%',
+        '80-100%',
+    ]
+    letters = ['a','b','c','d','e']
+    
+    for i,q in enumerate(range(0,10,2)):
+        
+        # get ax
+        ax = axes[i]
+
+        # get cohort map
+        da_cohort_size_1960_2020_q = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(
+            (ds_gdp_qntls['gdp_q_by_p'].loc[{'qntl':q,'birth_year':2020}].notnull() | ds_gdp_qntls['gdp_q_by_p'].loc[{'qntl':q+1,'birth_year':2020}].notnull())
+        )
+        
+        # first plot scatter plot with the marker size scaling by the square root of pop size
+        scatter_test_data = da_cohort_size_1960_2020_q.values.flatten()
+        lon = da_cohort_size_1960_2020_q.lon.values
+        lat = da_cohort_size_1960_2020_q.lat.values
+        lat_grid, lon_grid = np.meshgrid(lat,lon,indexing='ij')
+        lat_flat = lat_grid.flatten()
+        lon_flat = lon_grid.flatten()
+        ax.coastlines(alpha=0.2)
+        ax.scatter(
+            x=lon_flat,
+            y=lat_flat,
+            s=scatter_test_data/1000,
+            c=scatter_test_data,
+            norm=lognorm,
+            transform=ccrs.PlateCarree(),
+            zorder=5
+        )
+        ax.coastlines(alpha=0.2)
+        ax.set_xlim(gdf_robinson_bounds[0],gdf_robinson_bounds[2])
+        ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])    
+        ax.set_title(letters[i],loc='left',fontweight='bold')
+        ax.set_title(ax_labels[i],loc='center',color='gray')
+        
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cax, 
+        cmap='viridis',
+        norm=lognorm,
+        orientation='horizontal',
+        spacing='uniform',
+        drawedges=False,
+    )
+
+    cb.set_label(
+        'Population per grid cell',
+        fontsize=14,
+        labelpad=10,
+        color='gray',
+    )
+    cb.ax.xaxis.set_label_position('top') 
+        
+    plt.savefig('figures/population_gdp_quantiles.png',bbox_inches='tight',dpi=1000)    
+#%% ----------------------------------------------------------------
+# plot maps of population distribution per gdp quantile
+
+def population_per_grdi_quantile(
+    da_cohort_size_1960_2020,
+    ds_grdi_qntls,
+    gdf_robinson_bounds
+):
+    
+    # for q in range(10):
+    f,axes=plt.subplots(
+        nrows=5,
+        subplot_kw={'projection':ccrs.Robinson()},
+        figsize=(9,16)
+    )
+    pos0 = axes[-1].get_position()
+    cax = f.add_axes([
+        pos0.x0-0.1125,
+        pos0.y0-0.075,
+        pos0.width*2,
+        pos0.height*0.2
+    ])    
+    f.subplots_adjust(hspace=0.25)
+    all_data = da_cohort_size_1960_2020.loc[{'birth_year':2020}]
+    vmin = 1
+    vmax = all_data.max()
+    lognorm = mpl.colors.LogNorm(vmin=vmin,vmax=vmax)
+
+    ax_labels = [
+        '80-100% (least deprived)',
+        '60-80%',
+        '40-60%',
+        '20-40%',
+        '0-20% (most deprived)',
+    ]
+    letters = ['a','b','c','d','e']
+    
+    for i,q in enumerate(range(0,10,2)):
+        
+        # get ax
+        ax = axes[i]
+
+        # get cohort map
+        da_cohort_size_1960_2020_q = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(
+            (ds_grdi_qntls['grdi_q_by_p'].loc[{'qntl':q,'birth_year':2020}].notnull() | ds_grdi_qntls['grdi_q_by_p'].loc[{'qntl':q+1,'birth_year':2020}].notnull())
+        )
+        
+        # first plot scatter plot with the marker size scaling by the square root of pop size
+        scatter_test_data = da_cohort_size_1960_2020_q.values.flatten()
+        lon = da_cohort_size_1960_2020_q.lon.values
+        lat = da_cohort_size_1960_2020_q.lat.values
+        lat_grid, lon_grid = np.meshgrid(lat,lon,indexing='ij')
+        lat_flat = lat_grid.flatten()
+        lon_flat = lon_grid.flatten()
+        ax.coastlines(alpha=0.2)
+        ax.scatter(
+            x=lon_flat,
+            y=lat_flat,
+            s=scatter_test_data/1000,
+            c=scatter_test_data,
+            norm=lognorm,
+            transform=ccrs.PlateCarree(),
+            zorder=5
+        )
+        ax.coastlines(alpha=0.2)
+        ax.set_xlim(gdf_robinson_bounds[0],gdf_robinson_bounds[2])
+        ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])    
+        ax.set_title(letters[i],loc='left',fontweight='bold')
+        ax.set_title(ax_labels[i],loc='center',color='gray')
+        
+    cb = mpl.colorbar.ColorbarBase(
+        ax=cax, 
+        cmap='viridis',
+        norm=lognorm,
+        orientation='horizontal',
+        spacing='uniform',
+        drawedges=False,
+    )
+
+    cb.set_label(
+        'Population per grid cell',
+        fontsize=14,
+        labelpad=10,
+        color='gray',
+    )
+    cb.ax.xaxis.set_label_position('top') 
+        
+    plt.savefig('figures/population_grdi_quantiles.png',bbox_inches='tight',dpi=1000)    
+
+
 # %%

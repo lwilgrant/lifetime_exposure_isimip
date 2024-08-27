@@ -4991,11 +4991,11 @@ def pyramid_map(
         handletextpad=legend_entrypad
     )        
 
-    f.savefig(
-        './figures/pyramid/inverted/vln_map_{}.png'.format(vln_type),
-        dpi=1000,
-        bbox_inches='tight',
-    )
+    # f.savefig(
+    #     './figures/pyramid/inverted/vln_map_{}.png'.format(vln_type),
+    #     dpi=1000,
+    #     bbox_inches='tight',
+    # )
     plt.show()      
 # %%
 # testing pyramids for left/right = poor(1.5 pathway)/poor(3.5 pathway) & same for rich
