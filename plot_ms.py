@@ -4710,7 +4710,7 @@ def pyramid_plot(
                     by,
                     marker=(6,2,0),
                     zorder=5,
-                    markersize=5,
+                    markersize=8,
                     color='k',
                 )
             if pvalues_rich[::-1*per_x][i] < sl:
@@ -4719,7 +4719,7 @@ def pyramid_plot(
                     by,
                     marker=(6,2,0),
                     zorder=5,
-                    markersize=5,  
+                    markersize=8,  
                     color='k',                  
                 )             
             # percentages
@@ -4735,7 +4735,7 @@ def pyramid_plot(
                 horizontalalignment='center',
                 verticalalignment='center',
                 transform=ax1.transData,
-                fontsize=7,
+                fontsize=9,
                 color='k'
             ) 
             # xerr=[i * -1 for i in poor_std[::-1*per_x]]
@@ -4751,7 +4751,7 @@ def pyramid_plot(
                 horizontalalignment='center',
                 verticalalignment='center',
                 transform=ax2.transData,
-                fontsize=7,
+                fontsize=9,
                 color='k'
             )       
             # xerr=[i * -1 for i in rich_std[::-1*per_x]]      
@@ -4888,33 +4888,38 @@ def pyramid_map(
         qr_ii = xr.where(qr_ii.notnull(),1,0).squeeze()
         qr = qr_i + qr_ii    
         qr = qr.where(qr!=0)*2 # rich == 2    
+        
+    # get population sizes per pixel for each quantile group. Will add this to geodataframe
+    da_cohort_size_1960_2020_q_r = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(qr.notnull())
+    da_cohort_size_1960_2020_q_p = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(qp.notnull())
+    all_data = da_cohort_size_1960_2020.loc[{'birth_year':2020}]
+    vmin = 1
+    vmax = all_data.max()
+    lognorm = mpl.colors.LogNorm(vmin=vmin,vmax=vmax)    
 
     # should convert pixels to points via geodataframe
     # first do for "poor"
     df_p = qp.to_dataframe().reset_index()
-    # gdf_p = gpd.GeoDataFrame(
-    #     df_p.grdi_q_by_p, geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
-    # )
     gdf_p = gpd.GeoDataFrame(
         df_p['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
     )
     gdf_p.set_crs(epsg = "4326",inplace=True)
+    gdf_p.loc[:,'{}_q_by_p'.format(vln_type)] = da_cohort_size_1960_2020_q_p.to_dataframe().reset_index()['mask']
+    
     # then do for "rich"
     df_r = qr.to_dataframe().reset_index()
-    # gdf_r = gpd.GeoDataFrame(
-    #     df_r.grdi_q_by_p, geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
-    # )
     gdf_r = gpd.GeoDataFrame(
         df_r['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
     )
-    gdf_r.set_crs(epsg = "4326",inplace=True)        
+    gdf_r.set_crs(epsg = "4326",inplace=True)     
+    gdf_r.loc[:,'{}_q_by_p'.format(vln_type)] = da_cohort_size_1960_2020_q_r.to_dataframe().reset_index()['mask']   
+    
     # get bounds
     robinson = ccrs.Robinson().proj4_init
     gdf_robinson_bounds_v1 = gdf_p.to_crs(robinson).total_bounds # (minx,miny,maxx,maxy) will use this for xlim
-    # gdf_robinson_bounds  # wil be read into function (take out of f2 function); use for y lim for antarctica consistency with other plots
-    # get rid of nans so the dataframe is more plottable
     gdf_p = gdf_p.dropna()
     gdf_r = gdf_r.dropna()
+    
     # plot
     f,ax = plt.subplots(
         ncols=1,
@@ -4926,17 +4931,23 @@ def pyramid_map(
     gdf_p.to_crs(robinson).plot(
         ax=ax,
         column='{}_q_by_p'.format(vln_type),
-        color='darkgoldenrod',
+        # color='darkgoldenrod',
+        cmap='YlOrBr',
         zorder=5,
-        markersize=0.1,
+        norm=lognorm,
+        # markersize=0.1,
+        markersize=gdf_p['{}_q_by_p'.format(vln_type)]/1000,
     )    
     gdf_r.to_crs(robinson).plot(
         ax=ax,
         column='{}_q_by_p'.format(vln_type),
-        color='forestgreen',
+        # color='forestgreen',
+        cmap='Greens',
         zorder=4,
-        markersize=0.1,
-    )            
+        norm=lognorm,
+        # markersize=0.1,
+        markersize=gdf_r['{}_q_by_p'.format(vln_type)]/1000,
+    )       
     ax.set_xlim(gdf_robinson_bounds_v1[0],gdf_robinson_bounds_v1[2])
     ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])      
 
@@ -4991,17 +5002,18 @@ def pyramid_map(
         handletextpad=legend_entrypad
     )        
 
-    # f.savefig(
-    #     './figures/pyramid/inverted/vln_map_{}.png'.format(vln_type),
-    #     dpi=1000,
-    #     bbox_inches='tight',
-    # )
+    f.savefig(
+        './figures/pyramid/inverted/vln_map_{}.png'.format(vln_type),
+        dpi=1000,
+        bbox_inches='tight',
+    )
     plt.show()      
 # %%
 # testing pyramids for left/right = poor(1.5 pathway)/poor(3.5 pathway) & same for rich
 def pyramid_poor_lowhigh(
     flags,
     df_GMT_strj,
+    vln_type,
 ):
 
     per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
@@ -5020,7 +5032,7 @@ def pyramid_poor_lowhigh(
     GMT_low=0
     GMT_high=20
     # plot type (will get removed and looped outside function)
-    vln_type='gdp'
+    # vln_type='gdp'
     fontcolor='gray'
     # bbox for legend
     x0 = 0.1
@@ -5229,7 +5241,7 @@ def pyramid_poor_lowhigh(
                     by,
                     marker=(6,2,0),
                     zorder=5,
-                    markersize=5,  
+                    markersize=8,  
                     color='k',                  
                 )          
                 
@@ -5246,7 +5258,7 @@ def pyramid_poor_lowhigh(
                 horizontalalignment='center',
                 verticalalignment='center',
                 transform=ax1.transData,
-                fontsize=7,
+                fontsize=9,
                 color='k'
             ) 
             
@@ -5262,7 +5274,7 @@ def pyramid_poor_lowhigh(
                 horizontalalignment='center',
                 verticalalignment='center',
                 transform=ax2.transData,
-                fontsize=7,
+                fontsize=9,
                 color='k'
             )                    
         ax1.invert_yaxis() # only have to do this once because because y axis are shared
@@ -5277,6 +5289,7 @@ def pyramid_poor_lowhigh(
 def pyramid_rich_lowhigh(
     flags,
     df_GMT_strj,
+    vln_type,
 ):
 
     per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
@@ -5295,7 +5308,7 @@ def pyramid_rich_lowhigh(
     GMT_low=0
     GMT_high=20
     # plot type (will get removed and looped outside function)
-    vln_type='gdp'
+    # vln_type='gdp'
     fontcolor='gray'
     # bbox for legend
     x0 = 0.1
@@ -5500,7 +5513,7 @@ def pyramid_rich_lowhigh(
                     by,
                     marker=(6,2,0),
                     zorder=5,
-                    markersize=5,  
+                    markersize=8,  
                     color='k',                  
                 )          
                 
@@ -5517,7 +5530,7 @@ def pyramid_rich_lowhigh(
                 horizontalalignment='center',
                 verticalalignment='center',
                 transform=ax1.transData,
-                fontsize=7,
+                fontsize=9,
                 color='k'
             ) 
             
@@ -5533,7 +5546,7 @@ def pyramid_rich_lowhigh(
                 horizontalalignment='center',
                 verticalalignment='center',
                 transform=ax2.transData,
-                fontsize=7,
+                fontsize=9,
                 color='k'
             )                    
         ax1.invert_yaxis() # only have to do this once because because y axis are shared

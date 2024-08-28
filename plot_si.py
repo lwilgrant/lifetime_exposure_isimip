@@ -3449,11 +3449,11 @@ def population_per_gdp_quantile(
     lognorm = mpl.colors.LogNorm(vmin=vmin,vmax=vmax)
 
     ax_labels = [
-        '0-20%',
+        '0-20% (lowest GDP)',
         '20-40%',
         '40-60%',
         '60-80%',
-        '80-100%',
+        '80-100% (highest GDP)',
     ]
     letters = ['a','b','c','d','e']
     
@@ -3507,7 +3507,8 @@ def population_per_gdp_quantile(
     )
     cb.ax.xaxis.set_label_position('top') 
         
-    plt.savefig('figures/population_gdp_quantiles.png',bbox_inches='tight',dpi=1000)    
+    plt.savefig('si_figures/final/sf12.png',bbox_inches='tight',dpi=1000)    
+    
 #%% ----------------------------------------------------------------
 # plot maps of population distribution per gdp quantile
 
@@ -3536,13 +3537,22 @@ def population_per_grdi_quantile(
     vmax = all_data.max()
     lognorm = mpl.colors.LogNorm(vmin=vmin,vmax=vmax)
 
+    # ax_labels = [
+    #     '80-100% (least deprived)',
+    #     '60-80%',
+    #     '40-60%',
+    #     '20-40%',
+    #     '0-20% (most deprived)',
+    # ]
+    
     ax_labels = [
-        '80-100% (least deprived)',
-        '60-80%',
-        '40-60%',
+        '0-20% (least deprived)',
         '20-40%',
-        '0-20% (most deprived)',
-    ]
+        '40-60%',
+        '60-80%',
+        '80-100% (most deprived)',
+    ]    
+    
     letters = ['a','b','c','d','e']
     
     for i,q in enumerate(range(0,10,2)):
@@ -3595,7 +3605,7 @@ def population_per_grdi_quantile(
     )
     cb.ax.xaxis.set_label_position('top') 
         
-    plt.savefig('figures/population_grdi_quantiles.png',bbox_inches='tight',dpi=1000)    
+    plt.savefig('si_figures/final/sf11.png',bbox_inches='tight',dpi=1000)    
 
 
 # %%

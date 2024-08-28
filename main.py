@@ -589,10 +589,12 @@ if flags['plot_ms']:
         pyramid_poor_lowhigh( # poor pop but high vs low GMT trajectories
             flags,
             df_GMT_strj,
+            vln_type,
         )
         pyramid_rich_lowhigh( # rich pop but high vs low GMT trajectories
             flags,
             df_GMT_strj,
+            vln_type
         )
     
 #%% ----------------------------------------------------------------
@@ -714,6 +716,7 @@ if flags['plot_si']:
         gdf_robinson_bounds
     )    
     
+    # same as above but for grdi
     population_per_grdi_quantile(
         da_cohort_size_1960_2020,
         ds_grdi_qntls,
