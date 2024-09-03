@@ -584,6 +584,7 @@ if flags['plot_ms']:
             vln_type,
             ds_grdi_qntls,
             ds_gdp_qntls,
+            da_cohort_size_1960_2020,
             gdf_robinson_bounds,
         )
         pyramid_poor_lowhigh( # poor pop but high vs low GMT trajectories

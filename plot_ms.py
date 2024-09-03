@@ -20,6 +20,8 @@ import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
 from matplotlib.patches import ConnectionPatch
+from matplotlib.legend_handler import HandlerTuple
+import matplotlib.lines as mlines
 from matplotlib.patches import Circle, Wedge, Polygon
 from matplotlib.collections import PatchCollection
 import matplotlib.patheffects as pe
@@ -4856,6 +4858,7 @@ def pyramid_map(
     vln_type,
     ds_grdi_qntls,
     ds_gdp_qntls,
+    da_cohort_size_1960_2020,
     gdf_robinson_bounds,
 ):
     # vln_type = 'gdp'
@@ -4928,33 +4931,27 @@ def pyramid_map(
         transform=ccrs.PlateCarree()
     )
     ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
-    gdf_p.to_crs(robinson).plot(
+    p_poor=gdf_p.to_crs(robinson).plot(
         ax=ax,
         column='{}_q_by_p'.format(vln_type),
-        # color='darkgoldenrod',
         cmap='YlOrBr',
         zorder=5,
         norm=lognorm,
-        # markersize=0.1,
         markersize=gdf_p['{}_q_by_p'.format(vln_type)]/1000,
     )    
-    gdf_r.to_crs(robinson).plot(
+    p_rich=gdf_r.to_crs(robinson).plot(
         ax=ax,
         column='{}_q_by_p'.format(vln_type),
-        # color='forestgreen',
         cmap='Greens',
         zorder=4,
         norm=lognorm,
-        # markersize=0.1,
         markersize=gdf_r['{}_q_by_p'.format(vln_type)]/1000,
     )       
     ax.set_xlim(gdf_robinson_bounds_v1[0],gdf_robinson_bounds_v1[2])
     ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])      
 
-    # gdf_robinson_bounds  
-
-    # legend stuff
-    cmap = ['darkgoldenrod','forestgreen']  
+    cmap_browns = plt.cm.get_cmap('YlOrBr')
+    cmap_greens = plt.cm.get_cmap('Greens') 
 
     # space between entries
     legend_entrypad = 0.5
@@ -4964,44 +4961,98 @@ def pyramid_map(
     legend_font = 10
     legend_lw=3.5   
 
-    legendcols = cmap
-    handles = [
-        Rectangle((0,0),1,1,color=legendcols[0]),
-        Rectangle((0,0),1,1,color=legendcols[1]),
-    ]
+    # new handles
+    legend_sizes = [1000, 10000, 100000]
+    population_labels = ['1k', '10k', '100k population']
 
+    handles = [
+        (Line2D(
+            [0], [0],
+            marker='o', color='w', 
+            markerfacecolor=cmap_type(lognorm(1000)), 
+            markersize=np.sqrt(1000/1000),
+            markeredgecolor=cmap_type(lognorm(1000)),
+        ),
+        Line2D(
+            [0], [0],
+            marker='o', color='w', 
+            markerfacecolor=cmap_type(lognorm(1000*10)), 
+            markersize=np.sqrt(1000*10/1000),
+            markeredgecolor=cmap_type(lognorm(1000*10)),
+        ),
+        Line2D(
+            [0], [0],
+            marker='o', color='w', 
+            markerfacecolor=cmap_type(lognorm(1000*100)), 
+            markersize=np.sqrt(1000*100/1000),
+            markeredgecolor=cmap_type(lognorm(1000*100)),
+        ))
+        for cmap_type in [cmap_browns,cmap_greens]
+    ]    
+    
     if vln_type == 'grdi':
-        labels= [
+        legend_labels= [
             '20% highest deprivation',
             '20% lowest deprivation'
         ]
     elif vln_type == 'gdp':
-        labels= [
+        legend_labels= [
             '20% lowest GDP',
             '20% highest GDP'
-        ]
+        ]        
             
     x0 = 0.
-    y0 = 1.0
-    xlen = 0.2
-    ylen = 0.3
+    y0 = -0.4
+    xlen = 0.6
+    ylen = 0.8
 
-    ax.legend(
-        handles, 
-        labels, 
+    leg = ax.legend(
+        handles=handles, 
+        labels=legend_labels,
         bbox_to_anchor=(x0, y0, xlen, ylen), 
-        loc = 'upper left',
-        ncol=1,
+        loc = 'lower left',
         fontsize=legend_font, 
         labelcolor=fontcolor,
+        handletextpad=0.8,
+        handlelength=7,
+        # ncol=3,
+        # columnspacing=0.5,
+        markerscale=1,
         mode="expand", 
         borderaxespad=0.,\
         frameon=False, 
-        columnspacing=0.05, 
-        handlelength=legend_entrylen, 
-        handletextpad=legend_entrypad
-    )        
-
+        handler_map={tuple: HandlerTuple(ndivide=None)}
+    )    
+    
+    # label pop sizes in legend
+    for i,l in enumerate(population_labels):
+        if i == 0:
+            ax.annotate(
+                l,
+                (0.03,-0.15),
+                xycoords=ax.transAxes,
+                fontsize=legend_font,
+                rotation='horizontal',
+                color=fontcolor,
+            )       
+        if i == 1:
+            ax.annotate(
+                l,
+                (0.09,-0.15),
+                xycoords=ax.transAxes,
+                fontsize=legend_font,
+                rotation='horizontal',
+                color=fontcolor,
+            )                     
+        if i == 2:
+            ax.annotate(
+                l,
+                (0.165,-0.15),
+                xycoords=ax.transAxes,
+                fontsize=legend_font,
+                rotation='horizontal',
+                color=fontcolor,
+            )                     
     f.savefig(
         './figures/pyramid/inverted/vln_map_{}.png'.format(vln_type),
         dpi=1000,
