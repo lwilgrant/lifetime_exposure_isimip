@@ -1384,6 +1384,175 @@ def print_f3_info(
         print('pf for 2020 under 3.5 degree pathway is {}'.format(ds_pf_gs_extrs.loc[{'hazard':extr,'birth_year':2020,'GMT':20}].item()))            
 
 #%% ----------------------------------------------------------------
+# save the children info
+# ------------------------------------------------------------------
+
+# 1.	Difference of exposure to all six climate extremes at 1.5, 2.7 and 3.5°C for children born in 2020 (in absolute numbers & percent)
+# 2.	Number of countries and regions affected by unprecedented heatwave exposure for more than 50% of the children born in 2020
+# 3.	Difference of unprecedented exposure to heatwaves between the most and least vulnerable for different birth cohorts (intergenerational and socioeconomic inequality)
+
+# input args for function
+# gridscale_countries
+# d_isimip_meta
+# da_gs_popdenom
+# df_GMT_strj
+# gdf_country_borders
+
+# ------------------------------------------------------------------
+# 1 Difference of exposure to all six climate extremes at 1.5, 2.7 and 3.5°C for children born in 2020 (in absolute numbers & percent)
+
+unprec_level="unprec_99.99"  
+gmt_share = [0,12,20] # 1.5, 2.7 and 3.5
+extremes = [
+    'heatwavedarea',     
+    'cropfailedarea', 
+    'burntarea', 
+    'driedarea', 
+    'floodedarea', 
+    'tropicalcyclonedarea',
+]
+
+# pop fraction dataset with extra country index for "Globe" and other features adjusted for excel export
+new_countries = np.append(gridscale_countries,'Globe')
+ds_pf_share = xr.Dataset(
+    data_vars={
+        'unprec': (
+            ['country','GMT','hazard'],
+            np.full(
+                (len(new_countries),len(gmt_share),len(extremes)),
+                fill_value=np.nan,
+            ),
+        ),      
+        'unprec_frac': (
+            ['country','GMT','hazard'],
+            np.full(
+                (len(new_countries),len(gmt_share),len(extremes)),
+                fill_value=np.nan,
+            ),
+        ),              
+    },
+    coords={
+        'country': ('country', new_countries),
+        'GMT': ('GMT', gmt_share),
+        'hazard': ('hazard', extremes)
+    }
+)
+
+sims_per_step = {}
+for step in GMT_labels:
+    sims_per_step[step] = []
+    for i in list(d_isimip_meta.keys()):
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            sims_per_step[step].append(i)   
+
+# loop through extremes and export
+for extr in extremes:
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+        ds_pf_gs_extr = pk.load(file)    
+    p = ds_pf_gs_extr[unprec_level].loc[{
+        'birth_year':2020,
+        'GMT':gmt_share,
+    }]
+    p = p.where(p!=0).mean(dim='run')
+    p_global = p.sum(dim='country')  
+    p_frac = p / da_gs_popdenom.loc[{'birth_year':2020}]*100
+    p_global_frac = p_global / da_gs_popdenom.loc[{'birth_year':2020}].sum(dim='country') *100
+    # assign country level:
+    ds_pf_share['unprec'].loc[{
+        'country':new_countries[:-1],
+        'GMT':gmt_share,
+        'hazard':extr,
+    }] = p
+    ds_pf_share['unprec_frac'].loc[{
+        'country':new_countries[:-1],
+        'GMT':gmt_share,
+        'hazard':extr,
+    }] = p_frac
+    # assign global level:
+    ds_pf_share['unprec'].loc[{
+        'country':new_countries[-1],
+        'GMT':gmt_share,
+        'hazard':extr,
+    }] = p_global
+    ds_pf_share['unprec_frac'].loc[{
+        'country':new_countries[-1],
+        'GMT':gmt_share,
+        'hazard':extr,
+    }] = p_global_frac        
+    # organize/export to excel
+    df = ds_pf_share['unprec'].loc[{'hazard':extr}].to_dataframe().reset_index(level='country')
+    df = df.drop(labels=['hazard'],axis=1).pivot_table(values='unprec',index=df.index,columns='country')
+    df_frac = ds_pf_share['unprec_frac'].loc[{'hazard':extr}].to_dataframe().reset_index(level='country')
+    df_frac = df_frac.drop(labels=['hazard'],axis=1).pivot_table(values='unprec_frac',index=df_frac.index,columns='country')
+    df.index = df_GMT_strj.loc[2100,df_frac.index.values]
+    df.index.names = ['GMT']    
+    df_frac.index = df_GMT_strj.loc[2100,df_frac.index.values]
+    df_frac.index.names = ['GMT']
+    df.to_excel('./data/save_the_children/data_1/unprecedented_absolute_{}.xlsx'.format(extr))
+    df_frac.to_excel('./data/save_the_children/data_1/unprecedented_percent_{}.xlsx'.format(extr))
+    
+# ------------------------------------------------------------------
+# 2 Number of countries and regions affected by unprecedented heatwave exposure for more than 50% of the children born in 2020
+
+    plot_var='unprec_99.99'
+    gmt_indices_152535 = [20,12,10,0]  
+    
+    # box plot stuff
+    df_list_gs = []
+    extr='heatwavedarea'
+    with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+        d_isimip_meta = pk.load(file)              
+    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+        ds_pf_gs = pk.load(file)
+
+    sims_per_step = {}
+    for step in GMT_labels:
+        sims_per_step[step] = []
+        for i in list(d_isimip_meta.keys()):
+            if d_isimip_meta[i]['GMT_strj_valid'][step]:
+                sims_per_step[step].append(i)
+        
+    # map stuff
+    by=2020
+    da_p_gs_plot = ds_pf_gs[plot_var].loc[{
+        'GMT':gmt_indices_152535,
+        'birth_year':by,
+    }]
+    df_list_gs = []
+    for step in gmt_indices_152535:
+        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].median(dim='run')
+        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
+        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
+        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+        df_list_gs.append(df_p_gs_plot_step)
+    df_p_gs_plot = pd.concat(df_list_gs)
+    df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
+    gdf = cp(gdf_country_borders.reset_index())
+    gdf_p = cp(gdf_country_borders.reset_index())
+
+    concat_list=[]    
+    for step in (0,10,12,20):
+        print('GMT is {}'.format(df_GMT_strj.loc[2100,step]))
+        gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
+        print('number of countries with pf > 50% is : {}'.format(len(gdf_p['pf'][gdf_p['pf']>50])))  
+        gmt_gdf_concat=cp(gdf_p)
+        gmt_gdf_concat=gmt_gdf_concat.drop(labels='geometry',axis=1)
+        gmt_gdf_concat=gmt_gdf_concat.pivot_table(values='pf',columns='name')     
+        gmt_gdf_concat = gmt_gdf_concat.reset_index().drop(labels='index',axis=1)
+        gmt_gdf_concat.index = [df_GMT_strj.loc[2100,step]]
+        gmt_gdf_concat.index.names = ['GMT']
+        gmt_gdf_concat.columns.names = ['country']
+        gmt_gdf_concat['countries above 50%'] = len(gdf_p['pf'][gdf_p['pf']>50])
+        concat_list.append(gmt_gdf_concat)
+        
+    gdf_export = pd.concat(concat_list)
+    gdf_export.to_excel('./data/save_the_children/data_2/pf_{}.xlsx'.format(extr))
+    
+# ------------------------------------------------------------------
+# 3 Number of countries and regions affected by unprecedented heatwave exposure for more than 50% of the children born in 2020    
+
+
+#%% ----------------------------------------------------------------
 # testing f1 vs f4 inconsistency for belgium
 # ------------------------------------------------------------------
 def testing_f1_v_f4():
