@@ -18,6 +18,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.lines import Line2D
 import matplotlib as mpl
 import mapclassify as mc
+import openpyxl
 import pickle as pk
 from copy import deepcopy as cp
 import matplotlib.pyplot as plt
@@ -1240,7 +1241,8 @@ def print_pyramid_info(
         'heatwavedarea', 
         # 'tropicalcyclonedarea',
     ]
-    GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
+    # GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
+    GMT_integers = [0,10,12,20] # 1.5, 2.5, 2.7, and 3.5
     qntl_range = '20'
     vln_types=('grdi','gdp')
     
@@ -1494,62 +1496,116 @@ for extr in extremes:
 # ------------------------------------------------------------------
 # 2 Number of countries and regions affected by unprecedented heatwave exposure for more than 50% of the children born in 2020
 
-    plot_var='unprec_99.99'
-    gmt_indices_152535 = [20,12,10,0]  
+plot_var='unprec_99.99'
+gmt_indices_152535 = [20,12,10,0]  
+
+# box plot stuff
+df_list_gs = []
+extr='heatwavedarea'
+with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
+    d_isimip_meta = pk.load(file)              
+with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
+    ds_pf_gs = pk.load(file)
+
+sims_per_step = {}
+for step in GMT_labels:
+    sims_per_step[step] = []
+    for i in list(d_isimip_meta.keys()):
+        if d_isimip_meta[i]['GMT_strj_valid'][step]:
+            sims_per_step[step].append(i)
     
-    # box plot stuff
-    df_list_gs = []
-    extr='heatwavedarea'
-    with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as file:
-        d_isimip_meta = pk.load(file)              
-    with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
-        ds_pf_gs = pk.load(file)
+# map stuff
+by=2020
+da_p_gs_plot = ds_pf_gs[plot_var].loc[{
+    'GMT':gmt_indices_152535,
+    'birth_year':by,
+}]
+df_list_gs = []
+for step in gmt_indices_152535:
+    da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].median(dim='run')
+    da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
+    df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
+    df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
+    df_list_gs.append(df_p_gs_plot_step)
+df_p_gs_plot = pd.concat(df_list_gs)
+df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
+gdf = cp(gdf_country_borders.reset_index())
+gdf_p = cp(gdf_country_borders.reset_index())
 
-    sims_per_step = {}
-    for step in GMT_labels:
-        sims_per_step[step] = []
-        for i in list(d_isimip_meta.keys()):
-            if d_isimip_meta[i]['GMT_strj_valid'][step]:
-                sims_per_step[step].append(i)
-        
-    # map stuff
-    by=2020
-    da_p_gs_plot = ds_pf_gs[plot_var].loc[{
-        'GMT':gmt_indices_152535,
-        'birth_year':by,
-    }]
-    df_list_gs = []
-    for step in gmt_indices_152535:
-        da_p_gs_plot_step = da_p_gs_plot.loc[{'run':sims_per_step[step],'GMT':step}].median(dim='run')
-        da_p_gs_plot_step = da_p_gs_plot_step / da_gs_popdenom.loc[{'birth_year':by}] * 100
-        df_p_gs_plot_step = da_p_gs_plot_step.to_dataframe(name='pf').reset_index()
-        df_p_gs_plot_step = df_p_gs_plot_step.assign(GMT_label = lambda x: np.round(df_GMT_strj.loc[2100,x['GMT']],1).values.astype('str'))
-        df_list_gs.append(df_p_gs_plot_step)
-    df_p_gs_plot = pd.concat(df_list_gs)
-    df_p_gs_plot['pf'] = df_p_gs_plot['pf'].fillna(0)  
-    gdf = cp(gdf_country_borders.reset_index())
-    gdf_p = cp(gdf_country_borders.reset_index())
-
-    concat_list=[]    
-    for step in (0,10,12,20):
-        print('GMT is {}'.format(df_GMT_strj.loc[2100,step]))
-        gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
-        print('number of countries with pf > 50% is : {}'.format(len(gdf_p['pf'][gdf_p['pf']>50])))  
-        gmt_gdf_concat=cp(gdf_p)
-        gmt_gdf_concat=gmt_gdf_concat.drop(labels='geometry',axis=1)
-        gmt_gdf_concat=gmt_gdf_concat.pivot_table(values='pf',columns='name')     
-        gmt_gdf_concat = gmt_gdf_concat.reset_index().drop(labels='index',axis=1)
-        gmt_gdf_concat.index = [df_GMT_strj.loc[2100,step]]
-        gmt_gdf_concat.index.names = ['GMT']
-        gmt_gdf_concat.columns.names = ['country']
-        gmt_gdf_concat['countries above 50%'] = len(gdf_p['pf'][gdf_p['pf']>50])
-        concat_list.append(gmt_gdf_concat)
-        
-    gdf_export = pd.concat(concat_list)
-    gdf_export.to_excel('./data/save_the_children/data_2/pf_{}.xlsx'.format(extr))
+concat_list=[]    
+for step in (0,10,12,20):
+    print('GMT is {}'.format(df_GMT_strj.loc[2100,step]))
+    gdf_p['pf']=df_p_gs_plot['pf'][df_p_gs_plot['GMT']==step].values
+    print('number of countries with pf > 50% is : {}'.format(len(gdf_p['pf'][gdf_p['pf']>50])))  
+    gmt_gdf_concat=cp(gdf_p)
+    gmt_gdf_concat=gmt_gdf_concat.drop(labels='geometry',axis=1)
+    gmt_gdf_concat=gmt_gdf_concat.pivot_table(values='pf',columns='name')     
+    gmt_gdf_concat = gmt_gdf_concat.reset_index().drop(labels='index',axis=1)
+    gmt_gdf_concat.index = [df_GMT_strj.loc[2100,step]]
+    gmt_gdf_concat.index.names = ['GMT']
+    gmt_gdf_concat.columns.names = ['country']
+    gmt_gdf_concat['countries above 50%'] = len(gdf_p['pf'][gdf_p['pf']>50])
+    concat_list.append(gmt_gdf_concat)
+    
+gdf_export = pd.concat(concat_list)
+gdf_export.to_excel('./data/save_the_children/data_2/countries_over_50_{}.xlsx'.format(extr))
     
 # ------------------------------------------------------------------
-# 3 Number of countries and regions affected by unprecedented heatwave exposure for more than 50% of the children born in 2020    
+# 3 Difference of unprecedented exposure to heatwaves between the most and least vulnerable for different birth cohorts (intergenerational and socioeconomic inequality)
+
+sl=0.05 # significance testing level for asterisks
+extremes = [ # this array of extremes strings should be the same as the setup function
+    # 'burntarea', 
+    # 'cropfailedarea', 
+    # 'driedarea', 
+    # 'floodedarea', 
+    'heatwavedarea', 
+    # 'tropicalcyclonedarea',
+]
+# GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
+GMT_integers = [0,10,12,20] # 1.5, 2.5, 2.7, and 3.5
+qntl_range = '20'
+vln_types=('grdi','gdp')
+
+# per vulnerability indicator
+for vln_type in vln_types:
+    print('')
+    print(vln_type)
+    print('')
+    with open('./data/{}/pyramid_data_{}.pkl'.format(flags['version'],vln_type), 'rb') as f:
+        d_pyramid_plot = pk.load(f) 
+    for e in extremes:    
+        for GMT in GMT_integers:
+            df = pd.DataFrame(
+                index=birth_years,
+                columns=[
+                    'Unprecedented population (in millions) among the least vulnerable', 
+                    'Unprecedented percentage of the least vulnerable',
+                    'Unprecedented population (in millions) among the most vulnerable', 
+                    'Unprecedented percentage of the most vulnerable',
+                ]
+            )         
+            poor_unprec = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
+            poor_pop = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
+            rich_unprec = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
+            rich_pop = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
+            pvalues_poor = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
+            pvalues_rich = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
+            
+            print('')
+            print('{} degree C pathway'.format(df_GMT_strj.loc[2100,GMT]))
+            print('')
+            print('ULE population for poorest is: \n {}'.format(poor_unprec))
+            df.loc[:,'Unprecedented population (in millions) among the most vulnerable'] = poor_unprec
+            print('percentage of ULE for poorest is: \n {}'.format(poor_unprec / poor_pop * 100))
+            df.loc[:,'Unprecedented percentage of the most vulnerable'] = poor_unprec / poor_pop * 100
+            print('unprecedented population for richest is: \n {}'.format(rich_unprec))
+            df.loc[:,'Unprecedented population (in millions) among the least vulnerable'] = rich_unprec
+            print('percentage of ULE for richest is: \n {}'.format(rich_unprec / rich_pop * 100))
+            df.loc[:,'Unprecedented percentage of the least vulnerable'] = rich_unprec / rich_pop * 100
+            print('p values significant: \n {}'.format(pvalues_poor < sl))
+            df.index.names = ['Birth cohort']
+            df.to_excel('./data/save_the_children/data_3/{}_{}.xlsx'.format(vln_type,df_GMT_strj.loc[2100,GMT]))
 
 
 #%% ----------------------------------------------------------------
