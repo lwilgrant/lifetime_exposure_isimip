@@ -35,6 +35,7 @@ import mapclassify as mc
 from copy import deepcopy as cp
 import os
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import cartopy.crs as ccrs
 import cartopy as cr
 import geopandas as gpd
@@ -71,7 +72,6 @@ flags['version'] = 'pickles_v2'     # pickles: original version, submitted to Na
                                         # steps fixed in load_manip to be only 1.5-3.5, with clean 0.1 degree intervals
                                         # 5 percentiles for PIC threshold and emergence for each
                                     # pickles_v3: version generated after the 2021 toolchains were taken away from hydra. could not longer use old pickles effectively
-                         # rm: 21-year rolling mean on RCP GMTs                          
 flags['run'] = 0          # 0: do not process ISIMIP runs (i.e. load runs pickle)
                             # 1: process ISIMIP runs (i.e. produce and save runs as pickle)
 flags['mask'] = 0           # 0: do not process country data (i.e. load masks pickle)
@@ -503,6 +503,77 @@ if flags['vulnerability']:
 # testing space
 # ------------------------------------------------------------------
 
+# putting all my pyramid plot shit together
+vln_type='grdi'
+x=10
+y=10
+f = plt.figure(figsize=(x,y))    
+gs0 = gridspec.GridSpec(11,4, wspace=0.0)
+
+# # map top left
+# ax00 = f.add_subplot(gs0[0:5,0:2],projection=ccrs.Robinson())
+
+# main pyramid of rich vs poor
+# ax01 for top left -> extra "1" for left, extra "2" for right (i.e., to match ax1 and ax2 from original singular pyramid plot)
+ax011 = f.add_subplot(gs0[1:5,2:3]) 
+ax012 = f.add_subplot(gs0[1:5,3:4])
+
+# map top left (calling this after top right subplots helps move the map border on top of the other subplot's space)
+ax00 = f.add_subplot(gs0[0:5,0:2],projection=ccrs.Robinson())
+
+# secondary pyramid of poor low vs high gmt trajectory
+ax101 = f.add_subplot(gs0[6:10,0:1])
+ax102 = f.add_subplot(gs0[6:10,1:2],sharey=ax101)
+
+# secondary pyramid of rich low vs high gmt trajectory
+ax111 = f.add_subplot(gs0[6:10,2:3])
+ax112 = f.add_subplot(gs0[6:10,3:4])
+# ax112 = f.add_subplot(gs0[6:10,3:4],sharey=ax111)
+
+#--------------------------------
+# map
+pyramid_map_subplot(
+    vln_type,
+    ds_grdi_qntls,
+    ds_gdp_qntls,
+    da_cohort_size_1960_2020,
+    gdf_robinson_bounds,
+    f,
+    ax00
+)        
+        
+#--------------------------------
+# pyramid - top right
+pyramid_subplot(
+    flags,
+    df_GMT_strj,
+    vln_type,
+    f,
+    ax011,
+    ax012
+)
+
+#--------------------------------
+# pyramid - bottom left
+pyramid_poor_lowhigh_subplot(
+    flags,
+    df_GMT_strj,
+    vln_type,
+    f,
+    ax101,
+    ax102
+)
+    
+#--------------------------------
+# pyramid - bottom right
+pyramid_rich_lowhigh_subplot(
+    flags,
+    df_GMT_strj,
+    vln_type,
+    f,
+    ax111,
+    ax112
+)
 
 #%% ----------------------------------------------------------------
 # main text plots

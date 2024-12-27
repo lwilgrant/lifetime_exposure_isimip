@@ -4765,6 +4765,311 @@ def pyramid_plot(
         )
         plt.show()
 
+#%% ----------------------------------------------------------------
+# actual function for plotting pyramid stuff
+def pyramid_subplot(
+    flags,
+    df_GMT_strj,
+    vln_type,
+    f,
+    ax1,
+    ax2
+):
+    
+    ax1.set_title(
+        'b',
+        fontweight='bold',
+        loc='left'
+    )    
+    
+    per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
+    height=4 # thickness of bars
+    sl=0.05 # significance testing level for asterisks
+    extremes = [ # this array of extremes strings should be the same as the setup function
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
+        # 'floodedarea', 
+        'heatwavedarea', 
+        # 'tropicalcyclonedarea',
+    ]
+    GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
+    GMT_cp=12 # "cp" for "current pathway"; 12 or 17
+    GMT_low=0
+    GMT_high=20
+    # plot type (will get removed and looped outside function)
+    # vln_type='grdi'
+    fontcolor='gray'
+    # bbox for legend
+    x0 = 0.1
+    y0 = 0.8
+    xlen = 0.2
+    ylen = 0.3
+    cmap = ['darkgoldenrod','forestgreen']  
+    # space between legend entries
+    legend_entrypad = 0.5
+    # length per legend entry
+    legend_entrylen = 0.75
+    # more legend stuff
+    legend_font = 10
+    legend_lw=3.5      
+    unit='pple'
+    
+    
+    # pick GMT
+    GMT = GMT_cp 
+    
+    # start with GDP ====================================================================================
+    with open('./data/{}/pyramid_data_{}.pkl'.format(flags['version'],vln_type), 'rb') as f:
+        d_pyramid_plot = pk.load(f)    
+    
+    for e in extremes:    
+        # for qntl_range in ('10', '20'):
+        qntl_range = '20'
+        
+        poor_unprec = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}poorest'.format(qntl_range)]) # "_a" for panel "a"
+        poor_std = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}poorest'.format(qntl_range)])
+        poor_pop = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}poorest'.format(qntl_range)])
+        rich_unprec = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
+        rich_std = np.asarray(d_pyramid_plot[e][GMT]['unprec_pop_std_{}richest'.format(qntl_range)])
+        rich_pop = np.asarray(d_pyramid_plot[e][GMT]['population_quantiles_{}richest'.format(qntl_range)])
+        pvalues_poor = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_poor'.format(qntl_range)])
+        pvalues_rich = np.asarray(d_pyramid_plot[e][GMT]['ttest_{}pc_pvals_rich'.format(qntl_range)])
+        
+        # labels
+        if qntl_range == '10':
+            ax_xts = {}
+            ax_xts['ax1_xticks_pple'] = [-4,-8,-12]
+            ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+            ax_xts['xtick_labels_pple'] = ["4","8","12"]
+            ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+            ax_xts['ax2_xticks_pple'] = [4,8,12]
+            ax_xts['ax2_xticks_pct'] = [25,50,75,100]                               
+            
+        elif qntl_range == '20':
+            ax_xts = {}
+            ax_xts['ax1_xticks_pple'] = [-5,-10,-15,-20,-25]
+            ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+            ax_xts['xtick_labels_pple'] = ["5","10","15","20","25"]
+            ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+            ax_xts['ax2_xticks_pple'] = [5,10,15,20,25]
+            ax_xts['ax2_xticks_pct'] = [25,50,75,100]  
+                
+        print('{}-{}'.format(e,str(df_GMT_strj.loc[2100,GMT])))
+        # f,(ax1,ax2) = plt.subplots(
+        #     nrows=1,
+        #     ncols=2,
+        #     figsize=(6,6),
+        #     sharey=True,
+        # )
+        # f.subplots_adjust(wspace=0)
+        # full population poor quantile (gdp)
+        # if unit == 'pple':
+        ax1.barh(
+            y=birth_years[::-1*per_x], # added to flip y axis
+            width=[i * -1 for i in poor_pop[::-1*per_x]],
+            height=height,
+            color='darkgoldenrod',
+            zorder=1,
+            alpha=0.3
+        )
+            
+        # unprec population poor quantile (gdp)
+        ax1.barh(
+            y=birth_years[::-1*per_x], # added to flip y axis
+            width=[i * -1 for i in poor_unprec[::-1*per_x]],
+            height=height,
+            color='darkgoldenrod',
+            zorder=1,
+            xerr=[i * -1 for i in poor_std[::-1*per_x]],
+        )    
+        # # ax1.set_xlabel('Millions of people')
+        # if unit == 'pple':
+        variable = 'Millions of people'
+        # else:
+        #     variable = 'Percentage of cohort'
+        ax1.text(
+            x=1,y=-0.15,
+            s=variable,
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=ax1.transAxes,
+            fontsize=10,
+            color='gray',
+        )
+        
+        ax1.tick_params(left=False,right=False)
+        ax1.set_xticks(
+            ticks=ax_xts['ax1_xticks_{}'.format(unit)],
+            labels=ax_xts['xtick_labels_{}'.format(unit)],
+        )
+        ax2.set_ylabel(
+            "Birth year",
+            fontsize=10,
+            labelpad=5,
+            color=fontcolor,
+        )
+        
+        # full population rich quantile (grdi)
+        # if unit == 'pple':
+        ax2.barh(
+            y=birth_years[::-1*per_x],
+            width=rich_pop[::-1*per_x],
+            height=height,
+            color='forestgreen',
+            zorder=1,
+            alpha=0.3
+        ) 
+        # unprec population rich quantile (grdi)
+        ax2.barh(
+            y=birth_years[::-1*per_x],
+            width=rich_unprec[::-1*per_x],
+            height=height,
+            color='forestgreen',
+            zorder=1,
+            xerr=[i * -1 for i in rich_std[::-1*per_x]],
+            
+        )     
+        ax2.tick_params(left=False,right=True)
+        ax2.set_xticks(
+            ticks=ax_xts['ax2_xticks_{}'.format(unit)],
+            labels=ax_xts['xtick_labels_{}'.format(unit)],
+            color=fontcolor
+        )    
+        ax2.set_yticks(
+            birth_years[::-1*per_x*2]
+        )
+        ax1.set_yticks([])        
+        ax1.set_yticklabels([])        
+        ax2.yaxis.tick_right()
+        ax2.yaxis.set_label_position('right')                
+        
+        # legend stuff
+        if vln_type == 'gdp':
+            ax1_title = 'Poorest {}% in \n lifetime mean GDP'.format(qntl_range)
+            ax2_title = 'Richest {}% in \n lifetime mean GDP'.format(qntl_range)
+        elif vln_type == 'grdi':
+            ax1_title = '{}% highest deprivation'.format(qntl_range) 
+            ax2_title = '{}% lowest deprivation'.format(qntl_range)
+        # ax2.text(
+        #     x=0.5,y=1.1,
+        #     s=ax2_title,
+        #     horizontalalignment='center',
+        #     verticalalignment='center',
+        #     transform=ax2.transAxes,
+        #     fontsize=10
+        # )        
+        
+        # legend stuff
+        legendcols = cmap
+        handles = [
+            Rectangle((0,0),1,1,color=legendcols[0]),
+            Rectangle((0,0),1,1,color=legendcols[1]),
+        ]
+
+        labels= [
+            ax1_title,
+            ax2_title
+        ]
+
+        # ax1.legend(
+        #     handles, 
+        #     labels, 
+        #     bbox_to_anchor=(x0, y0, xlen, ylen), 
+        #     loc='upper right',
+        #     ncol=1,
+        #     fontsize=legend_font, 
+        #     labelcolor=fontcolor,
+        #     mode="expand", 
+        #     borderaxespad=0.,\
+        #     frameon=False, 
+        #     columnspacing=0.05, 
+        #     handlelength=legend_entrylen, 
+        #     handletextpad=legend_entrypad
+        # )                
+        
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['left'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        # ax2.spines['right'].set_visible(False)
+        # for ax in (ax1,ax2):
+        ax1.tick_params(colors='gray')
+        ax2.tick_params(colors='gray')
+        ax1.spines['bottom'].set_color('gray')
+        ax2.spines['bottom'].set_color('gray')
+        ax2.spines['right'].set_color('gray')
+        ax2.spines['left'].set_color('gray')
+        
+        # plot asterisk or star 1/4 through the bar (0.25 * unprec number as position) if significant differenc and if given side is bigger
+        # also plot percentage numbers midway through the bars
+        poor_unprec_pct = poor_unprec / poor_pop * 100
+        # poor_std_pct = poor_std / poor_pop * 100
+        rich_unprec_pct = rich_unprec / rich_pop * 100
+        # rich_std_pct = rich_std / rich_pop * 100
+        
+        for i,by in enumerate(birth_years[::-1*per_x]):
+            # asterisks for significance
+            if pvalues_poor[::-1*per_x][i] < sl:
+                ax1.plot(
+                    poor_unprec[::-1*per_x][i]/4 * -1,
+                    by,
+                    marker=(6,2,0),
+                    zorder=5,
+                    markersize=8,
+                    color='k',
+                )
+            if pvalues_rich[::-1*per_x][i] < sl:
+                ax2.plot(
+                    rich_unprec[::-1*per_x][i]/4,
+                    by,
+                    marker=(6,2,0),
+                    zorder=5,
+                    markersize=8,  
+                    color='k',                  
+                )             
+            # percentages
+            # left side / poor
+            if poor_unprec_pct[::-1*per_x][i] > 50:
+                x_poor = poor_unprec[::-1*per_x][i] * -2/3 #+ poor_std[::-1*per_x][i]*4
+            elif poor_unprec_pct[::-1*per_x][i] < 50:
+                x_poor = poor_pop[::-1*per_x][i] * -0.6
+            ax1.text(
+                x=x_poor,
+                y=by,
+                s='{}%'.format(str(int(np.round(poor_unprec_pct[::-1*per_x][i])))),
+                horizontalalignment='center',
+                verticalalignment='center',
+                transform=ax1.transData,
+                fontsize=9,
+                color='k'
+            ) 
+            # xerr=[i * -1 for i in poor_std[::-1*per_x]]
+            # right side / rich
+            if rich_unprec_pct[::-1*per_x][i] > 50:
+                x_rich = rich_unprec[::-1*per_x][i] * 2/3#- rich_std[::-1*per_x][i]*2
+            elif rich_unprec_pct[::-1*per_x][i] < 50:
+                x_rich = rich_pop[::-1*per_x][i] * 0.6#- rich_std[::-1*per_x][i]*2
+            ax2.text(
+                x=x_rich,
+                y=by,
+                s='{}%'.format(str(int(np.round(rich_unprec_pct[::-1*per_x][i])))),
+                horizontalalignment='center',
+                verticalalignment='center',
+                transform=ax2.transData,
+                fontsize=9,
+                color='k'
+            )       
+            # xerr=[i * -1 for i in rich_std[::-1*per_x]]      
+        ax1.invert_yaxis() # only have to do this once because because y axis are shared
+        ax2.invert_yaxis() # only have to do this once because because y axis are shared
+        # f.savefig(
+        #     './figures/pyramid/inverted/vln_pyramid_{}_{}_{}_{}_{}.png'.format(vln_type,e,str(df_GMT_strj.loc[2100,GMT]),qntl_range,unit),
+        #     dpi=1000,
+        #     bbox_inches='tight',
+        # )
+        # plt.show()
+
 
 # %% ==============================================================================================
 # d_pyramid_plot_grdi needs cross-GMT p-values (to see if 1.5 vs 3.5 has significantly higher arithmetic mean)
@@ -5059,6 +5364,219 @@ def pyramid_map(
         bbox_inches='tight',
     )
     plt.show()      
+    
+# %%            
+# map testing for panel showing all the quantiles
+# in grdi, poor is high integers (8 & 9), in gdp, rich is low integers (0 & 1)
+def pyramid_map_subplot(
+    vln_type,
+    ds_grdi_qntls,
+    ds_gdp_qntls,
+    da_cohort_size_1960_2020,
+    gdf_robinson_bounds,
+    f,
+    ax
+):
+
+    # putting all my pyramid plot shit together
+    vln_type='grdi'
+    
+    ax.set_title(
+        'a',
+        fontweight='bold',
+        loc='left'
+    )
+
+    #--------------------------------
+    # map
+
+    # vln_type = 'gdp'
+    fontcolor='gray'
+    if vln_type == 'grdi':
+        qp_i = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=8,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+        qp_i = xr.where(qp_i.notnull(),1,0)
+        qp_ii = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=9,birth_year=2020)
+        qp_ii = xr.where(qp_ii.notnull(),1,0)
+        qp = qp_i + qp_ii
+        qp = qp.where(qp!=0) # poor == 1
+
+        qr_i = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=0,birth_year=2020) #"qr" for "quantile rich", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+        qr_i = xr.where(qr_i.notnull(),1,0)
+        qr_ii = ds_grdi_qntls['grdi_q_by_p'].sel(qntl=1,birth_year=2020)
+        qr_ii = xr.where(qr_ii.notnull(),1,0).squeeze()
+        qr = qr_i + qr_ii    
+        qr = qr.where(qr!=0)*2 # rich == 2
+    elif vln_type == 'gdp':
+        qp_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=0,birth_year=2020) #"qp" for "quantile poor", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+        qp_i = xr.where(qp_i.notnull(),1,0)
+        qp_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=1,birth_year=2020)
+        qp_ii = xr.where(qp_ii.notnull(),1,0)
+        qp = qp_i + qp_ii
+        qp = qp.where(qp!=0) # poor == 1
+
+        qr_i = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=8,birth_year=2020) #"qr" for "quantile rich", "_i" for first 10 percentiles, "__i" for next 10 percentiles
+        qr_i = xr.where(qr_i.notnull(),1,0)
+        qr_ii = ds_gdp_qntls['gdp_q_by_p'].sel(qntl=9,birth_year=2020)
+        qr_ii = xr.where(qr_ii.notnull(),1,0).squeeze()
+        qr = qr_i + qr_ii    
+        qr = qr.where(qr!=0)*2 # rich == 2    
+        
+    # get population sizes per pixel for each quantile group. Will add this to geodataframe
+    da_cohort_size_1960_2020_q_r = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(qr.notnull())
+    da_cohort_size_1960_2020_q_p = da_cohort_size_1960_2020.loc[{'birth_year':2020}].where(qp.notnull())
+    all_data = da_cohort_size_1960_2020.loc[{'birth_year':2020}]
+    vmin = 1
+    vmax = all_data.max()
+    lognorm = mpl.colors.LogNorm(vmin=vmin,vmax=vmax)    
+
+    # should convert pixels to points via geodataframe
+    # first do for "poor"
+    df_p = qp.to_dataframe().reset_index()
+    gdf_p = gpd.GeoDataFrame(
+        df_p['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_p.lon,df_p.lat)
+    )
+    gdf_p.set_crs(epsg = "4326",inplace=True)
+    gdf_p.loc[:,'{}_q_by_p'.format(vln_type)] = da_cohort_size_1960_2020_q_p.to_dataframe().reset_index()['mask']
+
+    # then do for "rich"
+    df_r = qr.to_dataframe().reset_index()
+    gdf_r = gpd.GeoDataFrame(
+        df_r['{}_q_by_p'.format(vln_type)], geometry=gpd.points_from_xy(df_r.lon,df_r.lat)
+    )
+    gdf_r.set_crs(epsg = "4326",inplace=True)     
+    gdf_r.loc[:,'{}_q_by_p'.format(vln_type)] = da_cohort_size_1960_2020_q_r.to_dataframe().reset_index()['mask']   
+
+    # get bounds
+    robinson = ccrs.Robinson().proj4_init
+    gdf_robinson_bounds_v1 = gdf_p.to_crs(robinson).total_bounds # (minx,miny,maxx,maxy) will use this for xlim
+    gdf_p = gdf_p.dropna()
+    gdf_r = gdf_r.dropna()
+
+    # plot
+    ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
+    p_poor=gdf_p.to_crs(robinson).plot(
+        ax=ax,
+        column='{}_q_by_p'.format(vln_type),
+        cmap='YlOrBr',
+        zorder=5,
+        norm=lognorm,
+        markersize=gdf_p['{}_q_by_p'.format(vln_type)]/1000,
+    )    
+    p_rich=gdf_r.to_crs(robinson).plot(
+        ax=ax,
+        column='{}_q_by_p'.format(vln_type),
+        cmap='Greens',
+        zorder=4,
+        norm=lognorm,
+        markersize=gdf_r['{}_q_by_p'.format(vln_type)]/1000,
+    )       
+    ax.set_xlim(gdf_robinson_bounds_v1[0],gdf_robinson_bounds_v1[2])
+    ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])      
+
+    cmap_browns = plt.cm.get_cmap('YlOrBr')
+    cmap_greens = plt.cm.get_cmap('Greens') 
+
+    # space between entries
+    legend_entrypad = 0.5
+
+    # length per entry
+    legend_entrylen = 0.75
+    legend_font = 10
+    legend_lw=3.5   
+
+    # new handles
+    legend_sizes = [1000, 10000, 100000]
+    population_labels = ['1k', '10k', '100k population']
+
+    handles = [
+        (Line2D(
+            [0], [0],
+            marker='o', color='w', 
+            markerfacecolor=cmap_type(lognorm(1000)), 
+            markersize=np.sqrt(1000/1000),
+            markeredgecolor=cmap_type(lognorm(1000)),
+        ),
+        Line2D(
+            [0], [0],
+            marker='o', color='w', 
+            markerfacecolor=cmap_type(lognorm(1000*10)), 
+            markersize=np.sqrt(1000*10/1000),
+            markeredgecolor=cmap_type(lognorm(1000*10)),
+        ),
+        Line2D(
+            [0], [0],
+            marker='o', color='w', 
+            markerfacecolor=cmap_type(lognorm(1000*100)), 
+            markersize=np.sqrt(1000*100/1000),
+            markeredgecolor=cmap_type(lognorm(1000*100)),
+        ))
+        for cmap_type in [cmap_browns,cmap_greens]
+    ]    
+
+    if vln_type == 'grdi':
+        legend_labels= [
+            '20% highest deprivation',
+            '20% lowest deprivation'
+        ]
+    elif vln_type == 'gdp':
+        legend_labels= [
+            '20% lowest GDP',
+            '20% highest GDP'
+        ]        
+            
+    x0 = 0.
+    y0 = -0.5
+    xlen = 0.6
+    ylen = 0.8
+
+    leg = ax.legend(
+        handles=handles, 
+        labels=legend_labels,
+        bbox_to_anchor=(x0, y0, xlen, ylen), 
+        loc = 'lower left',
+        fontsize=legend_font, 
+        labelcolor=fontcolor,
+        handletextpad=0.8,
+        handlelength=7,
+        # ncol=3,
+        # columnspacing=0.5,
+        markerscale=1,
+        mode="expand", 
+        borderaxespad=0.,\
+        frameon=False, 
+        handler_map={tuple: HandlerTuple(ndivide=None)}
+    )    
+
+    # label pop sizes in legend
+    for i,l in enumerate(population_labels):
+        if i == 0:
+            ax.annotate(
+                l,
+                (0.03,-0.15),
+                xycoords=ax.transAxes,
+                fontsize=legend_font,
+                rotation='horizontal',
+                color=fontcolor,
+            )       
+        if i == 1:
+            ax.annotate(
+                l,
+                (0.09,-0.15),
+                xycoords=ax.transAxes,
+                fontsize=legend_font,
+                rotation='horizontal',
+                color=fontcolor,
+            )                     
+        if i == 2:
+            ax.annotate(
+                l,
+                (0.165,-0.15),
+                xycoords=ax.transAxes,
+                fontsize=legend_font,
+                rotation='horizontal',
+                color=fontcolor,
+            )           
+
 # %%
 # testing pyramids for left/right = poor(1.5 pathway)/poor(3.5 pathway) & same for rich
 def pyramid_poor_lowhigh(
@@ -5335,6 +5853,328 @@ def pyramid_poor_lowhigh(
             bbox_inches='tight',
         )
         plt.show()
+
+# %%
+# testing pyramids for left/right = poor(1.5 pathway)/poor(3.5 pathway) & same for rich
+def pyramid_poor_lowhigh_subplot(
+    flags,
+    df_GMT_strj,
+    vln_type,
+    f,
+    ax1,
+    ax2
+):
+
+    ax1.set_title(
+        'c',
+        fontweight='bold',
+        loc='left'
+    )    
+
+    per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
+    height=4 # thickness of bars
+    sl=0.05 # significance testing level for asterisks
+    extremes = [ # this array of extremes strings should be the same as the setup function
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
+        # 'floodedarea', 
+        'heatwavedarea', 
+        # 'tropicalcyclonedarea',
+    ]
+    GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
+    GMT_cp=12 # "cp" for "current pathway"; 12 or 17
+    GMT_low=0
+    GMT_high=20
+    # plot type (will get removed and looped outside function)
+    # vln_type='gdp'
+    fontcolor='gray'
+    # bbox for legend
+    x0 = 0.1
+    y0 = 0.95
+    xlen = 0.2
+    ylen = 0.3
+    cmap = ['steelblue','darkred']  
+    # space between legend entries
+    legend_entrypad = 0.5
+    # length per legend entry
+    legend_entrylen = 0.75
+    # more legend stuff
+    legend_font = 10
+    legend_lw=3.5      
+
+    # pick GMT
+    GMT = GMT_cp 
+    unit='pple'
+    qntl_range = '20'
+
+    # start with GDP ====================================================================================
+    with open('./data/{}/pyramid_data_{}.pkl'.format(flags['version'],vln_type), 'rb') as f:
+        d_pyramid_plot = pk.load(f)    
+
+    for e in extremes:    
+        
+        poor_unprec_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_quantiles_{}poorest'.format(qntl_range)])
+        poor_std_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_std_{}poorest'.format(qntl_range)])
+        poor_pop = np.asarray(d_pyramid_plot[e][GMT_low]['population_quantiles_{}poorest'.format(qntl_range)])
+        
+        poor_unprec_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_quantiles_{}poorest'.format(qntl_range)])
+        poor_std_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_std_{}poorest'.format(qntl_range)])       
+        
+        pvalues_poor = np.asarray(d_pyramid_plot[e]['0_20']['ttest_{}pc_pvals_poor'.format(qntl_range)]) # pvalues for whether high GMT shows higher unrpecedented numbers that low GMT for poor
+        # pvalues_rich = np.asarray(d_pyramid_plot[e]['0_20']['ttest_{}pc_pvals_rich'.format(qntl_range)]) # diddo for rich^      
+        
+        # d_pyramid_plot_grdi[e]['0_20']['ttest_20pc_pvals_poor'] = ttest_20pc_pvals_poor_0_vs_20
+        # d_pyramid_plot_grdi[e]['0_20']['ttest_20pc_pvals_rich'] = ttest_20pc_pvals_rich_0_vs_20        
+        
+        # labels
+        if qntl_range == '10':
+            ax_xts = {}
+            ax_xts['ax1_xticks_pple'] = [-4,-8,-12]
+            ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+            ax_xts['xtick_labels_pple'] = ["4","8","12"]
+            ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+            ax_xts['ax2_xticks_pple'] = [4,8,12]
+            ax_xts['ax2_xticks_pct'] = [25,50,75,100]                               
+            
+        elif qntl_range == '20':
+            ax_xts = {}
+            ax_xts['ax1_xticks_pple'] = [-5,-10,-15,-20,-25]
+            ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+            ax_xts['xtick_labels_pple'] = ["5","10","15","20",None]
+            ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+            ax_xts['ax2_xticks_pple'] = [5,10,15,20,25]
+            ax_xts['ax2_xticks_pct'] = [25,50,75,100]  
+
+        # f,(ax1,ax2) = plt.subplots(
+        #     nrows=1,
+        #     ncols=2,
+        #     figsize=(6,6),
+        #     sharey=True,
+        # )
+        # f.subplots_adjust(wspace=0)
+        # full population poor quantile (gdp)
+        if unit == 'pple':
+            ax1.barh(
+                y=birth_years[::-1*per_x], # added to flip y axis
+                width=[i * -1 for i in poor_pop[::-1*per_x]],
+                height=height,
+                color='steelblue',
+                zorder=1,
+                alpha=0.3
+            )
+            
+        # unprec population poor quantile (gdp)
+        ax1.barh(
+            y=birth_years[::-1*per_x], # added to flip y axis
+            width=[i * -1 for i in poor_unprec_lowgmt[::-1*per_x]],
+            height=height,
+            color='steelblue',
+            zorder=1,
+            xerr=[i * -1 for i in poor_std_lowgmt[::-1*per_x]],
+        )    
+        # # ax1.set_xlabel('Millions of people')
+        if unit == 'pple':
+            variable = 'Millions of people'
+        else:
+            variable = 'Percentage of cohort'
+        ax1.text(
+            # x=1,y=-0.1,
+            x=2,y=-0.15,
+            s=variable,
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=ax1.transAxes,
+            fontsize=10,
+            color='gray',
+        )
+        ax1.tick_params(left=False,right=False)
+        ax1.set_xticks(
+            ticks=ax_xts['ax1_xticks_{}'.format(unit)],
+            # labels=ax_xts['xtick_labels_{}'.format(unit)],
+            labels=["5","10","15","20","25"]
+        )
+        # ax1.set_ylabel(
+        #     "Birth year",
+        #     fontsize=10,
+        #     labelpad=5,
+        #     color=fontcolor,
+        # )
+        ax1.set_ylabel(
+            None,
+        )        
+        # ax1.text(
+        #     x=0.5,y=1.1,
+        #     s=ax1_title,
+        #     horizontalalignment='center',
+        #     verticalalignment='center',
+        #     transform=ax1.transAxes,
+        #     fontsize=10
+        # )    
+        
+        # full population rich quantile (grdi)
+        if unit == 'pple':
+            ax2.barh(
+                y=birth_years[::-1*per_x],
+                width=poor_pop[::-1*per_x],
+                height=height,
+                color='darkred',
+                zorder=1,
+                alpha=0.3
+            ) 
+        # unprec population rich quantile (grdi)
+        ax2.barh(
+            y=birth_years[::-1*per_x],
+            width=poor_unprec_higmt[::-1*per_x],
+            height=height,
+            color='darkred',
+            zorder=1,
+            xerr=[i * -1 for i in poor_std_higmt[::-1*per_x]],
+            
+        )     
+        # ax2.tick_params(left=False)
+        # ax2.set_xticks(
+        #     ticks=ax_xts['ax2_xticks_{}'.format(unit)],
+        #     labels=ax_xts['xtick_labels_{}'.format(unit)],
+        #     color=fontcolor
+        # )     
+        
+        ax2.tick_params(left=False,right=False)
+        ax2.set_xticks(
+            ticks=ax_xts['ax2_xticks_{}'.format(unit)],
+            labels=ax_xts['xtick_labels_{}'.format(unit)],
+            color=fontcolor
+        )    
+        ax2.set_yticks(
+            birth_years[::-1*per_x*2]
+        )
+        ax1.set_yticks([])        
+        ax1.set_yticklabels([])
+        ax2.set_yticklabels([])
+        ax2.yaxis.tick_right()
+        ax2.yaxis.set_label_position('right')             
+        
+        # legend stuff
+        ax1_title = '{} °C GMT warming by 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_low],1))
+        ax2_title = '{} °C GMT warming by 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_high],1))
+
+        # ax2.text(
+        #     x=0.5,y=1.1,
+        #     s=ax2_title,
+        #     horizontalalignment='center',
+        #     verticalalignment='center',
+        #     transform=ax2.transAxes,
+        #     fontsize=10
+        # )        
+        
+        # legend stuff
+        legendcols = cmap
+        handles = [
+            Rectangle((0,0),1,1,color=legendcols[0]),
+            Rectangle((0,0),1,1,color=legendcols[1]),
+        ]
+
+        labels= [
+            ax1_title,
+            ax2_title
+        ]
+
+        ax1.legend(
+            handles, 
+            labels, 
+            bbox_to_anchor=(x0, y0, xlen, ylen), 
+            loc='upper right',
+            ncol=1,
+            fontsize=legend_font, 
+            labelcolor=fontcolor,
+            mode="expand", 
+            borderaxespad=0.,\
+            frameon=False, 
+            columnspacing=0.05, 
+            handlelength=legend_entrylen, 
+            handletextpad=legend_entrypad
+        )                
+        
+        # ax1.spines['top'].set_visible(False)
+        # ax2.spines['top'].set_visible(False)
+        # ax2.spines['right'].set_visible(False)
+        # for ax in (ax1,ax2):
+        #     ax.tick_params(colors='gray')
+        #     ax.spines['left'].set_color('gray')
+        #     ax.spines['bottom'].set_color('gray')
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['left'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+        # ax2.spines['right'].set_visible(False)
+        # for ax in (ax1,ax2):
+        ax1.tick_params(colors='gray')
+        ax2.tick_params(colors='gray')
+        ax1.spines['bottom'].set_color('gray')
+        ax2.spines['bottom'].set_color('gray')
+        ax2.spines['right'].set_color('gray')
+        ax2.spines['left'].set_color('gray')        
+        
+        # plot asterisk or star 1/4 through the bar (0.25 * unprec number as position) if significant differenc and if given side is bigger
+        # also plot percentage numbers midway through the bars
+        poor_unprec_lowgmt_pct = poor_unprec_lowgmt / poor_pop * 100
+        poor_unprec_higmt_pct = poor_unprec_higmt / poor_pop * 100
+        
+        for i,by in enumerate(birth_years[::-1*per_x]):
+            
+            # asterisks for significance
+            if pvalues_poor[::-1*per_x][i] < sl:
+                ax2.plot(
+                    poor_unprec_higmt[::-1*per_x][i]/4,
+                    by,
+                    marker=(6,2,0),
+                    zorder=5,
+                    markersize=8,  
+                    color='k',                  
+                )          
+                
+            # percentages
+            # left side / low gmt
+            if poor_unprec_lowgmt_pct[::-1*per_x][i] > 50:
+                x_poor_lowgmt = poor_unprec_lowgmt[::-1*per_x][i] * -2/3
+            elif poor_unprec_lowgmt_pct[::-1*per_x][i] < 50:
+                x_poor_lowgmt = poor_pop[::-1*per_x][i] * -0.6
+            ax1.text(
+                x=x_poor_lowgmt,
+                y=by,
+                s='{}%'.format(str(int(np.round(poor_unprec_lowgmt_pct[::-1*per_x][i])))),
+                horizontalalignment='center',
+                verticalalignment='center',
+                transform=ax1.transData,
+                fontsize=9,
+                color='k'
+            ) 
+            
+            # right side / high gmt
+            if poor_unprec_higmt_pct[::-1*per_x][i] > 50:
+                x_poor_higmt = poor_unprec_higmt[::-1*per_x][i] * 2/3
+            elif poor_unprec_higmt_pct[::-1*per_x][i] < 50:
+                x_poor_higmt = poor_pop[::-1*per_x][i] * 0.6
+            ax2.text(
+                x=x_poor_higmt,
+                y=by,
+                s='{}%'.format(str(int(np.round(poor_unprec_higmt_pct[::-1*per_x][i])))),
+                horizontalalignment='center',
+                verticalalignment='center',
+                transform=ax2.transData,
+                fontsize=9,
+                color='k'
+            )                    
+        ax1.invert_yaxis() # only have to do this once because because y axis are shared
+        # ax2.invert_yaxis()
+        # f.savefig(
+        #     './figures/pyramid/inverted/vln_pyramid_poorlohi_{}_{}_{}_{}.png'.format(vln_type,e,qntl_range,unit),
+        #     dpi=1000,
+        #     bbox_inches='tight',
+        # )
+        # plt.show()
+        
         
 # %%        
 def pyramid_rich_lowhigh(
@@ -5607,6 +6447,331 @@ def pyramid_rich_lowhigh(
             bbox_inches='tight',
         )
         plt.show()
+        
+# %%        
+def pyramid_rich_lowhigh_subplot(
+    flags,
+    df_GMT_strj,
+    vln_type,
+    f,
+    ax1,
+    ax2
+):
+
+    ax1.set_title(
+        'd',
+        fontweight='bold',
+        loc='left'
+    )    
+
+    per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
+    height=4 # thickness of bars
+    sl=0.05 # significance testing level for asterisks
+    extremes = [ # this array of extremes strings should be the same as the setup function
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
+        # 'floodedarea', 
+        'heatwavedarea', 
+        # 'tropicalcyclonedarea',
+    ]
+    GMT_integers = [0,10,12,17,20] # 1.5, 2.5, 2.7, 3.2 and 3.5
+    GMT_cp=12 # "cp" for "current pathway"; 12 or 17
+    GMT_low=0
+    GMT_high=20
+    # plot type (will get removed and looped outside function)
+    # vln_type='gdp'
+    fontcolor='gray'
+    # bbox for legend
+    x0 = 0.1
+    y0 = 0.8
+    xlen = 0.2
+    ylen = 0.3
+    cmap = ['steelblue','darkred']  
+    # space between legend entries
+    legend_entrypad = 0.5
+    # length per legend entry
+    legend_entrylen = 0.75
+    # more legend stuff
+    legend_font = 10
+    legend_lw=3.5      
+
+    # pick GMT
+    GMT = GMT_cp 
+    unit='pple'
+    qntl_range = '20'
+
+    # start with GDP ====================================================================================
+    with open('./data/{}/pyramid_data_{}.pkl'.format(flags['version'],vln_type), 'rb') as f:
+        d_pyramid_plot = pk.load(f)    
+
+    for e in extremes:    
+        
+        poor_unprec_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
+        poor_std_lowgmt = np.asarray(d_pyramid_plot[e][GMT_low]['unprec_pop_std_{}richest'.format(qntl_range)])
+        poor_pop = np.asarray(d_pyramid_plot[e][GMT_low]['population_quantiles_{}richest'.format(qntl_range)])
+        
+        poor_unprec_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_quantiles_{}richest'.format(qntl_range)])
+        poor_std_higmt = np.asarray(d_pyramid_plot[e][GMT_high]['unprec_pop_std_{}richest'.format(qntl_range)])       
+        
+        pvalues_poor = np.asarray(d_pyramid_plot[e]['0_20']['ttest_{}pc_pvals_rich'.format(qntl_range)]) # pvalues for whether high GMT shows higher unrpecedented numbers that low GMT for poor             
+        
+        # labels
+        if qntl_range == '10':
+            ax_xts = {}
+            ax_xts['ax1_xticks_pple'] = [-4,-8,-12]
+            ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+            ax_xts['xtick_labels_pple'] = ["4","8","12"]
+            ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+            ax_xts['ax2_xticks_pple'] = [4,8,12]
+            ax_xts['ax2_xticks_pct'] = [25,50,75,100]                               
+            
+        elif qntl_range == '20':
+            ax_xts = {}
+            ax_xts['ax1_xticks_pple'] = [-5,-10,-15,-20,-25]
+            ax_xts['ax1_xticks_pct'] = [-25,-50,-75,-100]
+            ax_xts['xtick_labels_pple'] = ["5","10","15","20","25"]
+            ax_xts['xtick_labels_pct'] = ["25","50","75","100"]
+            ax_xts['ax2_xticks_pple'] = [5,10,15,20,25]
+            ax_xts['ax2_xticks_pct'] = [25,50,75,100]  
+
+        # f,(ax1,ax2) = plt.subplots(
+        #     nrows=1,
+        #     ncols=2,
+        #     figsize=(6,6),
+        #     sharey=True,
+        # )
+        # f.subplots_adjust(wspace=0)
+        # full population poor quantile (gdp)
+        if unit == 'pple':
+            ax1.barh(
+                y=birth_years[::-1*per_x], # added to flip y axis
+                width=[i * -1 for i in poor_pop[::-1*per_x]],
+                height=height,
+                color='steelblue',
+                zorder=1,
+                alpha=0.3
+            )
+            
+        # unprec population poor quantile (gdp)
+        ax1.barh(
+            y=birth_years[::-1*per_x], # added to flip y axis
+            width=[i * -1 for i in poor_unprec_lowgmt[::-1*per_x]],
+            height=height,
+            color='steelblue',
+            zorder=1,
+            xerr=[i * -1 for i in poor_std_lowgmt[::-1*per_x]],
+        )    
+        # # ax1.set_xlabel('Millions of people')
+        if unit == 'pple':
+            variable = 'Millions of people'
+        else:
+            variable = 'Percentage of cohort'
+        # ax1.text(
+        #     x=1,y=-0.1,
+        #     s=variable,
+        #     horizontalalignment='center',
+        #     verticalalignment='center',
+        #     transform=ax1.transAxes,
+        #     fontsize=10,
+        #     color='gray',
+        # )
+        ax1.tick_params(left=True,right=False)
+        ax1.set_xticks(
+            ticks=ax_xts['ax1_xticks_{}'.format(unit)],
+            # labels=ax_xts['xtick_labels_{}'.format(unit)],
+            labels=["5","10","15","20",None]
+        )
+        # ax1.set_ylabel(
+        #     "Birth year",
+        #     fontsize=10,
+        #     labelpad=5,
+        #     color=fontcolor,
+        # )
+        ax1.set_ylabel(
+            None
+        )        
+        ax2.set_ylabel(
+            "Birth year",
+            fontsize=10,
+            labelpad=5,
+            color=fontcolor,
+        )        
+        # ax1.text(
+        #     x=0.5,y=1.1,
+        #     s=ax1_title,
+        #     horizontalalignment='center',
+        #     verticalalignment='center',
+        #     transform=ax1.transAxes,
+        #     fontsize=10
+        # )    
+        
+        # full population rich quantile (grdi)
+        if unit == 'pple':
+            ax2.barh(
+                y=birth_years[::-1*per_x],
+                width=poor_pop[::-1*per_x],
+                height=height,
+                color='darkred',
+                zorder=1,
+                alpha=0.3
+            ) 
+        # unprec population rich quantile (grdi)
+        ax2.barh(
+            y=birth_years[::-1*per_x],
+            width=poor_unprec_higmt[::-1*per_x],
+            height=height,
+            color='darkred',
+            zorder=1,
+            xerr=[i * -1 for i in poor_std_higmt[::-1*per_x]],
+            
+        )     
+        ax2.tick_params(left=False,right=True)
+        ax2.set_xticks(
+            ticks=ax_xts['ax2_xticks_{}'.format(unit)],
+            labels=ax_xts['xtick_labels_{}'.format(unit)],
+            color=fontcolor
+        )     
+        
+        # ax2.tick_params(left=False,right=True)
+        # ax2.set_xticks(
+        #     ticks=ax_xts['ax2_xticks_{}'.format(unit)],
+        #     labels=ax_xts['xtick_labels_{}'.format(unit)],
+        #     color=fontcolor
+        # )    
+        ax2.set_yticks(
+            birth_years[::-1*per_x*2]
+        )
+        ax1.set_yticks(
+            birth_years[::-1*per_x*2]
+        )        
+        ax1.set_yticklabels([])
+        ax2.set_yticklabels(birth_years[::-1*per_x*2])
+        ax1.yaxis.tick_left()        
+        ax2.yaxis.tick_right()
+        ax2.yaxis.set_label_position('right')              
+        
+        # legend stuff
+        ax1_title = '{} °C GMT warming by 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_low],1))
+        ax2_title = '{} °C GMT warming by 2100'.format(np.round(df_GMT_strj.loc[2100,GMT_high],1))
+
+        # ax2.text(
+        #     x=0.5,y=1.1,
+        #     s=ax2_title,
+        #     horizontalalignment='center',
+        #     verticalalignment='center',
+        #     transform=ax2.transAxes,
+        #     fontsize=10
+        # )        
+        
+        # legend stuff
+        # legendcols = cmap
+        # handles = [
+        #     Rectangle((0,0),1,1,color=legendcols[0]),
+        #     Rectangle((0,0),1,1,color=legendcols[1]),
+        # ]
+
+        # labels= [
+        #     ax1_title,
+        #     ax2_title
+        # ]
+
+        # ax1.legend(
+        #     handles, 
+        #     labels, 
+        #     bbox_to_anchor=(x0, y0, xlen, ylen), 
+        #     loc='upper right',
+        #     ncol=1,
+        #     fontsize=legend_font, 
+        #     labelcolor=fontcolor,
+        #     mode="expand", 
+        #     borderaxespad=0.,\
+        #     frameon=False, 
+        #     columnspacing=0.05, 
+        #     handlelength=legend_entrylen, 
+        #     handletextpad=legend_entrypad
+        # )                
+        
+        # ax1.spines['top'].set_visible(False)
+        # ax2.spines['top'].set_visible(False)
+        # ax2.spines['right'].set_visible(False)
+        # for ax in (ax1,ax2):
+        #     ax.tick_params(colors='gray')
+        #     ax.spines['left'].set_color('gray')
+        #     ax.spines['bottom'].set_color('gray')
+        
+        ax1.spines['top'].set_visible(False)
+        # ax1.spines['left'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        # ax2.spines['right'].set_visible(False)
+        # for ax in (ax1,ax2):
+        ax1.tick_params(colors='gray')
+        ax2.tick_params(colors='gray')
+        ax1.spines['bottom'].set_color('gray')
+        ax2.spines['bottom'].set_color('gray')
+        ax1.spines['left'].set_color('gray')
+        ax2.spines['right'].set_color('gray')
+        ax2.spines['left'].set_color('gray')        
+        
+        # plot asterisk or star 1/4 through the bar (0.25 * unprec number as position) if significant differenc and if given side is bigger
+        # also plot percentage numbers midway through the bars
+        poor_unprec_lowgmt_pct = poor_unprec_lowgmt / poor_pop * 100
+        poor_unprec_higmt_pct = poor_unprec_higmt / poor_pop * 100
+        
+        for i,by in enumerate(birth_years[::-1*per_x]):
+            
+            # asterisks for significance
+            if pvalues_poor[::-1*per_x][i] < sl:
+                ax2.plot(
+                    poor_unprec_higmt[::-1*per_x][i]/4,
+                    by,
+                    marker=(6,2,0),
+                    zorder=5,
+                    markersize=8,  
+                    color='k',                  
+                )          
+                
+            # percentages
+            # left side / low gmt
+            if poor_unprec_lowgmt_pct[::-1*per_x][i] > 50:
+                x_poor_lowgmt = poor_unprec_lowgmt[::-1*per_x][i] * -2/3
+            elif poor_unprec_lowgmt_pct[::-1*per_x][i] < 50:
+                x_poor_lowgmt = poor_pop[::-1*per_x][i] * -0.6
+            ax1.text(
+                x=x_poor_lowgmt,
+                y=by,
+                s='{}%'.format(str(int(np.round(poor_unprec_lowgmt_pct[::-1*per_x][i])))),
+                horizontalalignment='center',
+                verticalalignment='center',
+                transform=ax1.transData,
+                fontsize=9,
+                color='k'
+            ) 
+            
+            # right side / high gmt
+            if poor_unprec_higmt_pct[::-1*per_x][i] > 50:
+                x_poor_higmt = poor_unprec_higmt[::-1*per_x][i] * 2/3
+            elif poor_unprec_higmt_pct[::-1*per_x][i] < 50:
+                x_poor_higmt = poor_pop[::-1*per_x][i] * 0.6
+            ax2.text(
+                x=x_poor_higmt,
+                y=by,
+                s='{}%'.format(str(int(np.round(poor_unprec_higmt_pct[::-1*per_x][i])))),
+                horizontalalignment='center',
+                verticalalignment='center',
+                transform=ax2.transData,
+                fontsize=9,
+                color='k'
+            )                    
+        ax1.invert_yaxis() # only have to do this once because because y axis are shared
+        ax2.invert_yaxis()
+        # f.savefig(
+        #     './figures/pyramid/inverted/vln_pyramid_richlohi_{}_{}_{}_{}.png'.format(vln_type,e,qntl_range,unit),
+        #     dpi=1000,
+        #     bbox_inches='tight',
+        # )
+        # plt.show()        
 # %% ===============================================================================
 # composing entire pyramid plot together
 def testing_whole_pyramid(
