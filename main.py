@@ -499,81 +499,7 @@ if flags['vulnerability']:
         da_cohort_size_1960_2020,
         d_global_emergence,
     )
-#%% ----------------------------------------------------------------
-# testing space
-# ------------------------------------------------------------------
 
-# putting all my pyramid plot shit together
-vln_type='grdi'
-x=10
-y=10
-f = plt.figure(figsize=(x,y))    
-gs0 = gridspec.GridSpec(11,4, wspace=0.0)
-
-# # map top left
-# ax00 = f.add_subplot(gs0[0:5,0:2],projection=ccrs.Robinson())
-
-# main pyramid of rich vs poor
-# ax01 for top left -> extra "1" for left, extra "2" for right (i.e., to match ax1 and ax2 from original singular pyramid plot)
-ax011 = f.add_subplot(gs0[1:5,2:3]) 
-ax012 = f.add_subplot(gs0[1:5,3:4])
-
-# map top left (calling this after top right subplots helps move the map border on top of the other subplot's space)
-ax00 = f.add_subplot(gs0[0:5,0:2],projection=ccrs.Robinson())
-
-# secondary pyramid of poor low vs high gmt trajectory
-ax101 = f.add_subplot(gs0[6:10,0:1])
-ax102 = f.add_subplot(gs0[6:10,1:2],sharey=ax101)
-
-# secondary pyramid of rich low vs high gmt trajectory
-ax111 = f.add_subplot(gs0[6:10,2:3])
-ax112 = f.add_subplot(gs0[6:10,3:4])
-# ax112 = f.add_subplot(gs0[6:10,3:4],sharey=ax111)
-
-#--------------------------------
-# map
-pyramid_map_subplot(
-    vln_type,
-    ds_grdi_qntls,
-    ds_gdp_qntls,
-    da_cohort_size_1960_2020,
-    gdf_robinson_bounds,
-    f,
-    ax00
-)        
-        
-#--------------------------------
-# pyramid - top right
-pyramid_subplot(
-    flags,
-    df_GMT_strj,
-    vln_type,
-    f,
-    ax011,
-    ax012
-)
-
-#--------------------------------
-# pyramid - bottom left
-pyramid_poor_lowhigh_subplot(
-    flags,
-    df_GMT_strj,
-    vln_type,
-    f,
-    ax101,
-    ax102
-)
-    
-#--------------------------------
-# pyramid - bottom right
-pyramid_rich_lowhigh_subplot(
-    flags,
-    df_GMT_strj,
-    vln_type,
-    f,
-    ax111,
-    ax112
-)
 
 #%% ----------------------------------------------------------------
 # main text plots
@@ -592,17 +518,6 @@ if flags['plot_ms']:
         flags,
         df_life_expectancy_5,
     )
-
-    # f2 of ms, combined heatwave plot
-    # plot_combined_piechart(
-    #     df_GMT_strj,
-    #     ds_pf_gs,
-    #     da_gs_popdenom,
-    #     gdf_country_borders,
-    #     sims_per_step,
-    #     flags,
-    #     df_countries,
-    # )
     
     # f2 alternative with absolute pops below box plots and no pie charts
     # further, returning robinson boundaries for use in pyramid plot maps for consistent map extents (that exclude antarctica)
@@ -623,51 +538,16 @@ if flags['plot_ms']:
         flags,
     )
 
-    # # f4 of emergence union plot for hazards between 1960 and 2020 in a 2.7 degree world
-    # plot_emergence_union(
-    #     grid_area,
-    #     da_emergence_mean,
-    # )
-
-    # # f4 alternative for hexagons and multiple thresholds
-    # plot_hexagon_multithreshold(
-    #     d_global_emergence,
-    # )    
-
     # f4 pyramid plotting
-    # first set up quantiles for plotting
-    pyramid_setup(
-        flags,
-        ds_gdp,
-        ds_grdi,
+    pyramid_combined(
+        ds_grdi_qntls,
+        ds_gdp_qntls,
         da_cohort_size_1960_2020,
-        ds_vulnerability,
+        gdf_robinson_bounds,
+        df_GMT_strj,
+        flags,
     )
-    # then run plots
-    for vln_type in ('gdp','grdi'):
-        print(vln_type)
-        pyramid_plot( # this is plot of rich vs poor (brown & green) for current trajectories 
-            flags,
-            df_GMT_strj,
-            vln_type,
-        )
-        pyramid_map( # map showing locations of top 20 vs bottom 20 quantiles
-            vln_type,
-            ds_grdi_qntls,
-            ds_gdp_qntls,
-            da_cohort_size_1960_2020,
-            gdf_robinson_bounds,
-        )
-        pyramid_poor_lowhigh( # poor pop but high vs low GMT trajectories
-            flags,
-            df_GMT_strj,
-            vln_type,
-        )
-        pyramid_rich_lowhigh( # rich pop but high vs low GMT trajectories
-            flags,
-            df_GMT_strj,
-            vln_type
-        )
+
     
 #%% ----------------------------------------------------------------
 # supplementary text plots
