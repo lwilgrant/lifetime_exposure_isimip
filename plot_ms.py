@@ -2497,6 +2497,7 @@ def plot_combined_population(
         y='pf',
         hue='GMT_label',
         palette=colors,
+        whis=(0,100),
         showcaps=False,
         showfliers=False,
         boxprops={
@@ -2768,7 +2769,8 @@ def plot_combined_population(
     cb.outline.set_linewidth(cb_edgthic)   
     cax00.xaxis.set_label_position('top')   
 
-    # f.savefig('./ms_figures/f2_combined_plot_popsizes.png',dpi=1000)
+    f.savefig('./ms_figures/f2_combined_plot_popsizes.png',dpi=1000)
+    f.savefig('./ms_figures/f2_combined_plot_popsizes.pdf',dpi=1000)
     return gdf_robinson_bounds
     
 #%% ----------------------------------------------------------------
