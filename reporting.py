@@ -130,6 +130,7 @@ def multi_hazard_emergence(
 # ------------------------------------------------------------------
 
 def gridscale_cohort_sizes(
+    flags,
     da_population,
     gridscale_countries,   
 ):
@@ -155,7 +156,7 @@ def gridscale_cohort_sizes(
     for cntry in gridscale_countries:
         print(cntry)
         # load demography pickle
-        with open('./data/pickles_v2/gridscale_dmg_{}.pkl'.format(cntry), 'rb') as f:
+        with open('./data/{}/gridscale_dmg_{}.pkl'.format(flags['version'],cntry), 'rb') as f:
             ds_dmg = pk.load(f)   
         # get population used in analysis
         da_cohort_cntry = ds_dmg['by_population_y0']
@@ -170,7 +171,7 @@ def gridscale_cohort_sizes(
             ds_gridscale_cohortsize['cohort_size'].loc[{'birth_year':birth_years,'lat':da_cohort_cntry.lat.data,'lon':da_cohort_cntry.lon.data}],
         )
     print('countries merged')
-    with open('./data/pickles_v2/gridscale_cohort_global.pkl', 'wb') as f:
+    with open('./data/{}/gridscale_cohort_global.pkl'.format(flags['version']), 'wb') as f:
         pk.dump(ds_gridscale_cohortsize,f)   
         
 #%% ----------------------------------------------------------------
@@ -178,14 +179,15 @@ def gridscale_cohort_sizes(
 # ------------------------------------------------------------------        
         
 def exposure_locs(
+    flags,
     grid_area,
 ):        
     extremes = [
-        'burntarea', 
-        'cropfailedarea', 
-        'driedarea', 
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
         'floodedarea', 
-        'heatwavedarea', 
+        # 'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
 
@@ -195,7 +197,7 @@ def exposure_locs(
 
     for extr in extremes:
         
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_ar6_rm.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/isimip_metadata_{}_ar6_rm.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             d_isimip_meta = pk.load(file)     
             
         n = 0
@@ -204,7 +206,7 @@ def exposure_locs(
             print('simulation {} of {}'.format(i,len(d_isimip_meta)))
 
             # load AFA data of that run
-            with open('./data/pickles_v2/{}/isimip_AFA_{}_{}.pkl'.format(extr,extr,str(i)), 'rb') as f:
+            with open('./data/{}/{}/isimip_AFA_{}_{}.pkl'.format(flags['version'],extr,extr,str(i)), 'rb') as f:
                 da_AFA = pk.load(f)           
             
             if n == 0:    
@@ -216,7 +218,7 @@ def exposure_locs(
             
         da_exposure_occurence = xr.where(da_sum>0,1,0)
         
-        with open('./data/pickles_v2/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'wb') as file:
+        with open('./data/{}/{}/exposure_occurrence_{}.pkl'.format(flags['version'],extr,extr), 'wb') as file:
             pk.dump(da_exposure_occurence,file)      
             
             
@@ -235,17 +237,17 @@ def emergence_locs_perrun(
     countries_regions,
 ):
 
-    gmt_indices_sample = [0,10,12,17,20]
+    gmt_indices_sample = [0,10,20]
     lat = grid_area.lat.values
     lon = grid_area.lon.values
     da_mask = rm.defined_regions.natural_earth_v5_0_0.land_110.mask(lon,lat)
     
     extremes = [
-        'burntarea', 
-        'cropfailedarea', 
-        'driedarea', 
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
         'floodedarea', 
-        'heatwavedarea', 
+        # 'heatwavedarea', 
         'tropicalcyclonedarea',
     ]    
             
@@ -255,7 +257,7 @@ def emergence_locs_perrun(
         start_time = time.time()
         
         # get metadata for extreme
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
             
         sims_per_step = {}
@@ -321,7 +323,7 @@ def emergence_locs_perrun(
                     
                     if d_isimip_meta[i]['GMT_strj_valid'][step]:
                     
-                        with open('./data/pickles_v2/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(extr,extr,cntry,i,step), 'rb') as f:
+                        with open('./data/{}/{}/gridscale_emergence_mask_{}_{}_{}_{}.pkl'.format(flags['version'],extr,extr,cntry,i,step), 'rb') as f:
                             da_birthyear_emergence_mask = pk.load(f)
                             
                         ds_cntry_emergence['emergence'].loc[{
@@ -346,7 +348,7 @@ def emergence_locs_perrun(
                     }],
                 )             
                 
-            with open('./data/pickles_v2/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'wb') as f:
+            with open('./data/{}/{}/emergence_locs_perrun_{}_{}.pkl'.format(flags['version'],extr,extr,step), 'wb') as f:
                 pk.dump(ds_global_emergence['emergence'],f)        
                 
         print("--- {} minutes for {} emergence loc ---".format(
@@ -366,7 +368,7 @@ def pf_geoconstrained(
     countries_mask,
 ):
 
-    gmt_indices_sample = [0,10,12,17,20]
+    gmt_indices_sample = [0,10,20]
     unprec_level="unprec_99.99"
     extremes = [
         'burntarea', 
@@ -377,7 +379,7 @@ def pf_geoconstrained(
         'tropicalcyclonedarea',
     ]    
 
-    with open('./data/pickles_v2/gridscale_cohort_global.pkl', 'rb') as file:
+    with open('./data/{}/gridscale_cohort_global.pkl'.format(flags['version']), 'rb') as file:
         ds_gridscale_cohortsize = pk.load(file)   
         
     da_gridscale_cohortsize = ds_gridscale_cohortsize['cohort_size']
@@ -388,11 +390,11 @@ def pf_geoconstrained(
         start_time = time.time()
 
         # first get all regions that have exposure to extr in ensemble
-        with open('./data/pickles_v2/{}/exposure_occurrence_{}.pkl'.format(extr,extr), 'rb') as file:
+        with open('./data/{}/{}/exposure_occurrence_{}.pkl'.format(flags['version'],extr,extr), 'rb') as file:
             da_exposure_occurrence = pk.load(file)          
 
         # get metadata for extreme
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)
             
         sims_per_step = {}
@@ -429,7 +431,7 @@ def pf_geoconstrained(
         # numerator to exposure constrained PF
         for step in gmt_indices_sample:
             
-            with open('./data/pickles_v2/{}/emergence_locs_perrun_{}_{}.pkl'.format(extr,extr,step), 'rb') as f:
+            with open('./data/{}/{}/emergence_locs_perrun_{}_{}.pkl'.format(flags['version'],extr,extr,step), 'rb') as f:
                 da_global_emergence = pk.load(f)
                 
             da_global_emergence = xr.where(da_global_emergence==1,1,0)    
@@ -457,7 +459,7 @@ def pf_geoconstrained(
                 'birth_year':birth_years,
             }] = da_pf        
         
-        with open('./data/pickles_v2/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'wb') as f:
+        with open('./data/{}/{}/pf_geoconstrained_{}.pkl'.format(flags['version'],extr,extr), 'wb') as f:
             pk.dump(ds_pf_geoconstrained,f)  
         
         print("--- {} minutes for {} pf in under geo constraints ---".format(
@@ -475,27 +477,27 @@ def print_pf_geoconstrained(
     da_gs_popdenom,
 ):
 
-    gmt_indices_sample = [6,15,17,24]
+    gmt_indices_sample = [0,10,20]
     unprec_level="unprec_99.99"
     extremes = [
-        'burntarea', 
-        'cropfailedarea', 
-        'driedarea', 
+        # 'burntarea', 
+        # 'cropfailedarea', 
+        # 'driedarea', 
         'floodedarea', 
-        'heatwavedarea', 
+        # 'heatwavedarea', 
         'tropicalcyclonedarea',
     ]
 
     for extr in extremes:
         
-        with open('./data/pickles_v2/{}/pf_geoconstrained_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/{}/{}/pf_geoconstrained_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
             ds_pf_geoconstrained = pk.load(f)      
             
-        with open('./data/pickles_v2/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(extr,extr), 'rb') as f:
+        with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],extr,extr), 'rb') as f:
             ds_pf_gs = pk.load(f)      
             
         # get metadata for extreme
-        with open('./data/pickles_v2/{}/isimip_metadata_{}_{}_{}.pkl'.format(extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
+        with open('./data/{}/{}/isimip_metadata_{}_{}_{}.pkl'.format(flags['version'],extr,extr,flags['gmt'],flags['rm']), 'rb') as f:
             d_isimip_meta = pk.load(f)    
             
         # maybe not necessary since means are ignoring nans for runs not included in some steps
@@ -776,7 +778,7 @@ def print_pf_ratios_and_abstract_numbers(
         
         pf_2020_1960_ratio = np.around(pf_2020 / pf_1960,1)
         
-        print('change in pf for {} in 2.7 degree \n scenario between 2020 and 1960 is {}'.format(extr,pf_2020_1960_ratio))
+        print('ratio in pf for {} in 2.7 degree \n scenario between 2020 and 1960 is {} (meaning, pf_2020/pf_1960)'.format(extr,pf_2020_1960_ratio))
         
         # looking across GMTs for 2020
         pf15 = ds_pf_gs_extrs.loc[{
@@ -1361,6 +1363,7 @@ def print_f2_info(
         
 def print_f3_info(
     flags,
+    da_gs_popdenom
 ):
     
     extremes = [
@@ -1389,7 +1392,7 @@ def print_f3_info(
 
     for extr in extremes:
         print(extr)
-        print('pf for 2020 under 3.5 degree pathway is {}'.format(ds_pf_gs_extrs.loc[{'hazard':extr,'birth_year':2020,'GMT':0}].item()))            
+        print('pf for 2020 under 3.5 degree pathway is {}'.format(ds_pf_gs_extrs.loc[{'hazard':extr,'birth_year':2020,'GMT':20}].item()))            
 
 #%% ----------------------------------------------------------------
 # save the children info

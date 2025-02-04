@@ -163,6 +163,7 @@ countries_regions, countries_mask = d_countries['mask']
 global grid_area
 grid_area = xr.open_dataarray('./data/isimip/clm45_area.nc4')
 
+print('running load_isimip')
 d_isimip_meta,d_pic_meta = load_isimip(
     extremes,
     model_names,
@@ -196,6 +197,7 @@ gridscale_countries = get_gridscale_regions(
 # birth year aligned cohort sizes for gridscale analysis (summed over lat/lon per country)
 if not os.path.isfile('./data/{}/gs_cohort_sizes.pkl'.format(flags['version'])):
 
+    print('getting da_gs_popdenom')
     da_gs_popdenom = get_gridscale_popdenom(
         gridscale_countries,
         da_cohort_size,
@@ -212,12 +214,14 @@ if not os.path.isfile('./data/{}/gs_cohort_sizes.pkl'.format(flags['version'])):
 else:
     
     # load pickle birth year aligned cohort sizes for gridscale analysis (summed per country, i.e. not lat/lon explicit)
+    print('loading da_gs_popdenom')
     with open('./data/{}/gs_cohort_sizes.pkl'.format(flags['version']), 'rb') as f:
         da_gs_popdenom = pk.load(f)               
 
 # run gridscale emergence analysis
 if flags['gridscale']:
     
+    print('calculating emergence')
     ds_pf_gs = gridscale_emergence(
         d_isimip_meta,
         d_pic_meta,
@@ -233,6 +237,7 @@ if flags['gridscale']:
 else:
     
     # # load pickled aggregated pop frac datasets
+    print('loading emergence')
     with open('./data/{}/{}/gridscale_aggregated_pop_frac_{}.pkl'.format(flags['version'],flags['extr'],flags['extr']), 'rb') as f:
         ds_pf_gs = pk.load(f)
         
@@ -313,6 +318,8 @@ if flags['gdp_deprivation']:
     
 # vulnerability subsetting
 if flags['vulnerability']:  
+    
+    print('running vulnerability analysis')
 
     # get spatially explicit cohort sizes for all birth years in analysis
     da_cohort_size_1960_2020 = get_spatially_explicit_cohorts_1960_2020(
@@ -533,6 +540,8 @@ if flags['plot_si']:
 
 if flags['reporting']:
     
+    print('running reporting functions')
+    
     from reporting import *
     
     # estimates of land area and (potential) pf for 1960 and 2020 emergencve of multiple hazards
@@ -544,6 +553,7 @@ if flags['reporting']:
     
     # get birth year cohort sizes at grid scale
     gridscale_cohort_sizes(
+        flags,
         da_population,
         gridscale_countries,   
     )    
@@ -633,6 +643,7 @@ if flags['reporting']:
     # data for f3
     print_f3_info(
         flags,
+        da_gs_popdenom
     )
     
     # data for pyramid stuff (f4)
