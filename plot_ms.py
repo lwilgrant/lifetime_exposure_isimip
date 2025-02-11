@@ -792,6 +792,7 @@ def plot_conceptual(
     print('{} thousand unprecedented born in {} and later under pathway {}'.format(unprecedented/10**3,y1,20))        
 
     f.savefig('./ms_figures/f1_concept_{}_{}.png'.format(flags['version'],cntry),dpi=1000,bbox_inches='tight')
+    f.savefig('./ms_figures/f1_concept_{}_{}.pdf'.format(flags['version'],cntry),dpi=1000,bbox_inches='tight')
 
 #%% ----------------------------------------------------------------
 # plotting pf heatmaps for grid scale across hazards with and without
@@ -2397,7 +2398,7 @@ def plot_combined_population(
     norm=mpl.colors.BoundaryNorm(levels,ncolors=len(levels)-1)
     l = 0 # letter indexing
     gmt_indices_152535 = [20,10,0]
-    map_letters = {20:'g',10:'f',0:'e'}
+    map_letters = {20:'e',10:'d',0:'c'}
 
     gmt_legend={
         GMT_indices_plot[0]:'1.5',
@@ -2426,33 +2427,7 @@ def plot_combined_population(
     )
     ax01 = f.add_subplot(gs01[0],projection=ccrs.Robinson())
     ax11 = f.add_subplot(gs01[1],projection=ccrs.Robinson())
-    ax21 = f.add_subplot(gs01[2],projection=ccrs.Robinson()) 
-    
-    # this is copied from my pyramid plot maps. comparison meant to get nicer version of robinson seen in the other
-    # seems that when robinson is called from subplot instantiation, the panels look different
-    # f,ax = plt.subplots(
-    #     ncols=1,
-    #     nrows=1,
-    #     subplot_kw={'projection':ccrs.Robinson()},
-    #     transform=ccrs.PlateCarree()
-    # )
-    # ax.add_feature(feature.NaturalEarthFeature('physical', 'ocean', '50m', edgecolor='powderblue', facecolor='powderblue'))
-    # gdf_p.to_crs(robinson).plot(
-    #     ax=ax,
-    #     column='grdi_q_by_p',
-    #     color='darkgoldenrod',
-    #     zorder=5,
-    #     markersize=0.5,
-    # )    
-    # gdf_r.to_crs(robinson).plot(
-    #     ax=ax,
-    #     column='grdi_q_by_p',
-    #     color='forestgreen',
-    #     zorder=5,
-    #     markersize=0.5,
-    # )            
-    # ax.set_xlim(gdf_robinson_bounds[0],gdf_robinson_bounds[2])
-    # ax.set_ylim(gdf_robinson_bounds[1],gdf_robinson_bounds[3])      
+    ax21 = f.add_subplot(gs01[2],projection=ccrs.Robinson())  
     
     pos00 = ax21.get_position()
     cax00 = f.add_axes([
@@ -2506,6 +2481,23 @@ def plot_combined_population(
         },        
         ax=ax0,
     )
+    p = sns.stripplot(
+        data=df_pf_gs_plot[df_pf_gs_plot['hazard']==extr],
+        x='birth_year',
+        y='pf',
+        hue='GMT_label',
+        palette=colors,
+        dodge=True,
+        alpha=0.4,
+        # whis=(0,100),
+        # showcaps=False,
+        # showfliers=False,
+        # boxprops={
+        #     'linewidth':0,
+        #     'alpha':0.5
+        # },        
+        ax=ax0,
+    )    
     p.legend_.remove()                  
     ax0.spines['right'].set_visible(False)
     ax0.spines['top'].set_visible(False)      
@@ -4783,6 +4775,13 @@ def pyramid_subplot(
         fontweight='bold',
         loc='left'
     )    
+    ax1.set_title(
+        'Current policies',
+        fontweight='bold',
+        loc='right',
+        color='gray',
+        x=1.35
+    )      
     
     per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
     height=4 # thickness of bars
@@ -5872,6 +5871,13 @@ def pyramid_poor_lowhigh_subplot(
         fontweight='bold',
         loc='left'
     )    
+    ax1.set_title(
+        'High deprivation',
+        fontweight='bold',
+        loc='right',
+        color='gray',
+        x=1.4
+    )          
 
     per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
     height=4 # thickness of bars
@@ -5893,7 +5899,7 @@ def pyramid_poor_lowhigh_subplot(
     fontcolor='gray'
     # bbox for legend
     x0 = 0.1
-    y0 = 0.95
+    y0 = 0.99
     xlen = 0.2
     ylen = 0.3
     cmap = ['steelblue','darkred']  
@@ -6464,7 +6470,14 @@ def pyramid_rich_lowhigh_subplot(
         'd',
         fontweight='bold',
         loc='left'
-    )    
+    )  
+    ax1.set_title(
+        'Low deprivation',
+        fontweight='bold',
+        loc='right',
+        color='gray',
+        x=1.4
+    )          
 
     per_x=5 # every how many years do we plot (i.e. 1960,1970,1980,...2020 on y axis would be "10")
     height=4 # thickness of bars
