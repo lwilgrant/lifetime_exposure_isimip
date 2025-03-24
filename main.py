@@ -92,18 +92,18 @@ flags['gridscale_country_subset'] = 0      # 0: run gridscale analysis on all co
                                            # 1: run gridscale analysis on subset of countries determined in "get_gridscale_regions" 
 flags['global_emergence_recollect'] = 0        # 0: do not process or load pickles of global emergence masks
                                     # 1: process or load pickles if they're present (note that pickles are huge on hydra)
-flags['pic_quantiles'] = 1          # 0: do not load sensitivity tests of pic lifetime exposure for a range of percentiles as thresholds for ULE (only ran for heatwaves)
+flags['pic_quantiles'] = 0          # 0: do not load sensitivity tests of pic lifetime exposure for a range of percentiles as thresholds for ULE (only ran for heatwaves)
                                     # 1: load that^ (not a lot of memory)                                    
 flags['global_avg_emergence'] = 0                                                                                                
-flags['gdp_deprivation'] = 1        # 0: do not process/load lifetime GDP/GRDI average
+flags['gdp_deprivation'] = 0        # 0: do not process/load lifetime GDP/GRDI average
                                     # 1: load lifetime GDP average analysis        
-flags['vulnerability'] = 1          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
+flags['vulnerability'] = 0          # 0: do not process subsets of d_collect_emergence vs gdp & deprivation quantiles
                                     # 1: process/load d_collect_emergence vs gdp & deprivation quantiles for vulnerability analysis
 flags['plot_ms'] = 0 # 1 yes plot, 0 no plot
 flags['plot_si'] = 0
 flags['reporting'] = 0  
 flags['testing'] = 0   
-
+flags['website'] = 1
 
 
 #%% ----------------------------------------------------------------
@@ -193,6 +193,46 @@ gridscale_countries = get_gridscale_regions(
     flags,
     gdf_country_borders,
 )
+
+# data for jonas to have country-mean exposure annually
+if flags['website']:
+    
+    from reporting import website_exposure_means
+    
+    # get annual lat- and pop-weighted means of exposure across GMT, country and time (no cummulative summing, no birth-year life expectancy integration)
+    ds_e = website_exposure_means(
+        flags,
+        gridscale_countries,
+        GMT_labels,
+        year_range,
+        countries_mask,
+        countries_regions,
+        da_population,
+        d_isimip_meta,
+    )
+    
+    # then exort to excel, limit each country's time axis based on life expectancy in 2020 ...
+    excel_file_pw = './data/{}/website_exposure_population_weighted.xlsx'.format(flags['version'])
+    excel_file_lw = './data/{}/website_exposure_latitude_weighted.xlsx'.format(flags['version'])
+    
+    # write pop weighted results to excel
+    with pd.ExcelWriter(excel_file_pw, engine="openpyxl") as writer:
+        for gmt in ds_e.GMT.values:
+            gmt_label = np.round(df_GMT_strj.loc[2100,gmt],1).astype('str')
+            df = ds_e['exposure_popweight'].sel(GMT=gmt).to_dataframe().reset_index(level='country')
+            df_rearrange = df.pivot_table(values='exposure_popweight',index=df.index,columns='country')
+            df_rearrange.to_excel(writer, sheet_name=gmt_label)
+            
+    # write lat weigthed results to excel
+    with pd.ExcelWriter(excel_file_lw, engine="openpyxl") as writer:
+        for gmt in ds_e.GMT.values:
+            gmt_label = np.round(df_GMT_strj.loc[2100,gmt],1).astype('str')
+            df = ds_e['exposure_latweight'].sel(GMT=gmt).to_dataframe().reset_index(level='country')
+            df_rearrange = df.pivot_table(values='exposure_latweight',index=df.index,columns='country')
+            df_rearrange.to_excel(writer, sheet_name=gmt_label)
+    
+    
+    
 
 # birth year aligned cohort sizes for gridscale analysis (summed over lat/lon per country)
 if not os.path.isfile('./data/{}/gs_cohort_sizes.pkl'.format(flags['version'])):
