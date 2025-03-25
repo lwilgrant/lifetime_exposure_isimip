@@ -231,6 +231,10 @@ if flags['website']:
             df_rearrange = df.pivot_table(values='exposure_latweight',index=df.index,columns='country')
             df_rearrange.to_excel(writer, sheet_name=gmt_label)
     
+    # write function for getting country aggregated pic 99.99 quantile
+    # load PIC pickle
+    with open('./data/{}/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'rb') as f:
+        ds_pic_qntl = pk.load(f)           
     
     
 

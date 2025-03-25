@@ -2020,3 +2020,97 @@ def website_exposure_means(
             
     return ds_e
 # %%
+
+#%% ----------------------------------------------------------------
+# save the children info for website
+# ------------------------------------------------------------------
+
+def website_pic_threshold(
+    flags,
+    gridscale_countries,
+    countries_mask,
+    countries_regions,
+    da_population,
+    d_pic_meta,
+):
+    
+    # pickle birth year aligned cohort sizes for gridscale analysis (summed per country)
+    if not os.path.exists('./data/{}/website_{}_pic_thresholds.pkl'.format(flags['version'],flags['extr'])):
+    
+        # use da_population as input for pop weighted mean
+        # lifetime exposure dataset (pop weighted mean of pixel scale lifetime exposure per country, run, GMT and birthyear)
+        ds_pic_qntl = xr.Dataset(
+            data_vars={
+                'pic_popweight': (
+                    ['country'],
+                    np.full(
+                        (len(gridscale_countries),),
+                        fill_value=np.nan,
+                    ),
+                ),
+                'pic_latweight': (
+                    ['country'],
+                    np.full(
+                        (len(gridscale_countries)),
+                        fill_value=np.nan,
+                    ),
+                )
+            },
+            coords={
+                'country': ('country', gridscale_countries),
+            }
+        )  
+
+        for i,cntry in enumerate(gridscale_countries):
+
+            print('country # {} of {}, {}'.format(i,len(gridscale_countries),cntry))
+
+            # country mask and weights for latitude (probably won't use but will use population instead)
+            da_cntry = xr.DataArray(
+                np.in1d(countries_mask,countries_regions.map_keys(cntry)).reshape(countries_mask.shape),
+                dims=countries_mask.dims,
+                coords=countries_mask.coords,
+            )
+            da_cntry = da_cntry.where(da_cntry,drop=True)    
+            da_cntry_population = da_population.where(da_cntry,drop=True)
+            lat_weights = np.cos(np.deg2rad(da_cntry.lat))
+            lat_weights.name = "weights"      
+            
+            popweight_sample = []
+            latweight_sample = []
+
+            # loop over simulations
+            for i in list(d_pic_meta.keys()):
+
+                print('simulation {} of {}'.format(i,len(d_pic_meta)))
+                
+                with open('./data/{}/{}/{}/gridscale_pic_qntls_{}_{}.pkl'.format(flags['version'],flags['extr'],cntry,flags['extr'],cntry), 'rb') as f:
+                    ds_pic_qntl = pk.load(f)                           
+                        
+                # lat-weighted mean
+                da_pic_lw = ds_pic_qntl['99.99'].weighted(lat_weights).mean(('lat','lon'))       
+                latweight_sample.append(da_pic_lw)
+                
+                # pop-weighted mean
+                da_pic_pw = ds_pic_qntl['99.99'].weighted(da_cntry_population).mean(('lat','lon'))     
+                popweight_sample.append(da_pic_pw)
+                            
+                # assign 
+                ds_pic_qntl['exposure_latweight'].loc[{
+                    'country':cntry,
+                }] = xr.concat(latweight_sample,dim='run').mean(dim='run')
+                ds_pic_qntl['exposure_popweight'].loc[{
+                    'country':cntry,
+                }] = xr.concat(popweight_sample,dim='run').mean(dim='run')
+                    
+        # pickle birth year aligned cohort sizes for gridscale analysis (summed per country)
+        with open('./data/{}/website_{}.pkl'.format(flags['version'],flags['extr']), 'wb') as f:
+            pk.dump(ds_pic_qntl,f)         
+            
+    else:
+        
+        # pickle birth year aligned cohort sizes for gridscale analysis (summed per country)
+        with open('./data/{}/website_{}_pic_thresholds.pkl'.format(flags['version'],flags['extr']), 'rb') as f:
+            ds_pic_qntl = pk.load(f)
+            
+    return ds_pic_qntl
